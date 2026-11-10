@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.env
+.pytest_cache/
+
+# ข้อมูลจริงอาจมีข้อมูลส่วนบุคคล/ภาษี — ไม่ commit
+data/raw/*
+data/output/*
+!data/raw/.gitkeep
+!data/output/.gitkeep

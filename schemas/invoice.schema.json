@@ -1,0 +1,587 @@
+{
+  "$defs": {
+    "ExtraField": {
+      "description": "ข้อมูลที่เอกสารพิมพ์ไว้แต่ schema ไม่มีช่องให้ (เช่น หัก ณ ที่จ่าย, เลขที่ใบสั่งซื้อ, เงื่อนไขชำระเงิน).",
+      "properties": {
+        "label": {
+          "description": "ป้ายตามที่เอกสารพิมพ์ ใช้ภาษาเดิมของเอกสาร",
+          "title": "Label",
+          "type": "string"
+        },
+        "value": {
+          "description": "ค่าตามที่เอกสารพิมพ์ เป็นสตริงตามเดิม ไม่แปลงชนิด",
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "value"
+      ],
+      "title": "ExtraField",
+      "type": "object"
+    },
+    "FieldEvidence": {
+      "description": "หลักฐานของ field หนึ่งช่อง ไว้ไฮไลต์ใน Review UI (ไม่ใช่ความน่าจะเป็น ไม่มีน้ำหนักหรือ threshold).",
+      "properties": {
+        "level": {
+          "description": "missing=เอกสารชนิดนี้ควรมีแต่หาไม่เจอ · not_applicable=เอกสารชนิดนี้ไม่มีฟิลด์นี้ · conflict=ขัดแย้ง ต้องแก้หรือยืนยัน · verified=มี check ผ่านและไม่มีอะไรขัด · unverified=ไม่มีตัวยืนยัน ให้ดูเทียบภาพ",
+          "enum": [
+            "missing",
+            "not_applicable",
+            "conflict",
+            "verified",
+            "unverified"
+          ],
+          "title": "Level",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ค่าที่ระบบสกัดได้ (เป็นสตริง) ไว้เทียบกับภาพ",
+          "title": "Value"
+        },
+        "format_valid": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ผ่านรูปแบบ (เลขภาษี 13 หลัก + checksum); None = field นี้ไม่มีกฎรูปแบบ",
+          "title": "Format Valid"
+        },
+        "checks_passed": {
+          "description": "check ที่ผ่านและยืนยันค่านี้ได้",
+          "items": {
+            "type": "string"
+          },
+          "title": "Checks Passed",
+          "type": "array"
+        },
+        "checks_failed": {
+          "description": "check ที่ใช้ค่านี้และไม่ผ่าน",
+          "items": {
+            "type": "string"
+          },
+          "title": "Checks Failed",
+          "type": "array"
+        },
+        "grounded": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ค่าปรากฏในข้อความที่อ่านได้หรือไม่; None = ไม่ได้ตรวจ",
+          "title": "Grounded"
+        },
+        "sources_agree": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "rules กับ LLM ได้ค่าเดียวกันหรือไม่; None = มีแหล่งเดียว",
+          "title": "Sources Agree"
+        },
+        "handwritten": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "True = อ่านจากลายมือ; None = ยังไม่มีตัวตรวจลายมือ",
+          "title": "Handwritten"
+        },
+        "model_conf": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ยังไม่ได้เก็บ (ต้นทางระดับคำของ OCR ยังไม่ถูกส่งต่อ) จึงเป็น null เสมอ",
+          "title": "Model Conf"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ตัวสกัดที่ให้ค่านี้: rules หรือ llm",
+          "title": "Source"
+        }
+      },
+      "required": [
+        "level"
+      ],
+      "title": "FieldEvidence",
+      "type": "object"
+    },
+    "InvoiceData": {
+      "properties": {
+        "document_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "เช่น ใบกำกับภาษี, ใบเสร็จรับเงิน, invoice",
+          "title": "Document Type"
+        },
+        "vendor": {
+          "$ref": "#/$defs/Party"
+        },
+        "buyer": {
+          "$ref": "#/$defs/Party"
+        },
+        "book_no": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "เล่มที่ (บิลเล่ม) ใช้คู่กับ invoice_no กันเอกสารซ้ำ",
+          "title": "Book No"
+        },
+        "invoice_no": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Invoice No"
+        },
+        "date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ISO-8601 (ค.ศ.) — แปลงจาก พ.ศ. แล้ว",
+          "title": "Date"
+        },
+        "currency": {
+          "default": "THB",
+          "title": "Currency",
+          "type": "string"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/LineItem"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "subtotal": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "รวมเงินก่อนส่วนลด",
+          "title": "Subtotal"
+        },
+        "discount": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Discount"
+        },
+        "amount_before_vat": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "มูลค่าก่อนภาษีมูลค่าเพิ่ม",
+          "title": "Amount Before Vat"
+        },
+        "vat_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "เช่น 0.07",
+          "title": "Vat Rate"
+        },
+        "vat_amount": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Vat Amount"
+        },
+        "total_amount": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ยอดสุทธิรวม VAT",
+          "title": "Total Amount"
+        },
+        "extra_fields": {
+          "description": "ข้อมูลอื่นที่เอกสารพิมพ์ไว้แต่ไม่มีช่องข้างบน (ป้าย + ค่า) ห้ามใส่ข้อมูลที่มีช่องอยู่แล้ว",
+          "items": {
+            "$ref": "#/$defs/ExtraField"
+          },
+          "title": "Extra Fields",
+          "type": "array"
+        }
+      },
+      "title": "InvoiceData",
+      "type": "object"
+    },
+    "LineItem": {
+      "properties": {
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "quantity": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Quantity"
+        },
+        "unit_price": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit Price"
+        },
+        "amount": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ยอดเงินของรายการ (ก่อนส่วนลดท้ายบิล)",
+          "title": "Amount"
+        }
+      },
+      "required": [
+        "description"
+      ],
+      "title": "LineItem",
+      "type": "object"
+    },
+    "Party": {
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "tax_id": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{13}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "เลขประจำตัวผู้เสียภาษี 13 หลัก",
+          "title": "Tax Id"
+        },
+        "branch": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "สำนักงานใหญ่ / เลขสาขา 5 หลัก",
+          "title": "Branch"
+        },
+        "address": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Address"
+        }
+      },
+      "title": "Party",
+      "type": "object"
+    },
+    "ValidationCheck": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "passed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "None = ข้อมูลไม่พอให้ตรวจ",
+          "title": "Passed"
+        },
+        "detail": {
+          "default": "",
+          "title": "Detail",
+          "type": "string"
+        },
+        "fields": {
+          "description": "field ที่ check นี้ใช้จริง (ชื่อแบบ vendor.tax_id, items[0].amount) — ว่างเมื่อข้อมูลไม่พอให้ตรวจ",
+          "items": {
+            "type": "string"
+          },
+          "title": "Fields",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "ValidationCheck",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "schema_version": {
+      "default": "2.1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_file": {
+      "title": "Source File",
+      "type": "string"
+    },
+    "page": {
+      "default": 1,
+      "title": "Page",
+      "type": "integer"
+    },
+    "engine": {
+      "description": "เช่น paddle+rules, vlm:typhoon-ocr+llm",
+      "title": "Engine",
+      "type": "string"
+    },
+    "data": {
+      "$ref": "#/$defs/InvoiceData"
+    },
+    "checks": {
+      "items": {
+        "$ref": "#/$defs/ValidationCheck"
+      },
+      "title": "Checks",
+      "type": "array"
+    },
+    "field_evidence": {
+      "additionalProperties": {
+        "$ref": "#/$defs/FieldEvidence"
+      },
+      "description": "หลักฐานรายฟิลด์ คีย์แบบ vendor.tax_id, total_amount, items[0].amount",
+      "title": "Field Evidence",
+      "type": "object"
+    },
+    "ocr_confidence": {
+      "anyOf": [
+        {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "ค่าเฉลี่ยที่ OCR engine รายงานเอง (VLM ไม่มีค่านี้)",
+      "title": "Ocr Confidence"
+    },
+    "missing_fields": {
+      "description": "field สำคัญที่หาไม่เจอ",
+      "items": {
+        "type": "string"
+      },
+      "title": "Missing Fields",
+      "type": "array"
+    },
+    "handwritten_fields": {
+      "description": "field ที่อ่านมาจากลายมือ (เช่น vendor.name, total_amount) — ต้องมีหลักฐานยืนยันจึงอนุมัติอัตโนมัติ",
+      "items": {
+        "type": "string"
+      },
+      "title": "Handwritten Fields",
+      "type": "array"
+    },
+    "status": {
+      "enum": [
+        "auto_approved",
+        "needs_review",
+        "failed"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "raw_text": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "ข้อความดิบจาก OCR/VLM ไว้ debug",
+      "title": "Raw Text"
+    }
+  },
+  "required": [
+    "source_file",
+    "engine",
+    "data",
+    "status"
+  ],
+  "title": "ExtractionResult",
+  "type": "object"
+}

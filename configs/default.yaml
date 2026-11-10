@@ -1,0 +1,69 @@
+# ค่าตั้งต้นของ pipeline — override ได้ด้วย --config <file> หรือ env (.env)
+
+paths:
+  output_dir: data/output   # ผลทุกคำสั่งอยู่ใต้นี้ ดูโครงใน src/fin_extractor/runs.py
+
+loader:
+  pdf_dpi: 300            # ความละเอียดตอน render PDF เป็นภาพ
+
+# Preprocessing ชุดเดียวใช้ทั้ง PaddleOCR และ VLM — ภาพสี ไม่ binarize
+# เลือกจากการวัดกับชุดสังเคราะห์ (scripts/benchmark_preprocessing.py, ผลใน docs/02-preprocessing.md)
+#   - ภาพสีอ่านค่าสำคัญได้ครบ ส่วนภาพเทาทำให้ตัวตรวจจับข้อความของ Paddle ไม่เจอบรรทัดในภาพสแกนบางใบ
+#   - NL-means + CLAHE ช้า (เตรียมภาพ ~5 วิ/ใบ เทียบ ~0.2 วิ) และไม่ทำให้อ่านได้มากขึ้น
+preprocessing:
+  min_long_side: 1600     # upscale ถ้าภาพเล็กกว่านี้ (ยังไม่ได้วัดผลของขั้นนี้ — ชุดทดสอบใหญ่กว่าเกณฑ์อยู่แล้ว)
+  fix_orientation: true   # หมุน 90/180/270 ด้วยตัวจำแนกทิศทั้งหน้าของ Paddle
+  deskew: true
+  max_skew_angle: 15.0
+  denoise: none           # none | median | nlmeans | bilateral
+  clahe: false
+  binarize: none          # none | otsu | adaptive | sauvola
+  remove_borders: false
+  keep_color: true        # VLM อ่านภาพสีได้ดีกว่า และ Paddle เสถียรกว่าภาพเทา
+
+ocr:
+  paddle:
+    lang: th               # → th_PP-OCRv5_mobile_rec (Paddle 3.2+)
+    # ปิดตัวจำแนกทิศรายบรรทัด: มันตัดสินผิดว่าบรรทัดไทยกลับหัวแล้วหมุนกลับ
+    # อ่านได้ "81-SO-EZOZ" แทน "2023-05-18" (BITKUB-001 เพี้ยน 3 จาก 28 บรรทัด)
+    # ทิศของทั้งหน้าตรวจแล้วใน preprocessing (ตัวจำแนกทิศทั้งหน้าของ Paddle)
+    use_angle_cls: false
+
+vlm:
+  # provider: ollama  → Ollama native API (ตั้ง num_ctx ได้)       base_url: http://localhost:11434
+  # provider: openai  → OpenAI-compatible endpoint:
+  #     vLLM (local)  : http://localhost:8000/v1      model: ชื่อ HF repo ที่ serve
+  #     Typhoon API   : https://api.opentyphoon.ai/v1  (ตั้ง TYPHOON_API_KEY, เช็คชื่อ model ที่ docs.opentyphoon.ai)
+  provider: ollama
+  base_url: http://localhost:11434
+  model: scb10x/typhoon-ocr1.5-3b
+  api_key_env: TYPHOON_API_KEY   # ใช้เฉพาะ provider openai
+  temperature: 0.1
+  top_p: 0.6
+  max_tokens: 8192
+  num_ctx: 16384                 # ollama: ภาพ + prompt + output ต้องพอใน context
+  timeout: 300
+  max_image_side: 1800           # ย่อภาพก่อนส่ง VLM เพื่อลด token/เวลา
+
+llm_extractor:
+  # LLM ที่แปลง text/markdown → JSON ตาม schema (ใช้ใน mode=vlm หรือ --llm on)
+  provider: ollama
+  base_url: http://localhost:11434
+  model: qwen2.5:3b
+  api_key_env: LLM_API_KEY
+  temperature: 0.0
+  max_tokens: 4096
+  num_ctx: 8192
+  timeout: 300
+
+validation:
+  amount_tolerance: 0.02  # ยอมให้คลาดเคลื่อนจากการปัดเศษ (บาท)
+  default_vat_rate: 0.07
+
+# field ที่ชนิดเอกสารนั้น "ไม่มี" (ไม่นับเป็นหาไม่เจอ ไม่ทำให้ failed) ตั้งต้นว่าง: ต้องกรอกจากรายการที่ฝ่ายบัญชียืนยัน ไม่เดาเอง
+# ชื่อชนิดต้องตรงกับ data.document_type ที่ระบบสกัดได้ (rules ได้ tax_invoice/receipt/invoice/quotation, LLM ตอบข้อความอิสระ)
+# ตัวอย่างรูปแบบ (ยังไม่ใช้):
+#   document_types:
+#     <ชื่อชนิด>:
+#       not_applicable: [invoice_no, vendor.tax_id]
+document_types: {}
