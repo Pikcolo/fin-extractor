@@ -16,7 +16,6 @@ def test_layout_follows_stage_then_engine(tmp_path):
     assert p.raw("finance_doc_scan") == tmp_path / "raw" / "finance_doc_scan"
     assert p.preprocess("scans") == tmp_path / "preprocess" / "scans" / "default"
     assert p.preprocess_final("scans", "crop") == tmp_path / "preprocess" / "scans" / "crop" / "final"
-    assert p.preprocess_steps("scans") == tmp_path / "preprocess" / "scans" / "default" / "steps"
     assert p.raw_data("paddle", "scans") == tmp_path / "result_ocr" / "paddle" / "scans" / "raw_data"
     assert p.final("typhoon", "scans", "llm") == tmp_path / "result_ocr" / "typhoon" / "scans" / "final" / "llm"
     assert p.visualize("oxr", "scans") == tmp_path / "result_ocr" / "oxr" / "scans" / "visualize"

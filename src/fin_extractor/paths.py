@@ -106,9 +106,6 @@ class DataPaths:
     def preprocess(self, dataset: str, profile: str = DEFAULT_PROFILE) -> Path:
         return self._top("preprocess") / slug(dataset) / slug(profile)
 
-    def preprocess_steps(self, dataset: str, profile: str = DEFAULT_PROFILE) -> Path:
-        return self.preprocess(dataset, profile) / "steps"
-
     def preprocess_final(self, dataset: str, profile: str = DEFAULT_PROFILE) -> Path:
         return self.preprocess(dataset, profile) / "final"
 
