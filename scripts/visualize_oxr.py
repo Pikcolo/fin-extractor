@@ -80,7 +80,8 @@ def pick_source(stem: str, source: str) -> str:
 def input_page(stem: str, source: str) -> Image.Image:
     if source == "pdf":
         return render_page(stem)
-    return Image.open(PRE_DIR / "final" / f"{PREFIX}{stem}_p1.png").convert("RGB")
+    name = f"{PREFIX}{stem}"
+    return Image.open(find_dir(PRE_DIR / "final", name) / f"{name}_p1.png").convert("RGB")
 
 
 def render_page(stem: str) -> Image.Image:
@@ -136,7 +137,8 @@ def preprocess_strip(stem: str) -> tuple[Image.Image | None, str]:
     names = [("original", "ต้นฉบับ"), ("color", "คงสี"), ("deskew", "ปรับเอียง")]
     imgs, labels = [], []
     for key, th in names:
-        p = PRE_DIR / "steps" / f"{PREFIX}{stem}_p1_{'00_original' if key == 'original' else '01_color' if key == 'color' else '02_deskew'}.png"
+        name = f"{PREFIX}{stem}"
+        p = find_dir(PRE_DIR / "steps", name) / f"{name}_p1_{'00_original' if key == 'original' else '01_color' if key == 'color' else '02_deskew'}.png"
         if p.exists():
             imgs.append(Image.open(p).convert("RGB"))
             labels.append(key)
