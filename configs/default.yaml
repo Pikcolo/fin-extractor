@@ -3,7 +3,6 @@
 paths:
   data_dir: data            # ข้อมูลทุกอย่างอยู่ใต้นี้ โครงดู src/fin_extractor/paths.py (ไม่ commit ทั้งหมด)
   # folders: {result_ocr: ocr_results}   # เปลี่ยนชื่อโฟลเดอร์ระดับบนได้ (ไม่บังคับ)
-  output_dir: data/output   # [โครงเก่า ยังใช้อยู่จนกว่าจะย้ายตามแผน] ผลทุกคำสั่งอยู่ใต้นี้ ดูโครงใน src/fin_extractor/runs.py
 
 loader:
   pdf_dpi: 300            # ความละเอียดตอน render PDF เป็นภาพ

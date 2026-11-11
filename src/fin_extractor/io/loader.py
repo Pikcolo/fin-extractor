@@ -59,6 +59,20 @@ def load_pages(path: str | Path, pdf_dpi: int = 300) -> list[np.ndarray]:
     raise ValueError(f"ไม่รองรับไฟล์ {ext}")
 
 
+def page_count(path: str | Path) -> int:
+    """จำนวนหน้าของไฟล์โดยไม่เรนเดอร์ (ภาพ = 1 หน้า)."""
+    path = Path(path)
+    if path.suffix.lower() != ".pdf":
+        return 1
+    import pypdfium2 as pdfium
+
+    pdf = pdfium.PdfDocument(str(path))
+    try:
+        return len(pdf)
+    finally:
+        pdf.close()
+
+
 def iter_input_files(path: str | Path) -> Iterator[Path]:
     """รับได้ทั้งไฟล์เดี่ยวหรือโฟลเดอร์."""
     path = Path(path)

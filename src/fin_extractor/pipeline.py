@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Literal
 
 from .doctypes import (
@@ -52,19 +53,23 @@ class FinanceOCRPipeline:
         mode: Literal["ocr", "vlm"] = "ocr",
         engine: str = "paddle",
         use_llm: bool | None = None,
+        with_reader: bool = True,
     ):
+        """``with_reader=False``: ไม่โหลดตัวอ่าน (OCR/VLM) ใช้สกัดซ้ำจากข้อความดิบที่เก็บไว้ (process_raw) โดยไม่แตะ GPU."""
         self.cfg = cfg
         self.mode = mode
         self.use_llm = (mode == "vlm") if use_llm is None else use_llm
 
-        if mode == "ocr":
+        if mode not in ("ocr", "vlm"):
+            raise ValueError(f"unknown mode: {mode}")
+        if not with_reader:  # ใช้แค่ชื่อให้ engine_name ตรงกับตอนอ่านจริง
+            self.reader = SimpleNamespace(name=engine if mode == "ocr" else f"vlm:{cfg['vlm']['model']}")
+        elif mode == "ocr":
             self.reader = create_engine(engine, cfg)
-        elif mode == "vlm":
+        else:
             from .vlm import TyphoonOCR
 
             self.reader = TyphoonOCR(cfg["vlm"])
-        else:
-            raise ValueError(f"unknown mode: {mode}")
         self.profile = cfg["preprocessing"]
         self.doc_table = cfg.get("document_types") or {}
         self.profiles = load_profiles(self.doc_table)
@@ -80,22 +85,26 @@ class FinanceOCRPipeline:
     def engine_name(self) -> str:
         return self.reader.name + ("+" + self.llm.name if self.llm else "+rules")
 
-    def read_page(self, img, debug_dir: Path | None = None, stem: str = "page"):
-        """คืน (lines, raw_text, ocr_confidence, extra_checks)."""
-        pre = preprocess(img, self.profile, keep_steps=debug_dir is not None)
-        if debug_dir is not None:
-            pre.save_steps(debug_dir, stem)
-        log.info("preprocess %s: %s", stem, pre.meta)
-
-        res = self.reader.recognize(pre.image)
+    def read_prepared(self, img):
+        """อ่านข้อความจากภาพที่ผ่าน preprocess แล้ว คืน (lines, raw_text, ocr_confidence, extra_checks)."""
+        res = self.reader.recognize(img)
         if self.mode == "ocr":
             return [ln.text for ln in res.lines], res.text, res.mean_confidence, []
 
         extra = []
         if res.truncated:
-            extra.append(ValidationCheck(name="vlm_complete", passed=False,
-                                         detail="VLM ตอบไม่จบ (max_tokens) — ข้อมูลอาจขาด"))
+            extra.append(self._incomplete_check())
         return markdown_to_lines(res.markdown), res.markdown, None, extra
+
+    @staticmethod
+    def _incomplete_check() -> ValidationCheck:
+        return ValidationCheck(name="vlm_complete", passed=False, detail="VLM ตอบไม่จบ (max_tokens) — ข้อมูลอาจขาด")
+
+    def lines_from_raw(self, raw_text: str) -> list[str]:
+        """ข้อความดิบที่เก็บไว้ → บรรทัดสำหรับขั้นสกัด (แบบเดียวกับตอนอ่านสด)."""
+        if self.mode == "vlm":
+            return markdown_to_lines(raw_text)
+        return [ln for ln in raw_text.split("\n") if ln.strip()]
 
     def _consistency(self, d: InvoiceData) -> float:
         checks = run_checks(d, self.cfg["validation"]["amount_tolerance"],
@@ -180,14 +189,20 @@ class FinanceOCRPipeline:
             missing_fields=missing, status=status, raw_text=raw_text,
         )
 
-    def process_file(self, path: str | Path, debug_dir: str | Path | None = None) -> list[ExtractionResult]:
+    def process_page(self, source_file: str, page_no: int, img) -> ExtractionResult:
+        """ภาพที่ผ่าน preprocess แล้ว → อ่าน → สกัด → ผลของหน้านั้น."""
+        lines, raw_text, ocr_conf, extra = self.read_prepared(img)
+        return self.build_result(source_file, page_no, lines, raw_text, ocr_conf, extra)
+
+    def process_raw(self, source_file: str, page_no: int, raw_text: str, meta: dict | None = None) -> ExtractionResult:
+        """สกัดซ้ำจากข้อความดิบที่เก็บไว้ (ไม่เรียก OCR) ``meta`` = ไฟล์ .meta.json ของข้อความนั้น."""
+        meta = meta or {}
+        extra = [self._incomplete_check()] if meta.get("truncated") else []
+        return self.build_result(source_file, page_no, self.lines_from_raw(raw_text), raw_text,
+                                 meta.get("ocr_confidence"), extra)
+
+    def process_file(self, path: str | Path) -> list[ExtractionResult]:
+        """ไฟล์ → preprocess ในหน่วยความจำ → ผล (ไม่เก็บภาพ ใช้ใน script วัดผล; คำสั่ง CLI ใช้ stages.prepared_pages)."""
         path = Path(path)
-        pages = load_pages(path, self.cfg["loader"]["pdf_dpi"])
-        results = []
-        for page_no, img in enumerate(pages, start=1):
-            stem = f"{path.stem}_p{page_no}"
-            lines, raw_text, ocr_conf, extra = self.read_page(
-                img, Path(debug_dir) if debug_dir else None, stem
-            )
-            results.append(self.build_result(str(path), page_no, lines, raw_text, ocr_conf, extra))
-        return results
+        return [self.process_page(str(path), page_no, preprocess(img, self.profile).image)
+                for page_no, img in enumerate(load_pages(path, self.cfg["loader"]["pdf_dpi"]), start=1)]
