@@ -4,6 +4,7 @@
 จึงเทียบก่อน/หลังได้โดยไม่ปนความต่างของ OCR และรันได้ในไม่กี่วินาทีบนเครื่องที่ไม่มี GPU
 
 บรรทัดข้อความ = ``raw_text`` แยกด้วยบรรทัดใหม่ (โหมด ocr: raw_text คือข้อความของ engine เรียงตามบรรทัดอยู่แล้ว)
+ใส่ ``--markdown`` เมื่อ raw_text เป็น Markdown/ตาราง HTML ของ VLM (โหมด vlm) จะแปลงด้วย ``markdown_to_lines`` เหมือน pipeline
 ผลที่ได้เป็น rules ล้วน (ไม่มี LLM)
 
     .venv/Scripts/python scripts/reextract_from_raw.py data/output/extract/_baseline_ocr_raw data/output/extract/_reextract
@@ -22,6 +23,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from fin_extractor.config import load_config  # noqa: E402
 from fin_extractor.doctypes import load_core_labels, load_profiles  # noqa: E402
+from fin_extractor.extraction import markdown_to_lines  # noqa: E402
 from fin_extractor.pipeline import FinanceOCRPipeline  # noqa: E402
 
 
@@ -29,6 +31,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("src", help="โฟลเดอร์ผล extract ที่มี results/*.json และ raw_text")
     ap.add_argument("out", help="โฟลเดอร์ปลายทาง")
+    ap.add_argument("--markdown", action="store_true", help="raw_text เป็น Markdown ของ VLM (ใช้ markdown_to_lines)")
     args = ap.parse_args()
 
     cfg = load_config()
@@ -46,7 +49,7 @@ def main() -> None:
         raw = old.get("raw_text")
         if raw is None:
             sys.exit(f"{f.name}: ไม่มี raw_text (ต้องรัน extract ด้วย --keep-raw)")
-        lines = [ln for ln in raw.split("\n") if ln.strip()]
+        lines = markdown_to_lines(raw) if args.markdown else [ln for ln in raw.split("\n") if ln.strip()]
         res = pipe.build_result(old["source_file"], old["page"], lines, raw, old.get("ocr_confidence"), [])
         (out / f.name).write_text(res.model_dump_json(indent=2), encoding="utf-8")
         print(f"{f.name}: {res.data.document_profile:24} {old['status']} -> {res.status}  missing={','.join(res.missing_fields) or '-'}")

@@ -19,7 +19,6 @@ from .patterns import AMOUNT_RE, PERCENT_RE, find_tax_ids, normalize_tax_id, par
 from .rule_extractor import AMOUNT_FIELDS, AMOUNT_ONLY_RE, BUYER_RE, COMPANY_RE, DATE_LABEL_RE, INVOICE_NO_RE
 
 _LEAD = re.compile(r"^[\s:：.\-/|]+")
-_CODE = re.compile(r"[A-Za-z0-9][A-Za-z0-9\-/._]*")
 # ป้ายยาวไม่เกิน 40 ตัวอักษร: วัดจากสแกน 18 ใบ (66 บรรทัดรูป "ป้าย: ค่า") ป้ายจริงยาวสุด 31 ตัวอักษร ส่วนที่ยาว 44 ขึ้นไป
 # เป็นบรรทัดหลายคอลัมน์ที่ OCR ต่อกัน (ที่อยู่/เบอร์โทร/ประโยคท้ายฟอร์ม) ทั้งหมด ค่า 40 อยู่ในช่องว่างระหว่างสองกลุ่ม
 # ผูกกับชุดข้อมูลนี้ ถ้าเจอเอกสารที่มีป้ายยาวกว่านี้ให้วัดใหม่

@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Collection
 from typing import Literal
 
-from ..doctypes import DOC_PREFIX, KEY_FIELDS, legacy_not_applicable
+from ..doctypes import DOC_PREFIX, KEY_FIELDS
 from ..schema import InvoiceData, ValidationCheck
 
 
@@ -31,15 +31,6 @@ def _get(d: InvoiceData, dotted: str):
     for part in dotted.split("."):
         obj = getattr(obj, part)
     return obj
-
-
-def not_applicable_for(document_type: str | None, table: dict | None) -> set[str]:
-    """field ที่เอกสารชนิดนี้ไม่มี ตามตาราง ``document_types`` ใน config (เทียบชื่อชนิดแบบตัดช่องว่าง/ตัวพิมพ์)
-
-    รูปแบบเก่า (เทียบกับ ``data.document_type`` ตรง ๆ) โปรไฟล์ใหม่ใช้ ``Profile.not_applicable`` ผ่าน ``doctypes.classify``
-    ``document_type`` ที่ LLM ตอบเป็นข้อความอิสระ จึงต้องใส่ชื่อที่ตรงกับที่ระบบสกัดได้จริง
-    """
-    return legacy_not_applicable(table, document_type)
 
 
 def missing_fields(

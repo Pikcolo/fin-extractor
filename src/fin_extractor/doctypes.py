@@ -94,10 +94,6 @@ class Profile:
         """โปรไฟล์ที่สถานะขึ้นต้นด้วย "draft" (รายการฟิลด์/required ยังไม่ผ่านการยืนยัน) อนุมัติอัตโนมัติไม่ได้ ต้องให้คนตรวจ."""
         return not self.status.strip().lower().startswith("draft")
 
-    @property
-    def required_fields(self) -> list[str]:
-        return [r for r in self.required if r not in self.not_applicable]
-
 
 GENERIC_PROFILE = Profile(name=GENERIC, title="ทั่วไป (ใบกำกับภาษี/ใบเสร็จ/invoice)")
 

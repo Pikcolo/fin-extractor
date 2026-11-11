@@ -203,7 +203,6 @@ def test_not_applicable_from_profile_is_distinguished_from_missing():
     prof = Profile(name="p", required=("vendor.name", "invoice_no"), not_applicable=frozenset({"invoice_no"}))
     ev = build_field_evidence(InvoiceData(), [], "", not_applicable=prof.not_applicable, required=prof.required)
     assert ev["invoice_no"].level == "not_applicable" and ev["vendor.name"].level == "missing"
-    assert prof.required_fields == ["vendor.name"]
 
 
 # ---------- LLM: schema ตามชนิด และ normalize ----------

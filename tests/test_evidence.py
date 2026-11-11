@@ -177,12 +177,13 @@ def test_remark_gets_evidence_without_check_and_is_never_verified():
 
 
 def test_not_applicable_is_distinct_from_missing():
-    from fin_extractor.validation.scoring import decide_status, not_applicable_for
+    from fin_extractor.doctypes import legacy_not_applicable
+    from fin_extractor.validation.scoring import decide_status
 
     table = {"หนังสือรับรอง 50 ทวิ": {"not_applicable": ["invoice_no", "total_amount"]}}
-    na = not_applicable_for(" หนังสือรับรอง  50 ทวิ ", table)
-    assert na == {"invoice_no", "total_amount"} and not_applicable_for("ใบเสร็จ", table) == set()
-    assert not_applicable_for(None, table) == set() and not_applicable_for("x", None) == set()
+    na = legacy_not_applicable(table, " หนังสือรับรอง  50 ทวิ ")
+    assert na == {"invoice_no", "total_amount"} and legacy_not_applicable(table, "ใบเสร็จ") == set()
+    assert legacy_not_applicable(table, None) == set() and legacy_not_applicable(None, "x") == set()
 
     d = InvoiceData(vendor={"name": "A", "tax_id": "0105559117128"}, date=date(2023, 5, 18))
     ev = evidence(d, not_applicable=na)
