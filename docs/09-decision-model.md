@@ -3,6 +3,8 @@
 แนวคิดการเพิ่ม decision model (Jev หรือ Laya) เข้าในระบบ เป็นเฟส U9 ต่อจากแผนใน
 [08-solution-and-roadmap.md](08-solution-and-roadmap.md)
 
+> แผนเรื่องใช้ decision model ช่วยทำ confidence รายฟิลด์ พร้อมข้อแย้งและตัวชี้วัด อยู่ที่ [11-decision-engine-confidence-plan.md](11-decision-engine-confidence-plan.md)
+
 > สถานะ: concept ยังไม่ได้ implement และยังไม่ได้ทดลองกับโมเดลจริง
 > ข้อมูลเกี่ยวกับ Jev และ Laya มาจากบล็อกและไดเรกทอรีเป็นส่วนใหญ่ (หัวข้อ "แหล่งข้อมูล")
 > ต้องตรวจกับ model card และเอกสารทางการก่อนตัดสินใจ

@@ -14,6 +14,7 @@
 | — | แผนรองรับลายมือและ confidence รายฟิลด์ | | [07-handwriting-and-field-confidence.md](07-handwriting-and-field-confidence.md) |
 | — | หลักการระบบ, best solution และแผนอัปเดต | | [08-solution-and-roadmap.md](08-solution-and-roadmap.md) |
 | — | Decision model (concept: Jev / Laya) | | [09-decision-model.md](09-decision-model.md) |
+| — | แผน decision engine กับ confidence รายฟิลด์ (ความเห็น ข้อแย้ง ตัวชี้วัด แผนเป็นขั้น) | | [11-decision-engine-confidence-plan.md](11-decision-engine-confidence-plan.md) |
 | — | OXR: ตัวอ่านเอกสารที่ลองแล้ว (หลักการ ข้อดีข้อเสีย ผลวัดภาษาไทย) | `scripts/benchmark_oxr.py`, `scripts/extract_oxr.py` | [10-oxr.md](10-oxr.md) |
 
 ## Workflow
