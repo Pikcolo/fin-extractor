@@ -156,6 +156,10 @@ VLM อ่านทั้งหน้าเป็น Markdown และเข้
 - **ข้อจำกัด:** ตัวอย่างน้อย (4 ใบ) ไม่มีเฉลย และเวลา 143.9 วินาทีของใบแรกรวมการโหลดโมเดล
 ## ผลเทียบสองโหมดบนสแกนจริง 18 ใบ (`--mode ocr` เทียบ `--mode vlm`)
 
+> **หมายเหตุ (2026-11-11):** ตัวเลขและข้อสังเกตในหัวข้อนี้มาจากรันของ 2026-11-10 ก่อนมีโปรไฟล์ชนิดเอกสาร ผลดิบชุดนั้น (รวม `ocr-llm`) ถูกลบแล้ว
+> รันใหม่ได้ ocr-rules 15 `needs_review`/3 `failed`, vlm-llm 16 `needs_review`/2 `auto_approved` (ดู [README](README.md)) ข้อสังเกตเรื่องค่าผิดของ LLM ด้านล่างยังไม่ได้ตรวจซ้ำกับรอบใหม่
+> ตาราง `data/output/benchmarks/compare_modes.md` เป็นของรอบเก่า
+
 เก็บผลสองชุดคู่กัน ชุด A `data/output/extract/finance_doc_scan__ocr-rules/` = `--mode ocr` (Paddle + rules) ชุด B `data/output/extract/finance_doc_scan__vlm-llm/` = `--mode vlm --keep-raw`
 (Typhoon OCR + `qwen2.5:3b` + rules) ตารางเทียบรายใบ: `data/output/benchmarks/compare_modes.md` (สร้างด้วย `scripts/compare_modes.py`) ไม่มีเฉลย
 

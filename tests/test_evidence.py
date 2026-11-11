@@ -110,14 +110,14 @@ def test_money_is_decimal_quantized_and_serialized_as_string():
     assert d.total_amount == Decimal("0.30") and d.subtotal == Decimal("47.50") and d.vat_rate == Decimal("0.07")
     r = ExtractionResult(source_file="x", engine="e", data=d, status="needs_review")
     j = r.model_dump_json()
-    assert '"total_amount":"0.30"' in j and '"schema_version":"2.1"' in j
+    assert '"total_amount":"0.30"' in j and '"schema_version":"3.0"' in j
 
 
 class _StubLLM:
     def __init__(self, data=None, error=None):
         self.data, self.error = data, error
 
-    def extract(self, text):
+    def extract(self, text, profile=None):
         if self.error:
             raise self.error
         return self.data
@@ -129,6 +129,7 @@ def _pipe(llm):
     p = object.__new__(FinanceOCRPipeline)  # ไม่โหลด OCR/VLM — ทดสอบเฉพาะตรรกะรวมผล
     p.cfg = {"validation": {"amount_tolerance": 0.02, "default_vat_rate": 0.07}}
     p.llm = llm
+    p.profiles, p.doc_table, p.core_labels = [], {}, ()
     return p
 
 
@@ -151,26 +152,28 @@ def test_extract_traced_without_llm_or_when_llm_fails():
         assert set(sources.values()) == {"rules"} and agree == {}
 
 
-# ---------- extra_fields และ not_applicable ----------
+# ---------- remark และ not_applicable ----------
 
 def test_llm_normalize_accepts_list_or_dict_and_drops_empty_values():
     from fin_extractor.extraction.llm_extractor import normalize_llm_output
 
-    as_list = normalize_llm_output({"extra_fields": [{"label": "หัก ณ ที่จ่าย 3%", "value": 60.0},
-                                                      {"label": "PO", "value": ""}, "ขยะ"]})
-    as_dict = normalize_llm_output({"extra_fields": {"หัก ณ ที่จ่าย 3%": "60.0", "PO": None}})
-    assert as_list["extra_fields"] == as_dict["extra_fields"] == [{"label": "หัก ณ ที่จ่าย 3%", "value": "60.0"}]
-    assert normalize_llm_output({})["extra_fields"] == []
-    echoed = normalize_llm_output({"extra_fields": [{"label": "ผู้จัดการ", "value": " ผู้จัดการ "}]})
-    assert echoed["extra_fields"] == []  # ค่าซ้ำกับป้าย = ช่องว่างของแบบฟอร์ม ไม่ใช่ข้อมูล
+    as_list = normalize_llm_output({"remark": [{"label": "หัก ณ ที่จ่าย 3%", "value": 60.0},
+                                                {"label": "PO", "value": ""}, "ขยะ"]})
+    as_dict = normalize_llm_output({"remark": {"หัก ณ ที่จ่าย 3%": "60.0", "PO": None}})
+    assert as_list["remark"] == as_dict["remark"] == [{"label": "หัก ณ ที่จ่าย 3%", "value": "60.0"}]
+    assert normalize_llm_output({})["remark"] == []
+    echoed = normalize_llm_output({"remark": [{"label": "ผู้จัดการ", "value": " ผู้จัดการ "}]})
+    assert echoed["remark"] == []
+    legacy = normalize_llm_output({"extra_fields": [{"label": "PO", "value": "123"}]})  # ชื่อเดิมของ schema 2.x
+    assert legacy["remark"] == [{"label": "PO", "value": "123"}] and "extra_fields" not in legacy  # ค่าซ้ำกับป้าย = ช่องว่างของแบบฟอร์ม ไม่ใช่ข้อมูล
 
 
-def test_extra_fields_get_evidence_without_check_and_are_never_verified():
-    d = InvoiceData(extra_fields=[{"label": "เลขที่ใบสั่งซื้อ", "value": "PO-123"},
+def test_remark_gets_evidence_without_check_and_is_never_verified():
+    d = InvoiceData(remark=[{"label": "เลขที่ใบสั่งซื้อ", "value": "PO-123"},
                                   {"label": "เงื่อนไข", "value": "โอนเงิน"}])
     ev = evidence(d, text="เลขที่ใบสั่งซื้อ PO-123")
-    assert ev["extra_fields[0]"].level == "unverified" and ev["extra_fields[0]"].grounded is True
-    assert ev["extra_fields[1]"].level == "conflict" and ev["extra_fields[1]"].grounded is False  # ไม่ปรากฏในข้อความ
+    assert ev["remark[0]"].level == "unverified" and ev["remark[0]"].grounded is True
+    assert ev["remark[1]"].level == "conflict" and ev["remark[1]"].grounded is False  # ไม่ปรากฏในข้อความ
 
 
 def test_not_applicable_is_distinct_from_missing():
@@ -191,9 +194,9 @@ def test_not_applicable_is_distinct_from_missing():
     assert decide_status(d, run_checks(d))[1] == "failed"  # ไม่ประกาศว่าไม่มี → ยังเป็น failed เหมือนเดิม
 
 
-def test_extract_traced_treats_extra_fields_like_items():
+def test_extract_traced_treats_remark_like_items():
     rules = extract_fields(BITKUB_LINES)
     llm = rules.model_copy(deep=True)
-    llm.extra_fields = [ExtraField(label="เงื่อนไข", value="โอนเงิน")]
+    llm.remark = [ExtraField(label="เงื่อนไข", value="โอนเงิน")]
     data, sources, agree = _pipe(_StubLLM(llm)).extract_traced(BITKUB_LINES, TEXT)
-    assert sources["extra_fields[0]"] == "llm" and "extra_fields[0]" not in agree
+    assert sources["remark[0]"] == "llm" and "remark[0]" not in agree

@@ -34,12 +34,14 @@ EXTRACTION_SYSTEM_PROMPT = """คุณคือระบบสกัดข้�
 - vat_rate เป็นทศนิยม เช่น 7% → 0.07
 - subtotal = ยอดรวมก่อนหักส่วนลด, amount_before_vat = มูลค่าก่อนภาษี, total_amount = ยอดสุทธิรวมภาษี
 - items: ทุกบรรทัดรายการสินค้า/บริการ พร้อม quantity และ unit_price ถ้าตารางมีคอลัมน์นั้น
-- extra_fields: ข้อมูลที่เอกสารพิมพ์ไว้แต่ไม่มีช่องใน schema (เช่น หัก ณ ที่จ่าย, เลขที่ใบสั่งซื้อ, เงื่อนไขชำระเงิน)
-  ใส่เป็น {"label": ป้ายตามที่พิมพ์, "value": ค่าตามที่พิมพ์} ห้ามใส่ข้อมูลที่มีช่องอยู่แล้ว ถ้าไม่มีให้เป็น []"""
+- document_fields (ถ้า schema มีช่องนี้): ฟิลด์เฉพาะของเอกสารชนิดนี้ คีย์ตาม schema ค่าเป็นสตริงตามที่พิมพ์ ไม่พบให้ละคีย์นั้น
+- remark: ข้อมูลที่เอกสารพิมพ์ไว้แต่ไม่มีช่องใน schema (เช่น เลขที่ใบสั่งซื้อ, เงื่อนไขชำระเงิน)
+  ใส่เป็น {"label": ป้ายตามที่พิมพ์, "value": ค่าตามที่พิมพ์} ห้ามใส่ข้อมูลที่มีช่องอยู่แล้ว (รวมถึง document_fields) ถ้าไม่มีให้เป็น []"""
 
 
-def extraction_user_prompt(document_text: str, json_schema: str) -> str:
-    return f"""JSON schema:
+def extraction_user_prompt(document_text: str, json_schema: str, document_kind: str = "") -> str:
+    kind = f"ชนิดเอกสาร: {document_kind}\n\n" if document_kind else ""
+    return f"""{kind}JSON schema:
 {json_schema}
 
 เนื้อหาเอกสาร (จาก OCR อาจมีตัวอักษรผิดบ้าง):

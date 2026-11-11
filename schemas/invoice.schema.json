@@ -1,7 +1,7 @@
 {
   "$defs": {
     "ExtraField": {
-      "description": "ข้อมูลที่เอกสารพิมพ์ไว้แต่ schema ไม่มีช่องให้ (เช่น หัก ณ ที่จ่าย, เลขที่ใบสั่งซื้อ, เงื่อนไขชำระเงิน).",
+      "description": "รายการหมายเหตุ (remark): ข้อมูลที่เอกสารพิมพ์ไว้แต่ไม่มีช่องใน schema ของชนิดเอกสารนั้น (เช่น เลขที่ใบสั่งซื้อ, เงื่อนไขชำระเงิน).",
       "properties": {
         "label": {
           "description": "ป้ายตามที่เอกสารพิมพ์ ใช้ภาษาเดิมของเอกสาร",
@@ -162,8 +162,21 @@
             }
           ],
           "default": null,
-          "description": "เช่น ใบกำกับภาษี, ใบเสร็จรับเงิน, invoice",
+          "description": "ชนิดเอกสารตามที่ระบบสกัดได้ (rules ได้ tax_invoice/receipt/..., LLM ตอบข้อความอิสระ)",
           "title": "Document Type"
+        },
+        "document_profile": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "โปรไฟล์ที่ใช้กำหนดฟิลด์ (ชื่อใน configs/default.yaml → document_types; generic = ไม่ตรงชนิดใดเลย)",
+          "title": "Document Profile"
         },
         "vendor": {
           "$ref": "#/$defs/Party"
@@ -316,12 +329,20 @@
           "description": "ยอดสุทธิรวม VAT",
           "title": "Total Amount"
         },
-        "extra_fields": {
-          "description": "ข้อมูลอื่นที่เอกสารพิมพ์ไว้แต่ไม่มีช่องข้างบน (ป้าย + ค่า) ห้ามใส่ข้อมูลที่มีช่องอยู่แล้ว",
+        "document_fields": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "ฟิลด์เฉพาะชนิดเอกสาร คีย์ตามโปรไฟล์ (เช่น หัก ณ ที่จ่าย: total_paid, total_tax_withheld) ค่าเป็นสตริงที่ normalize แล้วตามชนิดที่โปรไฟล์ประกาศ: money=ทศนิยมไม่มีจุลภาค, date=ISO ค.ศ., tax_id=13 หลัก, percent=ทศนิยม",
+          "title": "Document Fields",
+          "type": "object"
+        },
+        "remark": {
+          "description": "หมายเหตุ: ข้อมูลอื่นที่เอกสารพิมพ์ไว้แต่ไม่มีช่องข้างบนหรือใน document_fields (ป้าย + ค่า) ห้ามใส่ข้อมูลที่มีช่องอยู่แล้ว",
           "items": {
             "$ref": "#/$defs/ExtraField"
           },
-          "title": "Extra Fields",
+          "title": "Remark",
           "type": "array"
         }
       },
@@ -486,7 +507,7 @@
   },
   "properties": {
     "schema_version": {
-      "default": "2.1",
+      "default": "3.0",
       "title": "Schema Version",
       "type": "string"
     },

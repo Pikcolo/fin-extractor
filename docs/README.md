@@ -14,6 +14,7 @@
 | — | แผนรองรับลายมือและ confidence รายฟิลด์ | | [07-handwriting-and-field-confidence.md](07-handwriting-and-field-confidence.md) |
 | — | หลักการระบบ, best solution และแผนอัปเดต | | [08-solution-and-roadmap.md](08-solution-and-roadmap.md) |
 | — | Decision model (concept: Jev / Laya) | | [09-decision-model.md](09-decision-model.md) |
+| — | OXR: ตัวอ่านเอกสารที่ลองแล้ว (หลักการ ข้อดีข้อเสีย ผลวัดภาษาไทย) | `scripts/benchmark_oxr.py`, `scripts/extract_oxr.py` | [10-oxr.md](10-oxr.md) |
 
 ## Workflow
 
@@ -44,10 +45,13 @@ flowchart TD
 
 \* วัดจาก `data/raw/BITKUB-001.jpg` บนเครื่องที่พัฒนา
 
-ผลกับสแกนจริง 18 ใบ (`data/raw/finance_doc_scan`) เก็บไว้สองชุดคู่กัน:
-- **`--mode ocr`** (`data/output/extract/finance_doc_scan__ocr-rules/`): ไม่มี `auto_approved` (11 `needs_review`, 7 `failed`)
-- **`--mode vlm`** (`data/output/extract/finance_doc_scan__vlm-llm/`): 17 `needs_review`, 1 `auto_approved`, 0 `failed` แต่พบค่าที่ผิดหลายจุดและ `auto_approved` ใบเดียวเป็นผลที่ผิด
-  (LLM แต่งตัวเลข แปลงปีผิด สลับผู้ขาย/ผู้ซื้อ) ดู [ขั้นที่ 3](03-text-reading.md#ผลเทียบสองโหมดบนสแกนจริง-18-ใบ---mode-ocr-เทียบ---mode-vlm) และตารางเทียบ `data/output/benchmarks/compare_modes.md`
+ผลกับสแกนจริง 18 ใบ (`data/raw/finance_doc_scan`) **รันใหม่เมื่อ 2026-11-11** หลังเพิ่มโปรไฟล์ชนิดเอกสาร (ผลดิบของรอบ 2026-11-10 ถูกลบแล้ว รวมชุด `ocr-llm`)
+- **`--mode ocr`** (`data/output/extract/finance_doc_scan__ocr-rules/`): 15 `needs_review`, 3 `failed`, ไม่มี `auto_approved`
+- **`--mode vlm --llm off`** (`..._vlm-rules/`): 18 `needs_review`
+- **`--mode vlm`** (`..._vlm-llm/`): 16 `needs_review`, 2 `auto_approved` (ใบกำกับทั่วไป 001306, 001314) `buyer.name` มี 16 ใบ (rules ล้วน 0)
+  ข้อสังเกตเรื่องค่าผิดของ LLM จากรอบเก่า (แต่งตัวเลข แปลงปีผิด สลับผู้ขาย/ผู้ซื้อ ดู [ขั้นที่ 3](03-text-reading.md#ผลเทียบสองโหมดบนสแกนจริง-18-ใบ---mode-ocr-เทียบ---mode-vlm)) ยังไม่ได้ตรวจซ้ำกับรอบใหม่
+- เทียบสถานะกับรอบเก่าตรง ๆ ไม่ได้: โปรไฟล์ชนิดเอกสารยังเป็นฉบับร่างและอนุมัติอัตโนมัติไม่ได้ ([08 หัวข้อ 3.6](08-solution-and-roadmap.md))
+- สามชุดนี้รันก่อนเพิ่มการอ่านชื่อลูกค้าจากป้ายและ check ตามโปรไฟล์ ผล rules ที่ใช้โค้ดปัจจุบันคือ `data/output/extract/ocr-rules_reextract_current/` (สร้างจาก `raw_text` ของชุด ocr-rules ด้วย `scripts/reextract_from_raw.py`)
 
 ชุดนี้มีเอกสารหลายชนิดปนกัน (ใบกำกับภาษี, หนังสือรับรองหัก ณ ที่จ่าย, ใบสำคัญรับเงินลายมือ, ใบเสร็จศุลกากร)
 และส่วนใหญ่ไม่ได้พลาดที่ preprocess ดู [ขั้นที่ 2](02-preprocessing.md#ผลวัดบนสแกนจริง)

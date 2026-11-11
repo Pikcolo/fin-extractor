@@ -10,6 +10,8 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
+from collections.abc import Collection
+
 from ..schema import InvoiceData, ValidationCheck
 from .tax_id import is_valid_thai_tax_id
 
@@ -22,8 +24,24 @@ def _dec(v: float | str | Decimal) -> Decimal:
     return v if isinstance(v, Decimal) else Decimal(str(v))
 
 
+NOT_APPLICABLE_DETAIL = "ไม่ใช้กับเอกสารชนิดนี้"
+
+
 def run_checks(
-    d: InvoiceData, tol: float | str | Decimal = "0.02", default_vat_rate: float | str | Decimal = "0.07"
+    d: InvoiceData, tol: float | str | Decimal = "0.02", default_vat_rate: float | str | Decimal = "0.07",
+    applicable: Collection[str] | None = None,
+) -> list[ValidationCheck]:
+    """``applicable`` = ชื่อ check ที่ใช้กับชนิดเอกสารนี้ (None = ทุกข้อ) ข้อที่ไม่ใช้ยังอยู่ในผลแต่ ``passed=None``
+    (ไม่นับเป็นผ่านหรือไม่ผ่าน ไม่ยืนยันฟิลด์ใด) เพื่อให้ผลของทุกชนิดมีชื่อ check ชุดเดียวกัน"""
+    checks = _run_all_checks(d, tol, default_vat_rate)
+    if applicable is None:
+        return checks
+    return [c if c.name in applicable else ValidationCheck(name=c.name, passed=None, detail=NOT_APPLICABLE_DETAIL)
+            for c in checks]
+
+
+def _run_all_checks(
+    d: InvoiceData, tol: float | str | Decimal, default_vat_rate: float | str | Decimal
 ) -> list[ValidationCheck]:
     tol, default_vat_rate = _dec(tol), _dec(default_vat_rate)
     checks: list[ValidationCheck] = []

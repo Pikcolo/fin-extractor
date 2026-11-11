@@ -1,8 +1,8 @@
 # fin_extractor
 
 OCR + Information Extraction สำหรับเอกสารการเงินไทย (ใบกำกับภาษี / ใบเสร็จ / invoice) ที่ **ไม่มี pattern ตายตัว**
-ผลลัพธ์เป็น JSON มาตรฐานตาม [`schemas/invoice.schema.json`](schemas/invoice.schema.json) (schema 2.1: ยอดเงินเป็น `Decimal`
-ระดับหลักฐานรายฟิลด์ `field_evidence` และ `extra_fields` สำหรับข้อมูลที่ schema ไม่มีช่อง)
+ผลลัพธ์เป็น JSON มาตรฐานตาม [`schemas/invoice.schema.json`](schemas/invoice.schema.json) (schema 3.0: ยอดเงินเป็น `Decimal`
+ระดับหลักฐานรายฟิลด์ `field_evidence`, ฟิลด์เฉพาะชนิดเอกสาร `document_fields` ตามโปรไฟล์ และ `remark` สำหรับข้อมูลที่ไม่มีช่อง)
 อธิบายขั้นตอนการทำงานแบบละเอียดอยู่ใน [`docs/`](docs/README.md)
 
 ```

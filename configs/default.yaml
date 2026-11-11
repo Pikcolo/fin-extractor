@@ -60,10 +60,75 @@ validation:
   amount_tolerance: 0.02  # ยอมให้คลาดเคลื่อนจากการปัดเศษ (บาท)
   default_vat_rate: 0.07
 
-# field ที่ชนิดเอกสารนั้น "ไม่มี" (ไม่นับเป็นหาไม่เจอ ไม่ทำให้ failed) ตั้งต้นว่าง: ต้องกรอกจากรายการที่ฝ่ายบัญชียืนยัน ไม่เดาเอง
-# ชื่อชนิดต้องตรงกับ data.document_type ที่ระบบสกัดได้ (rules ได้ tax_invoice/receipt/invoice/quotation, LLM ตอบข้อความอิสระ)
-# ตัวอย่างรูปแบบ (ยังไม่ใช้):
-#   document_types:
-#     <ชื่อชนิด>:
-#       not_applicable: [invoice_no, vendor.tax_id]
-document_types: {}
+# ป้ายของฟิลด์แกนกลางที่ rules อ่านค่าตามหลังป้าย (ตอนนี้: buyer.name = ชื่อลูกค้า) กลไกที่ src/fin_extractor/extraction/core_labels.py
+# ใช้เฉพาะป้ายที่เห็นจริงบนสแกน (ระบุ source) ห้ามใช้คำกว้างอย่าง "ลูกค้า" เปล่า ๆ เพราะเป็นป้ายหลอก
+# (สำหรับลูกค้า / For Customer, รหัสลูกค้า, Customer Tax ID) ชนิดเอกสารกำหนด core_labels ของตัวเองเพื่อทับค่าตั้งต้นที่ key เดียวกันได้
+core_labels:
+  - {key: buyer.name, aliases: ["ชื่อลูกค้า", "ซื่อลูกค้า", "นามลูกค้า", "นามลูกคา"], next_line_caption: true, source: "001306 (ชื่อลูกค้า), 001312 (ซื่อลูกค้า), 001308/001309/001317/001318/001319 (นามลูกค้า, OCR: นามลูกคา)"}
+
+# โปรไฟล์ชนิดเอกสาร: กำหนดฟิลด์เฉพาะชนิด, ฟิลด์ที่ต้องมี และยอดที่ใช้ตัดสิน failed (กลไกอยู่ที่ src/fin_extractor/doctypes.py)
+#
+# ข้อมูลนอกเหนือจากฟิลด์แกนกลาง (vendor/buyer/date/items/ยอดเงิน...) และ fields ของโปรไฟล์ จะถูกเก็บเป็น `remark` (ป้าย + ค่า)
+# เอกสารที่ไม่ตรงโปรไฟล์ใดใช้ `generic` = ใบกำกับภาษี/ใบเสร็จ/invoice เหมือนเดิมทุกประการ (ไม่ต้องประกาศ)
+#
+# คีย์ของแต่ละโปรไฟล์ (ทุกตัวไม่บังคับ)
+#   aliases        ข้อความที่พิมพ์บนเอกสารไว้จำแนกชนิด (ตัดช่องว่าง/ตัวพิมพ์ ลำดับในไฟล์ = ลำดับความสำคัญ ตัวที่ตรงก่อนชนะ)
+#   required       field ที่ชนิดนี้ต้องมี (ค่าตั้งต้น = vendor.name, vendor.tax_id, invoice_no, date, total_amount)
+#                  ฟิลด์ประจำชนิดอ้างแบบ document_fields.<key>
+#   primary_amount ยอดที่ถ้าหาไม่เจอแล้ว failed (ค่าตั้งต้น total_amount; null = ไม่มีกฎนี้)
+#   not_applicable field ที่ชนิดนี้ไม่มี (ไม่นับเป็นหาไม่เจอ และตัดออกจาก schema ที่ส่งให้ LLM)
+#   checks         ชื่อ check ที่ใช้กับชนิดนี้ (ค่าตั้งต้น = ทุกข้อ) ข้อที่ไม่ระบุจะรายงานเป็น passed=null ไม่นับผ่าน/ไม่ผ่าน
+#                  ชื่อที่ใช้ได้: vendor_tax_id_checksum, buyer_tax_id_checksum, items_sum, discount, before_vat_plus_vat, vat_rate, date_range
+#   fields         key / label / type (text|code|money|date|tax_id|percent) / aliases (ป้ายที่พิมพ์) / source (ป้ายนี้เห็นจากที่ไหน)
+#
+# สถานะ: draft — รายการฟิลด์และ required ด้านล่างมาจากป้ายที่พิมพ์บนสแกนใน data/raw/finance_doc_scan (ระบุใน source)
+#        ยังไม่ได้ให้ฝ่ายบัญชียืนยัน ต้องยืนยันก่อนใช้ตัดสินจริง (docs/08 หัวข้อ 3.6)
+# รูปแบบเก่า (ชื่อชนิด → not_applicable เทียบกับ data.document_type ตรง ๆ) ยังใช้ได้
+document_types:
+  withholding_certificate:
+    title: หนังสือรับรองการหักภาษี ณ ที่จ่าย (50 ทวิ)
+    status: "draft: รอฝ่ายบัญชียืนยัน"
+    aliases: ["หนังสือรับรองการหักภาษี", "50 ทวิ"]
+    # ผู้ถูกหักภาษี = ผู้ที่ถูกหักเงิน (ใช้เป็น buyer) ส่วนผู้หักภาษีเป็น vendor — ร่าง รอฝ่ายบัญชียืนยัน ชื่ออยู่บรรทัดใต้ป้ายได้ (next_line)
+    core_labels:
+      - {key: buyer.name, aliases: ["ผู้ถูกหักภาษี ณ ที่จ่าย :"], next_line: true, source: "001307, 001311, 001321, 001323"}
+    # check ที่ใช้ได้: เลขภาษี + ช่วงวันที่ (ไม่มีผลรวมรายการ/VAT/ส่วนลดแบบใบกำกับ) ข้อที่ไม่ระบุรายงานเป็น passed=null (ร่าง รอฝ่ายบัญชียืนยัน)
+    checks: [vendor_tax_id_checksum, buyer_tax_id_checksum, date_range]
+    # ช่องแกนกลางที่ชนิดนี้ไม่มี (ตัดออกจาก schema ที่ส่งให้ LLM กันยัดยอดจ่าย+ภาษีลง total_amount: 001323)
+    not_applicable: [invoice_no, items, subtotal, discount, amount_before_vat, vat_rate, vat_amount, total_amount]
+    primary_amount: document_fields.total_paid
+    required: [vendor.name, vendor.tax_id, document_fields.total_paid, document_fields.total_tax_withheld]
+    fields:
+      - {key: certificate_no, label: เลขที่หนังสือรับรอง, type: code, aliases: ["เลขที่"], source: "001321 (เลขที่ WT...), 001311 (เลขที่ 005)"}
+      # เอกสารพิมพ์ยอดจ่ายและยอดภาษีที่หักไว้บรรทัดเดียวกัน (ซ้าย=ยอดจ่าย ขวา=ภาษี) ป้ายใช้แค่ส่วนต้น เพราะ OCR สะกดส่วนท้ายเพี้ยนบ่อย (หักน้ำส่ง/หักน่ำส่ง)
+      - {key: total_paid, label: รวมเงินที่จ่าย, type: money, aliases: ["รวมเงินที่จ่ายและภาษี"], nth: 0, of: 2, source: "001307, 001311, 001321, 001323"}
+      - {key: total_tax_withheld, label: รวมเงินภาษีที่หักนำส่ง, type: money, aliases: ["รวมเงินที่จ่ายและภาษี"], nth: 1, of: 2, source: "001307, 001311, 001321, 001323"}
+      - {key: total_tax_withheld_text, label: รวมเงินภาษีที่หักนำส่ง (ตัวอักษร), type: text, aliases: ["รวมเงินภาษีที่หักนำส่ง (ตัวอักษร)"], source: "001307"}
+  customs_receipt:
+    title: ใบเสร็จ/ใบสรุปค่าภาษีศุลกากรและนำเข้า
+    status: "draft: รอฝ่ายบัญชียืนยัน"
+    aliases: ["กรมศุลกากร", "Special Entry Number"]
+    core_labels:
+      - {key: buyer.name, aliases: ["ชื่อผู้นำของเข้า/ผู้ส่งของออก", "ชื่อผู้น่าของเข้า/ผู้ส่งของออก"], source: "001316 (001315 พิมพ์ Shipper/Consignee สองชื่อในบรรทัดเดียว ไม่อ่านเพราะแยกคอลัมน์ไม่ได้)"}
+    # ภาษีมูลค่าเพิ่มของศุลกากรคิดจากฐาน CIF+อากร ไม่ใช่จากยอดรวม จึงไม่ใช้ check vat_rate/before_vat_plus_vat (001316 ตก vat_rate ทั้งที่ถูก)
+    checks: [vendor_tax_id_checksum, buyer_tax_id_checksum, date_range]
+    not_applicable: [items, subtotal, discount, amount_before_vat, total_amount]
+    primary_amount: document_fields.total_charges
+    required: [document_fields.entry_no, document_fields.total_charges]
+    fields:
+      - {key: entry_no, label: เลขที่ใบขนสินค้า / Special Entry Number, type: code, aliases: ["Special Entry Number", "เลขที่ใบขนสินค้า"], source: "001315 (Special Entry Number), 001316 (เลขที่ใบขนสินค้า)"}
+      - {key: receipt_no, label: Receipt No., type: code, aliases: ["Receipt No."], source: "001315"}
+      - {key: awb_no, label: MAWB / HAWB, type: code, aliases: ["MAWB Number", "Hawb No."], source: "001315, 001316"}
+      - {key: import_date, label: วันที่นำเข้า/ส่งออก, type: date, aliases: ["วันที่นำเข้า/ส่งออก"], source: "001316"}
+      - {key: duty, label: Duty (อากร), type: money, aliases: ["Duty"], source: "001315"}
+      - {key: total_charges, label: รวมเงินทั้งสิ้น / Total Charges, type: money, aliases: ["รวมเงินทั้งสิ้น", "Total Charges"], source: "001315 (Total Charges), 001316 (รวมเงินทั้งสิ้น)"}
+  payment_voucher:
+    title: ใบสำคัญรับเงิน (ผู้รับเงินไม่มีใบเสร็จ)
+    status: "draft: รอฝ่ายบัญชียืนยัน"
+    aliases: ["ใบสำคัญรับเงิน"]
+    core_labels:
+      - {key: buyer.name, aliases: ["ได้รับเงินจาก"], source: "001322 (001320 ลายมือ ค่าว่าง)"}
+    # ใบสำคัญรับเงินไม่มี VAT/ส่วนลด: ใช้เลขภาษี วันที่ และผลรวมรายการ
+    checks: [vendor_tax_id_checksum, buyer_tax_id_checksum, items_sum, date_range]
+    fields:
+      - {key: amount_in_words, label: จำนวนเงินตัวอักษร, type: text, aliases: ["ตัวอักษร"], source: "001320, 001322"}

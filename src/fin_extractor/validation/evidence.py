@@ -22,9 +22,9 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
+from ..doctypes import DOC_PREFIX, KEY_FIELDS, Profile
 from ..extraction.patterns import find_dates, find_numbers, find_percents, find_tax_ids
 from ..schema import FieldEvidence, InvoiceData, ValidationCheck
-from .scoring import KEY_FIELDS
 from .tax_id import is_valid_thai_tax_id
 
 # check ที่ผ่านแล้วไม่ได้ยืนยันว่าอ่านค่าถูก (ตรวจแค่ความสมเหตุสมผล) แต่ถ้าไม่ผ่านยังนับว่าขัดแย้ง
@@ -54,8 +54,10 @@ def flatten(d: InvoiceData) -> dict[str, Any]:
     for i, it in enumerate(d.items):
         for k in _ITEM:
             put(f"items[{i}].{k}", getattr(it, k))
-    for i, extra in enumerate(d.extra_fields):
-        put(f"extra_fields[{i}]", extra.value)  # ป้ายอยู่ที่ data.extra_fields[i].label
+    for key, value in d.document_fields.items():
+        put(f"{DOC_PREFIX}{key}", value)  # ชนิดของค่าอยู่ที่โปรไฟล์ (FieldSpec.type)
+    for i, extra in enumerate(d.remark):
+        put(f"remark[{i}]", extra.value)  # ป้ายอยู่ที่ data.remark[i].label
     return out
 
 
@@ -68,8 +70,28 @@ def _squash(text: str) -> str:
     return "".join(text.replace("|", " ").split())
 
 
+def _doc_field_grounded(kind: str, value: str, squashed: str,
+                        numbers: set[Decimal], percents: set[Decimal], dates: set[date], tax_ids: set[str]) -> bool | None:
+    """ฟิลด์ประจำชนิด: ตรวจตามชนิดที่โปรไฟล์ประกาศ (ค่าเก็บเป็นสตริงมาตรฐานแล้ว)."""
+    try:
+        if kind == "money":
+            return Decimal(value) in numbers
+        if kind == "percent":
+            return Decimal(value) * 100 in percents
+        if kind == "date":
+            return date.fromisoformat(value) in dates
+    except (ValueError, ArithmeticError):
+        return False
+    if kind == "tax_id":
+        return value in tax_ids
+    return _squash(value) in squashed  # text / code
+
+
 def _is_grounded(key: str, value: Any, text: str, squashed: str,
-                 numbers: set[Decimal], percents: set[Decimal], dates: set[date], tax_ids: set[str]) -> bool | None:
+                 numbers: set[Decimal], percents: set[Decimal], dates: set[date], tax_ids: set[str],
+                 kinds: dict[str, str] | None = None) -> bool | None:
+    if key.startswith(DOC_PREFIX):
+        return _doc_field_grounded((kinds or {}).get(key, "text"), value, squashed, numbers, percents, dates, tax_ids)
     leaf = key.rsplit(".", 1)[-1]
     if key in _AMOUNT_KEYS or key.startswith("items[") and leaf in ("amount", "unit_price", "quantity"):
         return value in numbers
@@ -79,7 +101,7 @@ def _is_grounded(key: str, value: Any, text: str, squashed: str,
         return value in tax_ids
     if key == "date":
         return value in dates
-    if key in _TEXT_KEYS or key.startswith("extra_fields["):
+    if key in _TEXT_KEYS or key.startswith("remark["):
         return _squash(value) in squashed
     return None  # document_type, branch, items[].description: ค่าถูกแปลง/ประกอบจากหลายบรรทัด ไม่ใช่ข้อความตรง ๆ
 
@@ -96,8 +118,12 @@ def build_field_evidence(
     agree: dict[str, bool | None] | None = None,
     handwritten: list[str] | None = None,
     not_applicable: Collection[str] = (),
+    required: Collection[str] = KEY_FIELDS,
+    profile: Profile | None = None,
 ) -> dict[str, FieldEvidence]:
+    """``required`` และ ``profile`` มาจากโปรไฟล์ชนิดเอกสาร (ไม่ส่ง = กฎเดิมของใบกำกับภาษี)."""
     sources, agree, handwritten = sources or {}, agree or {}, handwritten or []
+    kinds = {DOC_PREFIX + f.key: f.type for f in profile.fields} if profile else {}
     passed: dict[str, list[str]] = {}
     failed: dict[str, list[str]] = {}
     for c in checks:
@@ -114,8 +140,8 @@ def build_field_evidence(
     out: dict[str, FieldEvidence] = {}
     flat = flatten(data)
     for key, value in flat.items():
-        fmt = is_valid_thai_tax_id(value) if key.endswith("tax_id") else None
-        grounded = _is_grounded(key, value, text, squashed, numbers, percents, dates, tax_ids)
+        fmt = is_valid_thai_tax_id(value) if key.endswith("tax_id") or kinds.get(key) == "tax_id" else None
+        grounded = _is_grounded(key, value, text, squashed, numbers, percents, dates, tax_ids, kinds)
         ev = FieldEvidence(
             level="unverified", value=_show(value), format_valid=fmt,
             checks_passed=passed.get(key, []), checks_failed=failed.get(key, []),
@@ -127,7 +153,7 @@ def build_field_evidence(
         elif ev.checks_passed:
             ev.level = "verified"
         out[key] = ev
-    for key in KEY_FIELDS:
+    for key in required:
         if key not in flat:
             out[key] = FieldEvidence(level="not_applicable" if key in not_applicable else "missing")
     return out

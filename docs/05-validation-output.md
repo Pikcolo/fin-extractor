@@ -100,7 +100,7 @@ engine ได้โดยไม่ทำให้ฝั่งนั้นพั�
 
 ```
 ExtractionResult                     ผลของ 1 หน้า
-├── schema_version                   "2.1"
+├── schema_version                   "3.0"
 ├── source_file, page, engine
 ├── data: InvoiceData                ข้อมูลที่ระบบบัญชีใช้
 │   ├── vendor / buyer: Party
@@ -132,7 +132,7 @@ ExtractionResult                     ผลของ 1 หน้า
 | `engine` | engine ที่ใช้ เช่น `vlm:scb10x/typhoon-ocr1.5-3b+llm:qwen2.5:3b` |
 | `data` | field ที่สกัดได้ (`InvoiceData`) |
 | `checks` | ผลการตรวจทุกข้อพร้อมรายละเอียด |
-| `schema_version` | เวอร์ชันของ schema (ตอนนี้ `"2.1"`) |
+| `schema_version` | เวอร์ชันของ schema (ตอนนี้ `"3.0"`) |
 | `field_evidence` | ระดับหลักฐานรายฟิลด์ ไว้ไฮไลต์ใน Review UI |
 | `ocr_confidence` | ความมั่นใจเฉลี่ยของ OCR (โหมด vlm เป็น `null`) |
 | `missing_fields`, `status` | field สำคัญที่หาไม่เจอ และสถานะจากขั้นที่ 6 |
@@ -142,9 +142,11 @@ ExtractionResult                     ผลของ 1 หน้า
 
 | Field | ชนิด | หมายเหตุ |
 |---|---|---|
-| `document_type` | string | `tax_invoice`, `receipt`, `invoice`, `quotation` |
+| `document_type` | string | ชนิดที่สกัดได้ rules ได้ `tax_invoice`, `receipt`, `invoice`, `quotation` (LLM ตอบข้อความอิสระ) |
+| `document_profile` | string | โปรไฟล์ที่ใช้กำหนดฟิลด์ (`withholding_certificate`, `customs_receipt`, `payment_voucher`, `generic`) ดู [08 หัวข้อ 3.6](08-solution-and-roadmap.md) |
+| `document_fields{}` | object | ฟิลด์เฉพาะชนิดเอกสารตามโปรไฟล์ เช่น 50 ทวิ: `total_paid`, `total_tax_withheld` ค่าเป็นสตริง money=ทศนิยม, date=ISO ค.ศ. คีย์ที่หาไม่เจอไม่มีในผล |
 | `vendor`, `buyer` | object | `name`, `tax_id` (13 หลัก), `branch`, `address` |
-| `extra_fields[]` | array | `label`, `value` ข้อมูลที่เอกสารพิมพ์ไว้แต่ไม่มีช่องข้างบน (LLM กรอก) ดู [08 หัวข้อ 3.6](08-solution-and-roadmap.md) |
+| `remark[]` | array | `label`, `value` หมายเหตุ: ข้อมูลที่เอกสารพิมพ์ไว้แต่ไม่มีช่องข้างบนหรือใน `document_fields` (rules เก็บบรรทัด "ป้าย: ค่า", LLM กรอกละเอียดกว่า) ชื่อเดิม `extra_fields` ของ schema 2.x |
 | `book_no` | string | เล่มที่ (ยังไม่มี regex ใน rules มาจาก LLM เท่านั้น) |
 | `invoice_no` | string | |
 | `date` | date | ISO-8601 ปี ค.ศ. |

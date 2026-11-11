@@ -14,9 +14,9 @@ from datetime import date as Date
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-SCHEMA_VERSION = "2.1"
+SCHEMA_VERSION = "3.0"
 _CENT = Decimal("0.01")
 
 
@@ -44,7 +44,7 @@ class Party(BaseModel):
 
 
 class ExtraField(BaseModel):
-    """ข้อมูลที่เอกสารพิมพ์ไว้แต่ schema ไม่มีช่องให้ (เช่น หัก ณ ที่จ่าย, เลขที่ใบสั่งซื้อ, เงื่อนไขชำระเงิน)."""
+    """รายการหมายเหตุ (remark): ข้อมูลที่เอกสารพิมพ์ไว้แต่ไม่มีช่องใน schema ของชนิดเอกสารนั้น (เช่น เลขที่ใบสั่งซื้อ, เงื่อนไขชำระเงิน)."""
 
     label: str = Field(description="ป้ายตามที่เอกสารพิมพ์ ใช้ภาษาเดิมของเอกสาร")
     value: str = Field(description="ค่าตามที่เอกสารพิมพ์ เป็นสตริงตามเดิม ไม่แปลงชนิด")
@@ -53,7 +53,9 @@ class ExtraField(BaseModel):
 class InvoiceData(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
-    document_type: str | None = Field(None, description="เช่น ใบกำกับภาษี, ใบเสร็จรับเงิน, invoice")
+    document_type: str | None = Field(None, description="ชนิดเอกสารตามที่ระบบสกัดได้ (rules ได้ tax_invoice/receipt/..., LLM ตอบข้อความอิสระ)")
+    document_profile: str | None = Field(
+        None, description="โปรไฟล์ที่ใช้กำหนดฟิลด์ (ชื่อใน configs/default.yaml → document_types; generic = ไม่ตรงชนิดใดเลย)")
     vendor: Party = Field(default_factory=Party)
     buyer: Party = Field(default_factory=Party)
     book_no: str | None = Field(None, description="เล่มที่ (บิลเล่ม) ใช้คู่กับ invoice_no กันเอกสารซ้ำ")
@@ -67,10 +69,26 @@ class InvoiceData(BaseModel):
     vat_rate: Decimal | None = Field(None, description="เช่น 0.07")
     vat_amount: Decimal | None = None
     total_amount: Decimal | None = Field(None, description="ยอดสุทธิรวม VAT")
-    extra_fields: list[ExtraField] = Field(
-        default_factory=list,
-        description="ข้อมูลอื่นที่เอกสารพิมพ์ไว้แต่ไม่มีช่องข้างบน (ป้าย + ค่า) ห้ามใส่ข้อมูลที่มีช่องอยู่แล้ว",
+    document_fields: dict[str, str] = Field(
+        default_factory=dict,
+        description="ฟิลด์เฉพาะชนิดเอกสาร คีย์ตามโปรไฟล์ (เช่น หัก ณ ที่จ่าย: total_paid, total_tax_withheld) "
+        "ค่าเป็นสตริงที่ normalize แล้วตามชนิดที่โปรไฟล์ประกาศ: money=ทศนิยมไม่มีจุลภาค, date=ISO ค.ศ., tax_id=13 หลัก, percent=ทศนิยม",
     )
+    remark: list[ExtraField] = Field(
+        default_factory=list,
+        description="หมายเหตุ: ข้อมูลอื่นที่เอกสารพิมพ์ไว้แต่ไม่มีช่องข้างบนหรือใน document_fields (ป้าย + ค่า) ห้ามใส่ข้อมูลที่มีช่องอยู่แล้ว",
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _legacy_extra_fields(cls, data):
+        """schema 2.x เรียก remark ว่า extra_fields — รับชื่อเก่าตอนอ่านผลเก่า/คำตอบ LLM."""
+        if isinstance(data, dict) and "extra_fields" in data:
+            data = dict(data)
+            old = data.pop("extra_fields")
+            if not data.get("remark"):
+                data["remark"] = old
+        return data
 
     @field_validator("subtotal", "discount", "amount_before_vat", "vat_amount", "total_amount")
     @classmethod

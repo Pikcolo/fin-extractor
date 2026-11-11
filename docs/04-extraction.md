@@ -30,6 +30,7 @@
 | ส่วน | ไฟล์ | ทำงานเมื่อ |
 |---|---|---|
 | 4A Rules | `extraction/rule_extractor.py`, `patterns.py` | ทุกครั้ง |
+| 4A+ ชนิดเอกสาร | `doctypes.py`, `extraction/profile_extractor.py` | ทุกครั้ง: จำแนกโปรไฟล์ แล้วสกัด `document_fields`, `remark` และชื่อลูกค้า `buyer.name` จากป้าย (`extraction/core_labels.py`) (ดู [08 หัวข้อ 3.6](08-solution-and-roadmap.md)) |
 | 4B LLM | `extraction/llm_extractor.py` | `--mode vlm` (ค่าตั้งต้น) หรือ `--llm on` |
 | 4C เลือกผล | `pipeline.py → extract`, `fill_missing` | เมื่อมีทั้ง 4A และ 4B |
 

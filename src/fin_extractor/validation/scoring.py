@@ -9,9 +9,9 @@ from __future__ import annotations
 from collections.abc import Collection
 from typing import Literal
 
+from ..doctypes import DOC_PREFIX, KEY_FIELDS, legacy_not_applicable
 from ..schema import InvoiceData, ValidationCheck
 
-KEY_FIELDS = ("vendor.name", "vendor.tax_id", "invoice_no", "date", "total_amount")
 
 # check ที่ยืนยันค่าของ field ได้จริง — field ที่ไม่อยู่ในนี้ (ชื่อ, เลขที่เอกสาร, วันที่) ไม่มีอะไรยืนยันนอกจากตัวอ่านเอง
 # date_range ไม่นับ เพราะตรวจแค่ว่าอยู่ในช่วงที่สมเหตุสมผล ไม่ได้ยืนยันว่าอ่านถูกวัน
@@ -24,6 +24,9 @@ Status = Literal["auto_approved", "needs_review", "failed"]
 
 
 def _get(d: InvoiceData, dotted: str):
+    """ค่าของ field แบบ ``vendor.name`` หรือ ``document_fields.total_paid`` (ฟิลด์ประจำชนิดอยู่ใน dict)."""
+    if dotted.startswith(DOC_PREFIX):
+        return d.document_fields.get(dotted[len(DOC_PREFIX):])
     obj = d
     for part in dotted.split("."):
         obj = getattr(obj, part)
@@ -33,23 +36,16 @@ def _get(d: InvoiceData, dotted: str):
 def not_applicable_for(document_type: str | None, table: dict | None) -> set[str]:
     """field ที่เอกสารชนิดนี้ไม่มี ตามตาราง ``document_types`` ใน config (เทียบชื่อชนิดแบบตัดช่องว่าง/ตัวพิมพ์)
 
-    ตารางตั้งต้นว่าง = ทุกชนิดต้องมีทุก field สำคัญ ต้องกรอกจากรายการที่ฝ่ายบัญชียืนยัน ไม่เดาเอง
+    รูปแบบเก่า (เทียบกับ ``data.document_type`` ตรง ๆ) โปรไฟล์ใหม่ใช้ ``Profile.not_applicable`` ผ่าน ``doctypes.classify``
     ``document_type`` ที่ LLM ตอบเป็นข้อความอิสระ จึงต้องใส่ชื่อที่ตรงกับที่ระบบสกัดได้จริง
     """
-    if not document_type or not table:
-        return set()
-
-    def norm(s: str) -> str:
-        return "".join(str(s).split()).casefold()
-
-    for name, spec in table.items():
-        if norm(name) == norm(document_type):
-            return set((spec or {}).get("not_applicable", []))
-    return set()
+    return legacy_not_applicable(table, document_type)
 
 
-def missing_fields(d: InvoiceData, not_applicable: Collection[str] = ()) -> list[str]:
-    return [f for f in KEY_FIELDS if f not in not_applicable and _get(d, f) in (None, "")]
+def missing_fields(
+    d: InvoiceData, not_applicable: Collection[str] = (), required: Collection[str] = KEY_FIELDS
+) -> list[str]:
+    return [f for f in required if f not in not_applicable and _get(d, f) in (None, "")]
 
 
 def uncorroborated(handwritten: list[str], checks: list[ValidationCheck]) -> list[str]:
@@ -65,20 +61,23 @@ def uncorroborated(handwritten: list[str], checks: list[ValidationCheck]) -> lis
 
 def decide_status(
     d: InvoiceData, checks: list[ValidationCheck], handwritten: list[str] | None = None,
-    not_applicable: Collection[str] = (),
+    not_applicable: Collection[str] = (), required: Collection[str] = KEY_FIELDS,
+    primary_amount: str | None = "total_amount", can_auto_approve: bool = True,
 ) -> tuple[list[str], Status]:
-    """คืน (field สำคัญที่หาไม่เจอ, สถานะ)
+    """คืน (field ที่ชนิดเอกสารนี้ต้องมีแต่หาไม่เจอ, สถานะ)
 
-    - failed: ไม่มียอดรวม (ยกเว้นชนิดเอกสารที่ไม่มีฟิลด์นี้)
-    - auto_approved: field สำคัญครบ, ไม่มี check ที่ไม่ผ่าน และมี check ที่ยืนยันตัวเลขได้อย่างน้อยหนึ่งข้อ
-    - needs_review: กรณีอื่น รวมถึงเมื่อ field ที่อ่านจากลายมือไม่มี check ยืนยัน
+    ``required`` และ ``primary_amount`` มาจากโปรไฟล์ชนิดเอกสาร (ค่าตั้งต้น = กฎเดิมของใบกำกับภาษี)
+    - failed: ไม่มียอดหลัก ``primary_amount`` (ยกเว้นชนิดที่ไม่มีฟิลด์นี้ หรือโปรไฟล์ตั้งเป็น null)
+    - auto_approved: field ที่ต้องมีครบ, ไม่มี check ที่ไม่ผ่าน และมี check ที่ยืนยันตัวเลขได้อย่างน้อยหนึ่งข้อ
+    - needs_review: กรณีอื่น รวมถึงเมื่อ field ที่อ่านจากลายมือไม่มี check ยืนยัน และเมื่อโปรไฟล์ยังเป็นฉบับร่าง
+      (``can_auto_approve=False``: รายการฟิลด์ที่ต้องมียังไม่ผ่านการยืนยัน จึงไม่ปล่อยผ่านโดยไม่มีคนตรวจ)
     """
-    missing = missing_fields(d, not_applicable)
-    if d.total_amount is None and "total_amount" not in not_applicable:
+    missing = missing_fields(d, not_applicable, required)
+    if primary_amount and primary_amount not in not_applicable and _get(d, primary_amount) in (None, ""):
         return missing, "failed"
     verified = any(c.passed is True for c in checks)
     if handwritten and uncorroborated(handwritten, checks):
         return missing, "needs_review"
-    if not missing and verified and all(c.passed is not False for c in checks):
+    if can_auto_approve and not missing and verified and all(c.passed is not False for c in checks):
         return missing, "auto_approved"
     return missing, "needs_review"

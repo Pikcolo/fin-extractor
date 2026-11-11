@@ -22,6 +22,9 @@ DOC_TYPES = [
 ]
 COMPANY_RE = re.compile(r"บริษัท|ห้างหุ้นส่วน|หจก\.?|co\.?,?\s*ltd|company|limited|corporation|จำกัด", re.I)
 BUYER_RE = re.compile(r"ลูกค้า|ผู้ซื้อ|customer|buyer|bill\s*to|sold\s*to", re.I)
+# ป้ายระบุสำเนา "สำหรับลูกค้า / For Customer" พิมพ์ต่อท้ายชื่อผู้ขายบรรทัดแรก (001308, 001309) ไม่ใช่การเริ่มส่วนผู้ซื้อ
+# ถ้านับเป็นส่วนผู้ซื้อ ชื่อและเลขภาษีของผู้ขายจะตกไปช่องผู้ซื้อ
+COPY_MARK_RE = re.compile(r"สำหรับ\s*(?:ลูกค้า|ผู้ซื้อ)(?:\s*/\s*for\s*customer)?", re.I)
 DATE_LABEL_RE = re.compile(r"วันที่|date", re.I)
 INVOICE_NO_RE = re.compile(
     r"(?:เลขที่(?:ใบกำกับ(?:ภาษี)?|เอกสาร)?|invoice\s*no\.?|receipt\s*no\.?|doc(?:ument)?\s*no\.?|\bno\.)"
@@ -123,12 +126,12 @@ def extract_fields(lines: list[str]) -> InvoiceData:
     in_buyer = False
     item_start = summary_start = None
     for i, line in enumerate(lines):
-        if BUYER_RE.search(line):
+        if BUYER_RE.search(COPY_MARK_RE.sub("", line)):
             in_buyer = True
         party = data.buyer if in_buyer else data.vendor
 
         if not data.vendor.name and not in_buyer and COMPANY_RE.search(line):
-            data.vendor.name = _clean_company_name(line)
+            data.vendor.name = _clean_company_name(COPY_MARK_RE.sub("", line))
 
         for tid in find_tax_ids(line):
             if not party.tax_id and is_valid_thai_tax_id(tid):
