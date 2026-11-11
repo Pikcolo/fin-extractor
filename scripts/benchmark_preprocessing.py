@@ -1,6 +1,6 @@
 """วัด preprocessing กับชุดสังเคราะห์ (``make_synthetic_samples.py``) ที่รู้เฉลย
 
-วัดสามเรื่อง ผลบันทึกใน ``--out`` (ค่าตั้งต้น ``data/output/benchmarks/preprocessing_synthetic.json``)
+วัดสามเรื่อง ผลบันทึกใน ``--out`` (ค่าตั้งต้น ``data/benchmarks/preprocessing_synthetic.json``)
   1. orientation : Tesseract OSD เทียบกับตัวจำแนกทิศทั้งหน้าของ Paddle ถูกกี่ใบจากภาพตะแคง
   2. deskew      : มุมที่วัดได้คลาดจากมุมที่ใส่จริงกี่องศา
   3. ocr         : Paddle อ่านค่าสำคัญได้ครบกี่ค่า (จาก 6) เมื่อเปลี่ยนชุด preprocessing
@@ -25,6 +25,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from fin_extractor.config import load_config  # noqa: E402
+from fin_extractor.paths import DataPaths  # noqa: E402
 from fin_extractor.preprocessing import geometry  # noqa: E402
 from fin_extractor.preprocessing.pipeline import preprocess  # noqa: E402
 
@@ -141,7 +142,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--samples", default="data/raw/synthetic")
     ap.add_argument("--skip-ocr", action="store_true")
-    ap.add_argument("--out", default="data/output/benchmarks/preprocessing_synthetic.json")
+    ap.add_argument("--out", default=str(DataPaths().benchmarks() / "preprocessing_synthetic.json"))
     args = ap.parse_args()
     root = Path(args.samples)
     files = json.loads((root / "truth.json").read_text(encoding="utf-8"))["files"]

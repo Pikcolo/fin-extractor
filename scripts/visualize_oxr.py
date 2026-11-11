@@ -1,7 +1,9 @@
 """วาดภาพแต่ละขั้นของ OXR จากผลดิบที่เก็บไว้ (ไม่เรียก OXR/GPU) แล้วรวมเป็นรายงาน HTML ในเครื่อง
 
-อินพุต: ผล OXR ของ PDF ดิบ ``data/output/oxr/real/<ชื่อไฟล์>.json`` + PDF ใน ``data/raw/finance_doc_scan``
-ผล: ``data/output/visualize/oxr/<เลขไฟล์>/index.html`` พร้อมภาพประกอบ (เปิดในเบราว์เซอร์ ลบทั้งโฟลเดอร์ได้)
+อินพุต: ผลเต็มของ OXR ใน ``result_ocr/oxr/<dataset>/raw_data/`` สองแบบ
+  ``<ไฟล์>_p1.oxr.json``      รอบที่ส่งภาพที่ผ่าน preprocess (ภาพ = preprocess/<dataset>/default/final/)  ← scripts/extract_oxr.py
+  ``<ไฟล์>_p1.pdf.oxr.json``  รอบที่ส่ง PDF ดิบ (ภาพ = PDF เรนเดอร์ 150 dpi เหมือนที่ OXR เรนเดอร์เอง)
+ผล: ``result_ocr/oxr/<dataset>/visualize/<เลขไฟล์>_<pdf|preprocessed>/index.html`` พร้อมภาพประกอบ (เปิดในเบราว์เซอร์ ลบทั้งโฟลเดอร์ได้)
 **ไม่ publish ขึ้นบริการภายนอก** เอกสารเป็นข้อมูลจริง
 
 ขั้นที่แสดง
@@ -32,11 +34,17 @@ import pypdfium2 as pdfium
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
+from fin_extractor.paths import DataPaths  # noqa: E402
+
+P = DataPaths()
+DATASET = "finance_doc_scan"
 PREFIX = "BRWAC50DE3689DA_"
-OXR_DIR = ROOT / "data" / "output" / "oxr" / "real"
-PDF_DIR = ROOT / "data" / "raw" / "finance_doc_scan"
-PRE_DIR = ROOT / "data" / "output" / "preprocess" / "finance_doc_scan"
-OUT_ROOT = ROOT / "data" / "output" / "visualize" / "oxr"
+OXR_DIR = P.raw_data("oxr", DATASET)
+PDF_DIR = P.raw(DATASET)
+PRE_DIR = P.preprocess(DATASET, "default")
+OUT_ROOT = P.visualize("oxr", DATASET)
 OXR_DPI = 150  # ค่าตายตัวใน oxr/utils/pdf.py
 
 # สีเข้มพอบนกระดาษขาว แยกกันได้แม้ตาบอดสี (Okabe-Ito) ชนิดอื่นเป็นเทา
@@ -55,6 +63,23 @@ def font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
 
 def color(t: str) -> tuple[int, int, int]:
     return COLORS.get(t, OTHER)
+
+
+def oxr_json(stem: str, source: str) -> Path:
+    return OXR_DIR / f"{PREFIX}{stem}_p1{'.pdf' if source == 'pdf' else ''}.oxr.json"
+
+
+def pick_source(stem: str, source: str) -> str:
+    """auto = ใช้รอบที่ผ่าน preprocess ถ้ามี ไม่งั้นรอบ PDF ดิบ."""
+    if source == "auto":
+        return "preprocessed" if oxr_json(stem, "preprocessed").exists() else "pdf"
+    return source
+
+
+def input_page(stem: str, source: str) -> Image.Image:
+    if source == "pdf":
+        return render_page(stem)
+    return Image.open(PRE_DIR / "final" / f"{PREFIX}{stem}_p1.png").convert("RGB")
 
 
 def render_page(stem: str) -> Image.Image:
@@ -144,15 +169,21 @@ def sanitize_table(src: str) -> str:
     return "".join(out)
 
 
-def build(stem: str) -> Path:
-    data = json.loads((OXR_DIR / f"{PREFIX}{stem}.json").read_text(encoding="utf-8"))
+def build(stem: str, source: str) -> Path:
+    data = json.loads(oxr_json(stem, source).read_text(encoding="utf-8"))
     result = data["data"]["result"]["outputs"]
     page_json = result["json"]["pages"][0]
     blocks = page_json["blocks"]
-    page = render_page(stem)
+    page = input_page(stem, source)
     assert page.size == (page_json["page_size"]["w"], page_json["page_size"]["h"]), "ขนาดภาพไม่ตรงกับที่ OXR ใช้"
 
-    out = OUT_ROOT / stem
+    out = OUT_ROOT / f"{stem}_{source}"
+    if source == "pdf":
+        input_note = f"PDF เรนเดอร์ที่ 150 dpi ขนาด {page.width}×{page.height} px (OXR ตั้ง dpi ตายตัว ไม่ใช้ 300 เหมือนโปรเจกต์) พิกัดทุกอย่างข้างล่างอิงภาพนี้"
+        pre_note = "รอบ OXR ที่ใช้วาดนี้ส่ง PDF ดิบ ไม่ผ่านขั้นนี้ ที่แสดงคือสิ่งที่ pipeline ของโปรเจกต์ทำกับไฟล์นี้ก่อนส่งให้ OCR ทุกตัว"
+    else:
+        input_note = f"ภาพสุดท้ายหลัง preprocess ของโปรเจกต์ (preprocess/final) ขนาด {page.width}×{page.height} px ส่งให้ OXR ตามนี้ พิกัดทุกอย่างข้างล่างอิงภาพนี้"
+        pre_note = "รอบ OXR ที่ใช้วาดนี้ได้ภาพจากขั้นนี้ ที่แสดงคือสิ่งที่ pipeline ทำกับไฟล์ก่อนส่งให้ OCR ทุกตัว"
     (out / "blocks").mkdir(parents=True, exist_ok=True)
     page.save(out / "01_input.png")
     strip, meta = preprocess_strip(stem)
@@ -199,9 +230,9 @@ table{{border-collapse:collapse;width:100%}} td,th{{border:1px solid var(--line)
 <div class="flow"><div>1 นำเข้า<br><small>PDF → ภาพ 150 dpi</small></div>→<div>2 preprocess<br><small>(โปรเจกต์ ไม่ใช่ของ OXR)</small></div>→<div>3 layout<br><small>D-FINE แบ่งบล็อก</small></div>→
 <div>4 ลำดับการอ่าน<br><small>OXR VLM / XY-Cut++</small></div>→<div>5 อ่านเนื้อหา<br><small>OXR VLM ทีละบล็อก</small></div>→<div>6 รวมเป็น Markdown/JSON</div></div>
 
-<h2>1 ภาพนำเข้า</h2><p class="note">PDF เรนเดอร์ที่ 150 dpi ขนาด {page.width}×{page.height} px (OXR ตั้ง dpi ตายตัว ไม่ใช้ 300 เหมือนโปรเจกต์) พิกัดทุกอย่างข้างล่างอิงภาพนี้</p><img src="01_input.png">
+<h2>1 ภาพนำเข้า</h2><p class="note">{input_note}</p><img src="01_input.png">
 
-<h2>2 preprocess (ของโปรเจกต์)</h2><p class="note">รอบ OXR ที่ใช้วาดนี้ส่ง PDF ดิบ ไม่ผ่านขั้นนี้ ที่แสดงคือสิ่งที่ pipeline ของโปรเจกต์ทำกับไฟล์นี้ก่อนส่งให้ OCR ทุกตัว</p>{pre_html}
+<h2>2 preprocess (ของโปรเจกต์)</h2><p class="note">{pre_note}</p>{pre_html}
 
 <h2>3 layout: แบ่งบล็อกและชนิด</h2><p>{legend}</p><img src="03_layout.png">
 <p class="note">เป็นโมเดลแยกต่างหากจาก OXR (D-FINE) ได้กรอบ + ชนิด + คะแนน ยังไม่ได้อ่านตัวอักษร · รวม {len(blocks)} บล็อก (หลังตัดซ้ำซ้อน ไม่รวม header/footer ที่ถูกกรอง)</p>
@@ -221,11 +252,14 @@ table{{border-collapse:collapse;width:100%}} td,th{{border:1px solid var(--line)
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("stems", nargs="+", help="เลขไฟล์ เช่น 001312")
+    ap.add_argument("--source", choices=["auto", "preprocessed", "pdf"], default="auto",
+                    help="ผล OXR รอบไหน: preprocessed = ส่งภาพที่ผ่าน preprocess, pdf = ส่ง PDF ดิบ, auto = รอบแรกถ้ามี")
     args = ap.parse_args()
     for s in args.stems:
-        if not (OXR_DIR / f"{PREFIX}{s}.json").exists():
-            sys.exit(f"ไม่มีผล OXR ของ {s} ใน {OXR_DIR}")
-        print("->", build(s))
+        source = pick_source(s, args.source)
+        if not oxr_json(s, source).exists():
+            sys.exit(f"ไม่มีผล OXR ของ {s} ({source}) ที่ {oxr_json(s, source)}")
+        print("->", build(s, source))
 
 
 if __name__ == "__main__":

@@ -26,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from fin_extractor.config import load_config  # noqa: E402
 from fin_extractor.io import iter_input_files, load_pages  # noqa: E402
+from fin_extractor.paths import DataPaths  # noqa: E402
 from fin_extractor.ocr.paddle_engine import PaddleEngine  # noqa: E402
 from fin_extractor.preprocessing import preprocess  # noqa: E402
 from fin_extractor.validation.tax_id import is_valid_thai_tax_id  # noqa: E402
@@ -76,7 +77,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--input", default="data/raw/finance_doc_scan")
     ap.add_argument("--only", help="ชื่อชุดที่ต้องการ คั่นด้วย , (ค่าตั้งต้น: ทุกชุด)")
-    ap.add_argument("--out", default="data/output/benchmarks/real_scans.json")
+    ap.add_argument("--out", default=str(DataPaths().benchmarks() / "real_scans.json"))
     args = ap.parse_args()
 
     cfg = load_config()

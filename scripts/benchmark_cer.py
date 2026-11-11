@@ -38,6 +38,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import make_synthetic_samples as synth  # noqa: E402
 from fin_extractor.config import load_config  # noqa: E402
 from fin_extractor.extraction import markdown_to_lines  # noqa: E402
+from fin_extractor.paths import DataPaths  # noqa: E402
 from fin_extractor.preprocessing import preprocess  # noqa: E402
 
 
@@ -115,7 +116,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--samples", default="data/raw/synthetic")
     ap.add_argument("--engines", nargs="+", default=["paddle"], choices=["paddle", "vlm"])
-    ap.add_argument("--out", help="ไฟล์ผล (ค่าตั้งต้น data/output/benchmarks/cer_synthetic_<engines>.json)")
+    ap.add_argument("--out", help="ไฟล์ผล (ค่าตั้งต้น data/benchmarks/cer_synthetic_<engines>.json)")
     args = ap.parse_args()
 
     cfg = load_config()
@@ -139,7 +140,7 @@ def main() -> None:
         result["engines"][engine] = {"summary": summarize(rows), "files": rows}
         print(f"[{engine}] สรุป {json.dumps(result['engines'][engine]['summary'], ensure_ascii=False)}")
 
-    out = Path(args.out or f"data/output/benchmarks/cer_synthetic_{'-'.join(args.engines)}.json")
+    out = Path(args.out or DataPaths().benchmarks() / f"cer_synthetic_{'-'.join(args.engines)}.json")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(result, ensure_ascii=False, indent=1), encoding="utf-8")
     print("saved ->", out)

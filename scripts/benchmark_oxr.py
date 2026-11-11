@@ -8,7 +8,7 @@
 - field ที่ตัวอักษรตรงเป๊ะ: เลขภาษี, เลขที่ใบกำกับ, วันที่, ยอดสามตัว, ชื่อผู้ขาย (ค้นในข้อความที่ normalize แล้ว)
 - จำนวนตัวอักษร CJK ที่ OXR คืนมา ทั้งที่ภาพไม่มี (ใช้บอกว่าโมเดลแต่งอักษร)
 
-ผลดิบจาก API เก็บแคชที่ data/output/oxr/<tag>/ รันซ้ำไม่เรียก API อีก (ใส่ --refresh เพื่อเรียกใหม่)
+ผลดิบจาก API เก็บแคชที่ result_ocr/oxr/synthetic/raw_data/<tag>/ รันซ้ำไม่เรียก API อีก (ใส่ --refresh เพื่อเรียกใหม่)
 
     .venv/Scripts/python scripts/benchmark_oxr.py [--preprocess] [--refresh]
 """
@@ -32,6 +32,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import benchmark_cer as bc  # noqa: E402
 from fin_extractor.config import load_config  # noqa: E402
 from fin_extractor.extraction import markdown_to_lines  # noqa: E402
+from fin_extractor.paths import DataPaths  # noqa: E402
 from fin_extractor.preprocessing import preprocess  # noqa: E402
 
 API = "https://free-oxr.somark.ai/api/v1/parse/sync"
@@ -71,7 +72,7 @@ def main() -> None:
         sys.exit("ปฏิเสธ: ห้ามส่งสแกนจริงขึ้น free API ใช้ได้เฉพาะภาพสังเคราะห์ (data/raw/synthetic)")
 
     tag = "preprocessed" if args.preprocess else "raw"
-    cache = ROOT / "data/output/oxr" / tag
+    cache = DataPaths().raw_data("oxr", "synthetic") / tag
     cache.mkdir(parents=True, exist_ok=True)
     cfg = load_config()
     samples = Path(args.samples)
@@ -109,7 +110,7 @@ def main() -> None:
                "mean_api_ms": round(sum(r["api_ms"] for r in rows) / len(rows)),
                "fields_total": f"{sum(r['fields_ok'] for r in rows)}/{n * len(rows)}"}
     print(json.dumps(summary, ensure_ascii=False, indent=1))
-    out = ROOT / f"data/output/benchmarks/oxr_synthetic_{tag}.json"
+    out = DataPaths().benchmarks() / f"oxr_synthetic_{tag}.json"
     out.write_text(json.dumps({"reference_chars": len(bc.normalize(ref)), **summary, "files": rows}, ensure_ascii=False, indent=1), encoding="utf-8")
     print("saved ->", out)
 

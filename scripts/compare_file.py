@@ -1,13 +1,13 @@
-"""เทียบผลสกัดของไฟล์เดียวรายฟิลด์ ข้ามทุกชุดผล (engine/โหมด) ที่อยู่ใน data/output/extract/
+"""เทียบผลสกัดของไฟล์เดียวรายฟิลด์ ข้ามทุก engine/extractor ที่อยู่ใน data/result_ocr/<engine>/<dataset>/final/<extractor>/
 
-อ่านเฉพาะไฟล์ผลที่มีอยู่แล้ว ไม่เรียก OCR/LLM/GPU ผลเขียนที่ data/output/compare/<ไฟล์>/compare.md (และ compare.json)
+อ่านเฉพาะไฟล์ผลที่มีอยู่แล้ว ไม่เรียก OCR/LLM/GPU ผลเขียนที่ data/compare/<ไฟล์>/compare.md (และ compare.json)
 ลบทิ้งทั้งโฟลเดอร์ได้เมื่อไม่ใช้
 
-คอลัมน์ "อ้างอิง" มาจาก data/output/compare/<ไฟล์>/reference.json ถ้ามี (ไม่บังคับ) ไฟล์นั้นเป็นค่าที่คนอ่านจากภาพ ไม่ใช่เฉลยทางการ
+คอลัมน์ "อ้างอิง" มาจาก data/compare/<ไฟล์>/reference.json ถ้ามี (ไม่บังคับ) ไฟล์นั้นเป็นค่าที่คนอ่านจากภาพ ไม่ใช่เฉลยทางการ
 ช่องที่มีอ้างอิงจะมีเครื่องหมาย ✓ (ตรง) / ✗ (ไม่ตรง) เทียบแบบตัดช่องว่าง ตัวเลขเทียบเป็นค่า
 
     .venv/Scripts/python scripts/compare_file.py 001312
-    .venv/Scripts/python scripts/compare_file.py 001312 --runs paddle=ocr-rules_reextract_current typhoon=finance_doc_scan__vlm-rules
+    .venv/Scripts/python scripts/compare_file.py 001312 --runs "Paddle=paddle/rules" "Typhoon LLM=typhoon/llm"   # ชื่อคอลัมน์=engine/extractor
 """
 
 from __future__ import annotations
@@ -15,16 +15,21 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-EXTRACT = ROOT / "data" / "output" / "extract"
-DEFAULT_RUNS = {
-    "Paddle+rules": "ocr-rules_reextract_current",
-    "Typhoon+rules": "finance_doc_scan__vlm-rules",
-    "Typhoon+LLM": "finance_doc_scan__vlm-llm",
-    "OXR+rules": "finance_doc_scan__oxr-rules",
+sys.path.insert(0, str(ROOT / "src"))
+
+from fin_extractor.paths import DataPaths  # noqa: E402
+
+P = DataPaths()
+DEFAULT_RUNS = {  # ชื่อคอลัมน์ → (engine, extractor)
+    "Paddle+rules": ("paddle", "rules"),
+    "Typhoon+rules": ("typhoon", "rules"),
+    "Typhoon+LLM": ("typhoon", "llm"),
+    "OXR+rules": ("oxr", "rules"),
 }
 FIELDS = [
     "document_type", "document_profile", "vendor.name", "vendor.branch", "vendor.tax_id", "vendor.address",
@@ -69,17 +74,19 @@ def cell(value, ref, has_ref: bool) -> str:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("stem", help="ส่วนท้ายของชื่อไฟล์ เช่น 001312")
-    ap.add_argument("--runs", nargs="*", help="ชื่อ=โฟลเดอร์ใน data/output/extract/ (ค่าตั้งต้น: Paddle/Typhoon/OXR)")
+    ap.add_argument("--dataset", default="finance_doc_scan", help="ชุดข้อมูลใน data/raw/ (ค่าตั้งต้น finance_doc_scan)")
+    ap.add_argument("--runs", nargs="*", help="ชื่อคอลัมน์=engine/extractor เช่น Paddle=paddle/rules (ค่าตั้งต้น: Paddle/Typhoon/OXR)")
     args = ap.parse_args()
-    runs = dict(r.split("=", 1) for r in args.runs) if args.runs else DEFAULT_RUNS
+    runs = ({k: tuple(v.split("/", 1)) for k, v in (r.split("=", 1) for r in args.runs)} if args.runs else DEFAULT_RUNS)
 
-    out_dir = ROOT / "data" / "output" / "compare" / args.stem.lstrip("0")
+    out_dir = P.compare(args.stem.lstrip("0"))
     ref_path = out_dir / "reference.json"
     ref = json.loads(ref_path.read_text(encoding="utf-8")) if ref_path.exists() else None
 
     results: dict[str, dict] = {}
-    for label, folder in runs.items():
-        hits = sorted((EXTRACT / folder / "results").glob(f"*{args.stem}*_p1.json"))
+    for label, (engine, extractor) in runs.items():
+        folder = P.final(engine, args.dataset, extractor)
+        hits = sorted(folder.glob(f"*{args.stem}*_p1.json"))
         if hits:
             results[label] = json.loads(hits[0].read_text(encoding="utf-8"))
         else:

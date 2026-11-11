@@ -11,7 +11,7 @@
     # 3) สรุปผลทุก engine ที่รันแล้ว
     python scripts/benchmark.py report
 
-ชุดข้อมูลอยู่ที่ data/raw/benchmark/ (ไม่ commit) ผลอยู่ที่ data/output/benchmarks/ieb/
+ชุดข้อมูลอยู่ที่ data/raw/benchmark/ (ไม่ commit) ผลอยู่ที่ data/benchmarks/ieb/
 
 ที่มาของเอกสาร
     Invoice Extraction Benchmark (c) 2026 InvoiceParser Pro — CC BY 4.0
@@ -34,7 +34,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "data" / "raw" / "benchmark"
-OUT = ROOT / "data" / "output" / "benchmarks" / "ieb"
+OUT = ROOT / "data" / "benchmarks" / "ieb"
 
 IEB = "drew-ipp/invoice-extraction-benchmark"
 IEB_RAW = f"https://huggingface.co/datasets/{IEB}/resolve/main/corpus/v1/"

@@ -13,6 +13,12 @@ import json
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from fin_extractor.paths import DataPaths  # noqa: E402
+
+P = DataPaths()
+
 FIELDS = ("vendor.name", "vendor.tax_id", "buyer.tax_id", "invoice_no", "date", "subtotal", "total_amount")
 
 
@@ -36,14 +42,14 @@ def summary(r: dict) -> dict:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--a", default="data/output/extract/finance_doc_scan__ocr-rules/results", help="โหมด ocr")
-    ap.add_argument("--b", default="data/output/extract/finance_doc_scan__vlm-llm/results", help="โหมด vlm")
-    ap.add_argument("--out", default="data/output/benchmarks/compare_modes.md")
+    ap.add_argument("--a", default=str(P.final("paddle", "finance_doc_scan", "rules")), help="โหมด ocr (โฟลเดอร์ final/<extractor>)")
+    ap.add_argument("--b", default=str(P.final("typhoon", "finance_doc_scan", "llm")), help="โหมด vlm (โฟลเดอร์ final/<extractor>)")
+    ap.add_argument("--out", default=str(P.benchmarks() / "compare_modes.md"))
     args = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")  # คอนโซล Windows เป็น cp1252
 
     a_dir, b_dir = Path(args.a), Path(args.b)
-    names = sorted(p.name for p in a_dir.glob("*.json") if (b_dir / p.name).exists())
+    names = sorted(p.name for p in a_dir.glob("*.json") if p.name != "manifest.json" and (b_dir / p.name).exists())
     rows, diffs = [], []
     counts = {"a": {}, "b": {}}
     for name in names:

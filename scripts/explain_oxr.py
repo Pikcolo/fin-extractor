@@ -1,14 +1,14 @@
 """รายงานภาพ "ทำไม OXR ไม่แม่นกับภาษาไทย" จากข้อมูลที่วัดไว้แล้ว (ไม่เรียก OXR/GPU)
 
-ข้อมูลที่ใช้ (ทั้งหมดอยู่ใน data/output/ ซึ่งไม่เข้า git):
-  oxr/real/*.json                      ผล OXR ของสแกนจริง 18 ใบ (รอบ PDF ดิบ)
-  extract/finance_doc_scan__*          ผลสกัด Paddle / Typhoon (ใช้ raw_text)
-  benchmarks/*cer*.json                CER ภาพสังเคราะห์ของ Paddle / Typhoon / OXR
-  compare/oxr_why/*.json               ค่าที่วัดแยก: ความน่าจะเป็นของ token, จำนวน token ใน vocabulary, บรรทัดจริงที่อ่านจากภาพ
-  compare/english/text_recall.json     ค่าสำคัญของเอกสารอังกฤษที่ปรากฏในข้อความของแต่ละ engine
-  visualize/oxr/<ไฟล์>/                ภาพ layout และภาพตัดบล็อก (สร้างด้วย scripts/visualize_oxr.py ก่อน)
+ข้อมูลที่ใช้ (ทั้งหมดอยู่ใต้ data/ ซึ่งไม่เข้า git):
+  result_ocr/oxr/<dataset>/raw_data/*.pdf.oxr.json   ผล OXR ของสแกนจริง 18 ใบ (รอบ PDF ดิบ)
+  result_ocr/paddle|typhoon/<dataset>/raw_data/      ข้อความดิบของ Paddle / Typhoon
+  benchmarks/*cer*.json                              CER ภาพสังเคราะห์ของ Paddle / Typhoon / OXR
+  compare/oxr_why/*.json                             ค่าที่วัดแยก: ความน่าจะเป็นของ token, จำนวน token ใน vocabulary, บรรทัดจริงที่อ่านจากภาพ
+  compare/english/text_recall.json                   ค่าสำคัญของเอกสารอังกฤษที่ปรากฏในข้อความของแต่ละ engine
+  result_ocr/oxr/<dataset>/visualize/<ไฟล์>_pdf/     ภาพ layout และภาพตัดบล็อก (สร้างด้วย scripts/visualize_oxr.py ก่อน)
 
-ผล: data/output/visualize/oxr_why/index.html (มีภาพเอกสารจริง เก็บในเครื่องเท่านั้น ลบทิ้งได้)
+ผล: data/reports/oxr_why/index.html (มีภาพเอกสารจริง เก็บในเครื่องเท่านั้น ลบทิ้งได้)
 ไฟล์ compare/oxr_why/truth_1312.json มีค่าจริงจากเอกสาร จึงไม่ฝังในโค้ดนี้
 
     .venv/Scripts/python scripts/explain_oxr.py
@@ -33,8 +33,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from fin_extractor.extraction import markdown_to_lines  # noqa: E402
 from visualize_oxr import sanitize_table  # noqa: E402
 
-OUT = ROOT / "data" / "output"
-REPORT = OUT / "visualize" / "oxr_why"
+from fin_extractor.paths import DataPaths  # noqa: E402
+
+P = DataPaths()
+DATASET = "finance_doc_scan"
+REPORT = P.reports("oxr_why")
 PREFIX = "BRWAC50DE3689DA_"
 TH = re.compile(r"[฀-๿]")
 LAT = re.compile(r"[A-Za-z]")
@@ -50,11 +53,11 @@ def load(p: Path):
 
 def real_rows() -> list[dict]:
     rows = []
-    for f in sorted((OUT / "oxr" / "real").glob("*.json")):
-        stem = f.stem[-6:]
+    for f in sorted(P.raw_data("oxr", DATASET).glob("*_p1.pdf.oxr.json")):
+        stem = f.name.split("_p1")[0][-6:]
         data = load(f)["data"]
         md = data["result"]["outputs"]["markdown"]
-        paddle = load(OUT / "extract" / "finance_doc_scan__ocr-rules" / "results" / f"{PREFIX}{stem}_p1.json")["raw_text"]
+        paddle = (P.raw_data("paddle", DATASET) / f"{PREFIX}{stem}_p1.txt").read_text(encoding="utf-8")
         th, la = len(TH.findall(paddle)), len(LAT.findall(paddle))
         windows = [md[i:i + 20] for i in range(0, max(1, len(md) - 20), 5)]
         top = max((windows.count(w) for w in set(windows)), default=0) / max(1, len(windows))
@@ -64,7 +67,7 @@ def real_rows() -> list[dict]:
 
 
 def cer_rows() -> dict[str, list[float]]:
-    b = OUT / "benchmarks"
+    b = P.benchmarks()
     return {
         "Paddle": [r["cer"] for r in load(b / "cer_synthetic_paddle.json")["engines"]["paddle"]["files"]],
         "Typhoon": [r["cer"] for r in load(b / "cer_synthetic_vlm.json")["engines"]["vlm"]["files"]],
@@ -219,18 +222,18 @@ def badge(*keys: str) -> str:
 # ---------- สร้างรายงาน ----------
 
 def main() -> None:
-    why = OUT / "compare" / "oxr_why"
+    why = P.compare("oxr_why")
     rows = real_rows()
     cers = cer_rows()
     lp = load(why / "logprobs_line1.json")
     vocab = load(why / "vocab.json")
     truth = load(why / "truth_1312.json")
-    recall = load(OUT / "compare" / "english" / "text_recall.json")
+    recall = load(P.compare("english") / "text_recall.json")
 
     (REPORT / "img").mkdir(parents=True, exist_ok=True)
-    vis = OUT / "visualize" / "oxr"
-    for src, name in ((vis / "001312" / "03_layout.png", "layout_1312.png"), (vis / "001315" / "03_layout.png", "layout_1315.png"),
-                      (vis / "001312" / "blocks" / "13_Table.png", "table_1312.png")):
+    vis = P.visualize("oxr", DATASET)
+    for src, name in ((vis / "001312_pdf" / "03_layout.png", "layout_1312.png"), (vis / "001315_pdf" / "03_layout.png", "layout_1315.png"),
+                      (vis / "001312_pdf" / "blocks" / "13_Table.png", "table_1312.png")):
         shutil.copy(src, REPORT / "img" / name)
 
     c_oxr, c_pad, c_typ = "var(--s-oxr)", "var(--s-paddle)", "var(--s-typhoon)"
@@ -277,17 +280,17 @@ def main() -> None:
                       [[str(i + 1), e(t["t"]), f'{t["p"]:.2f}', e(" · ".join(f"{a[0]} {a[1]:.2f}" for a in t["alts"]) or "—")] for i, t in enumerate(lp["tokens"])])
 
     # เทียบบล็อกเดียวกันของแต่ละ engine (001312)
-    oxr = load(OUT / "oxr" / "real" / f"{PREFIX}001312.json")["data"]["result"]["outputs"]["json"]["pages"][0]["blocks"]
+    oxr = load(P.raw_data("oxr", DATASET) / f"{PREFIX}001312_p1.pdf.oxr.json")["data"]["result"]["outputs"]["json"]["pages"][0]["blocks"]
     by_idx = {b["idx"]: b for b in oxr}
-    pad_lines = [l for l in load(OUT / "extract" / "finance_doc_scan__ocr-rules" / "results" / f"{PREFIX}001312_p1.json")["raw_text"].split("\n") if l.strip()]
-    typ_lines = markdown_to_lines(load(OUT / "extract" / "finance_doc_scan__vlm-rules" / "results" / f"{PREFIX}001312_p1.json")["raw_text"])
+    pad_lines = [l for l in (P.raw_data("paddle", DATASET) / f"{PREFIX}001312_p1.txt").read_text(encoding="utf-8").split("\n") if l.strip()]
+    typ_lines = markdown_to_lines((P.raw_data("typhoon", DATASET) / f"{PREFIX}001312_p1.md").read_text(encoding="utf-8"))
     cmp_rows = []
     for key in sorted(truth, key=lambda k: int(k) if k.isdigit() else 0):
         if not key.isdigit():
             continue
         i, tr = int(key), truth[key]
         b = by_idx[i]
-        src = next((vis / "001312" / "blocks").glob(f"{i:02d}_*.png"))
+        src = next((vis / "001312_pdf" / "blocks").glob(f"{i:02d}_*.png"))
         shutil.copy(src, REPORT / "img" / f"crop_{i:02d}.png")
         pl, pr = best_line(pad_lines, tr)
         tl, tr_ = best_line(typ_lines, tr)
@@ -305,7 +308,7 @@ def main() -> None:
         rec_rows.append([stem] + [f'{per[k]["found"]}/{per[k]["of"]}' for k in ("Paddle", "Typhoon", "OXR")])
     rec_table = table(["ไฟล์ (อังกฤษเป็นหลัก)", "Paddle", "Typhoon", "OXR"], rec_rows)
 
-    loop_src = load(OUT / "oxr" / "preprocessed" / "skew_+6.0.json")["data"]["result"]["outputs"]["markdown"]
+    loop_src = load(P.raw_data("oxr", "synthetic") / "preprocessed" / "skew_+6.0.json")["data"]["result"]["outputs"]["markdown"]
     loop_snip = loop_src[:150] + " … " + loop_src[-60:]
 
     css = """
