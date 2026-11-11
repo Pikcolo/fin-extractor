@@ -35,11 +35,11 @@ pytest                                    # ต้องผ่านทั้ง
 
 ### รันครั้งแรก
 
-เอกสารจริงไม่อยู่ใน git (`data/raw`, `data/output` ถูก `.gitignore`) วางไฟล์ของคุณที่ `data/raw/` หรือสร้างชุดสังเคราะห์:
+เอกสารจริงไม่อยู่ใน git (ทุกอย่างใต้ `data/` ถูก `.gitignore`) วางไฟล์ของคุณที่ `data/raw/` หรือสร้างชุดสังเคราะห์:
 
 ```powershell
 python scripts/make_synthetic_samples.py                  # ใบกำกับภาษีสมมติ 21 ใบ → data/raw/synthetic/
-python -X utf8 -m fin_extractor extract data/raw/synthetic   # Paddle + rules → data/output/extract/synthetic__ocr-rules/
+python -X utf8 -m fin_extractor extract data/raw/synthetic   # Paddle + rules → data/result_ocr/paddle/synthetic/final/rules/
 ```
 
 ### คำสั่งหลัก
@@ -57,16 +57,21 @@ pytest
 
 ### ผลลัพธ์อยู่ที่ไหน
 
-ทุกคำสั่งเก็บผลในรูปแบบเดียวกัน:
+ข้อมูลทั้งหมดอยู่ใต้ `data/` (ไม่ commit) แยกตามขั้น แล้วแยกตาม engine:
 
 ```
-data/output/<คำสั่ง>/<ชื่ออินพุต>__<แท็ก>/
-├── manifest.json     คำสั่งที่รัน, เวลา, schema_version, ค่า preprocessing, โมเดลที่ใช้, สถานะรายไฟล์
-└── results/ | text/ | images/ | debug/
+data/
+├── raw/<dataset>/                       ไฟล์อินพุต
+├── preprocess/<dataset>/<profile>/      final/ ภาพสุดท้ายที่ทุก engine ใช้ร่วมกัน · steps/ ภาพทีละขั้น
+├── result_ocr/<engine>/<dataset>/       engine = paddle | typhoon | oxr
+│   ├── raw_data/                        ข้อความดิบจาก OCR (เขียนครั้งเดียวต่อ engine)
+│   ├── final/<rules|llm>/               ผลตาม schema (JSON)
+│   └── visualize/                       ภาพให้ดูว่าอ่านอย่างไร
+└── benchmarks/ · compare/ · reports/    ผลวัด / เทียบรายไฟล์ / รายงานภาพ
 ```
 
-เช่น `extract data/raw/finance_doc_scan` → `data/output/extract/finance_doc_scan__ocr-rules/results/<ไฟล์>_p1.json`
-(แท็ก: `ocr-rules`, `ocr-llm`, `vlm-llm`, `vlm-rules`) ผลของ script วัดผลอยู่ใต้ `data/output/benchmarks/` ดู [docs/06-usage.md](docs/06-usage.md#โครงเก็บผลลัพธ์-ทุกคำสั่งเหมือนกัน)
+เช่น `extract data/raw/finance_doc_scan` → `data/result_ocr/paddle/finance_doc_scan/final/rules/<ไฟล์>_p1.json` และข้อความดิบที่ `raw_data/`
+`extract ... --reuse-raw` สกัดซ้ำจากข้อความดิบโดยไม่เรียก OCR/GPU ดู [docs/06-usage.md](docs/06-usage.md#โครงเก็บผลลัพธ์)
 
 ## โครงสร้างโฟลเดอร์
 

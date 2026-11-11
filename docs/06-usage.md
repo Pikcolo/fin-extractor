@@ -45,7 +45,7 @@ pytest                                                                     # ต
 
 ## ข้อมูลตัวอย่าง
 
-โฟลเดอร์ `data/raw` และ `data/output` อยู่ใน git เพียงแค่ `.gitkeep` เนื้อหาข้างในถูก `.gitignore` ไว้ (เอกสารจริงอาจมีข้อมูลภาษีและข้อมูลส่วนบุคคล)
+ทุกโฟลเดอร์ใต้ `data/` อยู่ใน git เพียงแค่ `.gitkeep` เนื้อหาข้างในถูก `.gitignore` ไว้ (เอกสารจริงอาจมีข้อมูลภาษีและข้อมูลส่วนบุคคล)
 หลัง clone จึงไม่มีเอกสารให้รัน มีสองทาง
 
 1. **สแกนจริง:** รับชุดสแกนจากเจ้าของโปรเจกต์นอก git แล้ววางที่ `data/raw/finance_doc_scan/` (ไฟล์ `.pdf`, `.jpg`, `.png`, `.tif`, `.bmp`, `.webp`)
@@ -58,7 +58,7 @@ python scripts/make_synthetic_samples.py                      # ถ้ายั�
 python -m fin_extractor extract data/raw/synthetic            # โหมด ocr (Paddle + rules) ไม่ต้องใช้ Ollama
 ```
 
-ได้ผลที่ `data/output/extract/synthetic__ocr-rules/` (ดูโครงข้างล่าง) และบนหน้าจอจะแสดง status กับผล check ของแต่ละใบ
+ได้ผลที่ `data/result_ocr/paddle/synthetic/final/rules/` (ข้อความดิบที่ `raw_data/` ดูโครงข้างล่าง) และบนหน้าจอจะแสดง status กับผล check ของแต่ละใบ
 ตัวโหลดไฟล์กรองเฉพาะนามสกุลภาพ/PDF จึงไม่หยิบ `truth.json` ในโฟลเดอร์เดียวกัน
 
 โหมด `vlm` (Typhoon + LLM) ต้องเปิด Ollama ก่อน และช้ากว่ามาก:
@@ -67,32 +67,45 @@ python -m fin_extractor extract data/raw/synthetic            # โหมด ocr
 python -m fin_extractor extract data/raw/finance_doc_scan --mode vlm
 ```
 
-## โครงเก็บผลลัพธ์ (ทุกคำสั่งเหมือนกัน)
+## โครงเก็บผลลัพธ์
+
+ข้อมูลทุกอย่างอยู่ใต้ `data/` และไม่ถูก commit (เก็บเฉพาะ `.gitkeep`) ตำแหน่งทั้งหมดกำหนดที่เดียวใน `src/fin_extractor/paths.py`
+ชื่อไฟล์ผลของทุกขั้นเป็น `<ไฟล์>_p<หน้า>` เหมือนกัน จึงดูไฟล์เดียวข้ามขั้น/ข้าม engine ได้ และลบ engine ที่ไม่ใช้ได้ด้วยการลบโฟลเดอร์เดียว
 
 ```
-data/output/<คำสั่ง>/<ชื่ออินพุต>__<แท็ก>/
-├── manifest.json     คำสั่งที่รัน (argv), เวลา, schema_version, ค่า preprocessing, โมเดลที่ใช้, รายการไฟล์พร้อมสถานะ/เวลา
-└── results/ | text/ | images/ | debug/ | steps/    ผลของคำสั่งนั้น
+data/
+├── raw/<dataset>/                              ไฟล์อินพุต (dataset = ชื่อโฟลเดอร์ เช่น finance_doc_scan, synthetic)
+├── preprocess/<dataset>/<profile>/             ผล preprocess หนึ่งชุดตั้งค่า (profile ตั้งต้นชื่อ default)
+│   ├── final/<ไฟล์>_p<หน้า>.png                ภาพสุดท้ายที่ส่งให้ OCR/VLM ทุกตัว ใช้ร่วมกัน (ไม่ preprocess ซ้ำ)
+│   ├── steps/                                  ภาพทีละขั้น (เมื่อใส่ --steps)
+│   └── settings.json · manifest.json
+├── result_ocr/<engine>/<dataset>/              engine = paddle | typhoon | oxr
+│   ├── raw_data/<ไฟล์>_p<หน้า>.txt | .md       ข้อความดิบจาก OCR + .meta.json เขียนครั้งเดียวต่อ engine
+│   ├── final/<extractor>/<ไฟล์>_p<หน้า>.json   ผลตาม schema (extractor = rules | llm) + manifest.json
+│   └── visualize/                              ภาพให้ดูว่าอ่านอย่างไร
+└── benchmarks/ · compare/ · reports/           งานที่ข้าม engine/ข้ามไฟล์ (ผลวัด, เทียบรายไฟล์, รายงานภาพ)
 ```
 
-| คำสั่ง | โฟลเดอร์ผลตั้งต้น | ข้างใน |
+| คำสั่ง | เขียนที่ | ข้างใน |
 |---|---|---|
-| `extract` | `data/output/extract/<อินพุต>__<mode>-<llm\|rules>/` เช่น `finance_doc_scan__ocr-rules` | `results/<ไฟล์>_p<หน้า>.json` (ตาม `schemas/invoice.schema.json`), `debug/` เมื่อใส่ `--debug` |
-| `ocr` | `data/output/ocr/<อินพุต>__<engine>/` เช่น `BITKUB-001__paddle` | `text/<ไฟล์>_p<หน้า>.txt` (vlm เป็น `.md`) |
-| `preprocess` | `data/output/preprocess/<อินพุต>/` | `images/<ไฟล์>_p<หน้า>.png`, `steps/` เมื่อใส่ `--steps` |
-| script วัดผล | `data/output/benchmarks/` | ไฟล์ผลของแต่ละ script (ดูตารางข้างล่าง) |
+| `preprocess` | `data/preprocess/<dataset>/<profile>/` | `final/` ภาพสุดท้าย, `steps/` เมื่อใส่ `--steps`, `settings.json` (ค่าที่ทำให้ได้ภาพนี้), `manifest.json` |
+| `ocr` | `data/result_ocr/<engine>/<dataset>/raw_data/` | `<ไฟล์>_p<หน้า>.txt` (vlm เป็น `.md`) + `.meta.json` + `manifest.json` |
+| `extract` | `data/result_ocr/<engine>/<dataset>/` | `raw_data/` (ข้อความดิบ) และ `final/<rules\|llm>/<ไฟล์>_p<หน้า>.json` ตาม `schemas/invoice.schema.json` + `manifest.json` |
+| script วัดผล | `data/benchmarks/` | ไฟล์ผลของแต่ละ script (ดูตารางข้างล่าง) |
 
-- **อินพุต** คือชื่อโฟลเดอร์ หรือชื่อไฟล์ (ไม่รวมนามสกุล) **แท็ก** บอกวิธีที่ใช้: `ocr-rules` (Paddle + rules), `ocr-llm`, `vlm-llm`, `vlm-rules`
-- รันซ้ำด้วยอินพุตและวิธีเดิมจะเขียนทับโฟลเดอร์เดิม ต้องการเก็บหลายรอบให้ใช้ `--out <โฟลเดอร์>` (โครงข้างในยังเหมือนเดิม)
+- **engine** ในชื่อโฟลเดอร์: `--mode ocr` = `paddle`, `--mode vlm` = `typhoon` ส่วน **extractor**: `llm` เมื่อใช้ LLM สกัด ไม่งั้น `rules`
+- **OCR ครั้งเดียว สกัดได้หลายแบบ:** `extract` เก็บข้อความดิบไว้ที่ `raw_data/` แล้ว `extract ... --reuse-raw` สกัดซ้ำจากข้อความนั้น (เปลี่ยน rules ↔ LLM, แก้ขั้นสกัดแล้วลองใหม่) **โดยไม่โหลด/เรียก OCR หรือ VLM และไม่ใช้ GPU**
+- **ภาพ preprocess ใช้ร่วมกันทุก engine:** ถ้าตั้งค่า preprocess เปลี่ยนจากที่เก็บไว้ ระบบจะไม่ปนภาพคนละตั้งค่า ให้ใช้ `--profile <ชื่อใหม่>` หรือ `--force` (ล้างโฟลเดอร์ profile นั้นแล้วทำใหม่)
+- รันซ้ำด้วยอินพุตและวิธีเดิมจะเขียนทับ ถ้าอยากแยกการทดลองใช้ `--out <โฟลเดอร์>` (แทนโฟลเดอร์ engine ทั้งโฟลเดอร์ ภาพ preprocess ยังใช้ร่วมกัน)
 - `manifest.json` เขียนตอนจบ ถ้ารันล้มกลางทางจะมี `"status": "failed"` พร้อมไฟล์ที่ทำเสร็จแล้ว
 
 ## คำสั่ง
 
 | คำสั่ง | ขั้นที่ทำ | ผลลัพธ์ |
 |---|---|---|
-| `python -m fin_extractor preprocess <input> [--steps]` | 1 → 2 | `data/output/preprocess/` |
-| `python -m fin_extractor ocr <input> --engine paddle\|vlm` | 1 → 3 | `data/output/ocr/` |
-| `python -m fin_extractor extract <input> --mode ocr\|vlm` | 1 → 7 | `data/output/extract/` |
+| `python -m fin_extractor preprocess <input> [--profile P] [--steps] [--force]` | 1 → 2 | `data/preprocess/<dataset>/<profile>/` |
+| `python -m fin_extractor ocr <input> --engine paddle\|vlm` | 1 → 3 | `data/result_ocr/<engine>/<dataset>/raw_data/` |
+| `python -m fin_extractor extract <input> --mode ocr\|vlm [--reuse-raw]` | 1 → 7 | `data/result_ocr/<engine>/<dataset>/{raw_data,final/<extractor>}/` |
 | `python -m fin_extractor schema` | — | `schemas/invoice.schema.json` (generate จาก `schema.py` ห้ามแก้ไฟล์ตรง ๆ) |
 | `pytest` | รันเทสต์ | |
 
@@ -103,15 +116,16 @@ data/output/<คำสั่ง>/<ชื่ออินพุต>__<แท็ก
 | `--mode ocr\|vlm` | `ocr` = Paddle + rules (ตั้งต้น), `vlm` = Typhoon OCR + LLM + rules |
 | `--engine` | engine สำหรับ `--mode ocr` (ตั้งต้น `paddle`) |
 | `--llm auto\|on\|off` | `auto` = ใช้ LLM เฉพาะโหมด vlm |
-| `--debug` | บันทึกภาพทุกขั้นของ preprocess ลง `debug/` |
-| `--keep-raw` | เก็บข้อความดิบใน JSON |
-| `--out` | โฟลเดอร์ผลทั้งโฟลเดอร์ (แทนชื่อตั้งต้นข้างบน) |
+| `--profile` | ชื่อชุดตั้งค่า preprocess (โฟลเดอร์ `preprocess/<dataset>/<profile>/` ตั้งต้น `default`) |
+| `--reuse-raw` | สกัดซ้ำจากข้อความดิบที่เก็บไว้ใน `raw_data/` (ไม่โหลดหรือเรียก OCR/VLM ไม่ใช้ GPU) |
+| `--keep-raw` | เก็บข้อความดิบใน JSON ผลสุดท้ายด้วย (ตั้งต้นเก็บเฉพาะที่ `raw_data/`) |
+| `--out` | โฟลเดอร์ engine เอง (แทน `data/result_ocr/<engine>/<dataset>`) ผลอยู่ใต้ `raw_data/` และ `final/<extractor>/` |
 | `--config` | YAML ที่ override `configs/default.yaml` (วางก่อนชื่อคำสั่ง) |
 | `-v` | แสดง log (วางก่อนชื่อคำสั่ง เช่น `python -m fin_extractor -v extract ...`) |
 
 ## Script วัดผล
 
-ไม่ใช่ส่วนของ pipeline ใช้วัดและเทียบ ผลทั้งหมดอยู่ใต้ `data/output/benchmarks/`
+ไม่ใช่ส่วนของ pipeline ใช้วัดและเทียบ ผลทั้งหมดอยู่ใต้ `data/benchmarks/` (ยกเว้นที่ระบุ)
 
 | Script | ทำอะไร | ต้องมีมาก่อน | ผลลัพธ์ |
 |---|---|---|---|
@@ -120,7 +134,11 @@ data/output/<คำสั่ง>/<ชื่ออินพุต>__<แท็ก
 | `benchmark_cer.py [--engines paddle vlm]` | วัด CER บนชุดสังเคราะห์ (ข้อความอ้างอิงดึงจาก `render_page` ไม่ต้องมีเฉลยเพิ่ม) `vlm` ต้องมี Ollama + Typhoon | `make_synthetic_samples.py` | `cer_synthetic_<engines>.json` |
 | `benchmark_real_scans.py` | เทียบ preprocessing 13 ชุดบนสแกนจริง ไม่ใช้เฉลย (~10 นาที) | สแกนใน `data/raw/finance_doc_scan/` | `real_scans.json` |
 | `organize_preprocess_results.py` | จัดผลข้างบนเป็นโฟลเดอร์ต่อชุด | `benchmark_real_scans.py` | `preprocess_experiments/` |
-| `compare_modes.py` | เทียบผล `extract` สองโหมดรายใบ | `extract data/raw/finance_doc_scan` ทั้ง `--mode ocr` และ `--mode vlm` (อ่าน `results/` ของ `finance_doc_scan__ocr-rules` และ `finance_doc_scan__vlm-llm`) | `compare_modes.md` |
+| `compare_modes.py` | เทียบผล `extract` ของ `paddle/rules` กับ `typhoon/llm` รายใบ | `extract data/raw/finance_doc_scan` ทั้ง `--mode ocr` และ `--mode vlm` (อ่าน `final/` ของสองชุดนั้น) | `compare_modes.md` |
+| `compare_file.py <เลขไฟล์>` | เทียบผลสกัดของไฟล์เดียวรายฟิลด์ ข้าม engine/extractor (ไม่ใช้ GPU) มีคอลัมน์อ้างอิงถ้าใส่ `reference.json` | ผล `extract` ของแต่ละ engine | `data/compare/<ไฟล์>/` |
+| `extract_oxr.py <input>` | OXR เป็นตัวอ่าน (ต้องเปิด container OXR ในเครื่อง ใช้ RAM/VRAM มาก) ต่อจากที่ค้างได้ | `preprocess` + container `oxr` | `data/result_ocr/oxr/<dataset>/` |
+| `visualize_oxr.py <เลขไฟล์>` · `explain_oxr.py` | รายงานภาพทีละขั้นของ OXR · รายงาน "ทำไม OXR ไม่แม่น" (ไม่ใช้ GPU) | ผล OXR ใน `raw_data/` | `…/visualize/` · `data/reports/oxr_why/` |
+| `benchmark_oxr.py` | วัด CER ภาพสังเคราะห์กับ free API ของ OXR (ห้ามใช้กับสแกนจริง) | `make_synthetic_samples.py` | `data/benchmarks/oxr_synthetic_*.json` |
 | `benchmark.py prepare --per-cell 2` | โหลดชุด Invoice Extraction Benchmark จาก Hugging Face (ต้องต่อเน็ต) พร้อมเฉลย; `--thai <โฟลเดอร์>` เพิ่มเอกสารไทยที่มีเฉลย `.json` คู่กัน | — | `data/raw/benchmark/` |
 | `benchmark.py run paddle\|paddle+llm\|vlm` | รันทีละ engine กับชุดข้างบน (`paddle+llm`, `vlm` ต้องมี Ollama) | `prepare` | `ieb/<engine>.jsonl` |
 | `benchmark.py report` | สรุปความถูกต้องรายฟิลด์และเวลาของทุก engine ที่ `run` แล้ว | `run` | `ieb/report.md` |
@@ -128,9 +146,10 @@ data/output/<คำสั่ง>/<ชื่ออินพุต>__<แท็ก
 ตัวอย่างแผนทดลองเทียบสองโหมดบนสแกนจริง:
 
 ```powershell
-python -m fin_extractor extract data/raw/finance_doc_scan                # → extract/finance_doc_scan__ocr-rules
-python -m fin_extractor extract data/raw/finance_doc_scan --mode vlm     # → extract/finance_doc_scan__vlm-llm
-python scripts/compare_modes.py                                          # → benchmarks/compare_modes.md
+python -m fin_extractor extract data/raw/finance_doc_scan --llm off     # → result_ocr/paddle/finance_doc_scan/{raw_data,final/rules}
+python -m fin_extractor extract data/raw/finance_doc_scan --mode vlm    # → result_ocr/typhoon/finance_doc_scan/{raw_data,final/llm} (OCR ครั้งเดียว)
+python -m fin_extractor extract data/raw/finance_doc_scan --mode vlm --llm off --reuse-raw   # rules จากข้อความ Typhoon เดิม ไม่ใช้ GPU
+python scripts/compare_modes.py                                          # → data/benchmarks/compare_modes.md
 ```
 
 ## โครงสร้างโปรเจกต์
@@ -138,7 +157,7 @@ python scripts/compare_modes.py                                          # → b
 ```
 fin_extractor/
 ├── configs/default.yaml        ค่าตั้งต้นทั้งหมด
-├── data/                       raw/ (เอกสารต้นฉบับ) · output/ (ผล) ไม่ถูก commit ยกเว้น .gitkeep
+├── data/                       raw/ (เอกสารต้นฉบับ) · preprocess/ · result_ocr/ · benchmarks/ · compare/ · reports/ ไม่ถูก commit ยกเว้น .gitkeep
 ├── docs/                       เอกสารนี้
 ├── schemas/invoice.schema.json Data Contract (generate จาก schema.py)
 ├── scripts/                    benchmark (มีเฉลย) · benchmark_preprocessing + benchmark_cer + make_synthetic_samples (สังเคราะห์)
@@ -148,7 +167,10 @@ fin_extractor/
 │   ├── config.py
 │   ├── pipeline.py             ตัวควบคุมลำดับ
 │   ├── cli.py
-│   ├── runs.py                 โครงเก็บผล + manifest
+│   ├── paths.py                ที่เดียวที่บอกว่าแต่ละขั้นเขียนข้อมูลที่ไหน
+│   ├── stages.py               preprocess ที่เก็บไว้ใช้ร่วมกันทุก engine + ข้อความดิบ (raw_data)
+│   ├── doctypes.py             โปรไฟล์ชนิดเอกสาร (ฟิลด์/required/checks ต่อชนิด)
+│   ├── runs.py                 manifest ของการรัน
 │   ├── io/                     ขั้นที่ 1
 │   ├── preprocessing/          ขั้นที่ 2
 │   ├── ocr/                    ขั้นที่ 3A
@@ -166,8 +188,9 @@ fin_extractor/
 | `schema.py` | `pytest` + `python -m fin_extractor schema` (เพิ่ม `SCHEMA_VERSION` ถ้าโครงเปลี่ยน) |
 | extraction / validation / prompt | `pytest` + ลอง `extract` กับเอกสารจริงอย่างน้อยหนึ่งใบ (prompt/LLM ต้องลองโหมด vlm ด้วย เทสต์ไม่ครอบพฤติกรรมของ LLM) |
 | `configs/default.yaml` | ลอง `extract` ถ้าแก้ preprocessing หรือ `document_types` |
+| ขั้นสกัด / `document_types` | `python -m fin_extractor extract <input> --reuse-raw` (เติม `--mode vlm` ถ้าเป็นข้อความ Typhoon) สกัดและตรวจซ้ำจากข้อความดิบใน `raw_data/` ไม่เรียก OCR/GPU (วินาทีเดียว) เทียบก่อน/หลังบนข้อความเดิมได้ |
 | `make_synthetic_samples.py` | ระวัง: ผลวัดใน [02](02-preprocessing.md) อ้างภาพชุดปัจจุบัน สร้างใหม่แล้วตัวเลขเดิมอาจเทียบไม่ได้ |
-| docs | ไม่ต้องรัน แต่ตัวเลขผลวัดต้องตรงกับผลจริงล่าสุดใน `data/output/benchmarks/` |
+| docs | ไม่ต้องรัน แต่ตัวเลขผลวัดต้องตรงกับผลจริงล่าสุดใน `data/benchmarks/` และ `data/result_ocr/` |
 
 ## ข้อจำกัดที่ยังไม่ได้ทดสอบ
 

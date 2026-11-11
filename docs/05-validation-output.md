@@ -85,7 +85,7 @@ check จับได้เฉพาะค่าที่ไม่สอดค�
 
 โค้ด: `src/fin_extractor/cli.py → cmd_extract`
 
-บันทึกเป็น `data/output/<ชื่อไฟล์>_p<หน้า>.json` ตามโครง `ExtractionResult` (JSON Schema เต็มอยู่ที่ `schemas/invoice.schema.json`)
+บันทึกเป็น `data/result_ocr/<engine>/<dataset>/final/<rules|llm>/<ชื่อไฟล์>_p<หน้า>.json` (ข้อความดิบแยกไว้ที่ `raw_data/`) ตามโครง `ExtractionResult` (JSON Schema เต็มอยู่ที่ `schemas/invoice.schema.json`)
 
 ### หลักการของ schema (Data Contract)
 
@@ -159,4 +159,4 @@ ExtractionResult                     ผลของ 1 หน้า
 | `vat_amount` | decimal (สตริง) | |
 | `total_amount` | decimal (สตริง) | ยอดสุทธิรวม VAT |
 
-ใส่ `--debug` เพื่อบันทึกภาพทุกขั้นของ preprocess ไว้ที่ `debug/` ในโฟลเดอร์ผลของรันนั้น (`data/output/extract/<อินพุต>__<แท็ก>/debug/`) ด้วย
+ภาพทุกขั้นของ preprocess ดูได้ด้วย `python -m fin_extractor preprocess <input> --steps` (เก็บที่ `data/preprocess/<dataset>/<profile>/steps/`)

@@ -137,12 +137,12 @@ VLM อ่านทั้งหน้าเป็น Markdown และเข้
 | โครงตาราง | ไม่มี (เป็นบรรทัดข้อความ) | ได้ `<table>` ครบทุกแถว |
 | เวลา | ~4.5 วินาที | ~50 วินาที |
 
-ดูข้อความดิบด้วย `python -m fin_extractor ocr <ไฟล์> --engine paddle|vlm` (บันทึกที่ `data/output/ocr/<อินพุต>__<engine>/text/` ผล Paddle เป็น `.txt`, ผล VLM เป็น `.md`)
+ดูข้อความดิบด้วย `python -m fin_extractor ocr <ไฟล์> --engine paddle|vlm` (บันทึกที่ `data/result_ocr/<engine>/<dataset>/raw_data/` ผล Paddle เป็น `.txt`, ผล VLM เป็น `.md`)
 
 ## ผลบนลายมือ: Typhoon OCR ทั้งหน้า เทียบ PaddleOCR (สแกนจริง 4 ใบ)
 
 ทดสอบกับใบที่ Paddle พลาดหนักในชุด `finance_doc_scan`: ใบสำคัญรับเงินลายมือ (001320, 001322) และหนังสือรับรองหัก ณ ที่จ่ายที่ช่องเลขเขียนด้วยมือ (001307, 001323)
-ไม่มีเฉลย จึงดูเลข 13 หลักที่ผ่าน checksum และอ่านเทียบกับภาพด้วยตา ผลข้อความอยู่ที่ `data/output/ocr/finance_doc_scan__vlm/text/*_p1.md` (ถ้ารัน `ocr --engine vlm`)
+ไม่มีเฉลย จึงดูเลข 13 หลักที่ผ่าน checksum และอ่านเทียบกับภาพด้วยตา ผลข้อความอยู่ที่ `data/result_ocr/typhoon/finance_doc_scan/raw_data/*_p1.md` (ถ้ารัน `ocr --engine vlm`)
 
 | ใบ | เลขภาษีที่ checksum ผ่าน: Paddle | เลขภาษีที่ checksum ผ่าน: VLM ทั้งหน้า | เวลา VLM |
 |---|---|---|---|
@@ -156,12 +156,12 @@ VLM อ่านทั้งหน้าเป็น Markdown และเข้
 - **ข้อจำกัด:** ตัวอย่างน้อย (4 ใบ) ไม่มีเฉลย และเวลา 143.9 วินาทีของใบแรกรวมการโหลดโมเดล
 ## ผลเทียบสองโหมดบนสแกนจริง 18 ใบ (`--mode ocr` เทียบ `--mode vlm`)
 
-> **หมายเหตุ (2026-11-11):** ตัวเลขและข้อสังเกตในหัวข้อนี้มาจากรันของ 2026-11-10 ก่อนมีโปรไฟล์ชนิดเอกสาร ผลดิบชุดนั้น (รวม `ocr-llm`) ถูกลบแล้ว
-> รันใหม่ได้ ocr-rules 15 `needs_review`/3 `failed`, vlm-llm 16 `needs_review`/2 `auto_approved` (ดู [README](README.md)) ข้อสังเกตเรื่องค่าผิดของ LLM ด้านล่างยังไม่ได้ตรวจซ้ำกับรอบใหม่
-> ตาราง `data/output/benchmarks/compare_modes.md` เป็นของรอบเก่า
+> **หมายเหตุ (2026-11-11):** ตัวเลขและข้อสังเกตในหัวข้อนี้มาจากรันของ 2026-11-10 ก่อนมีโปรไฟล์ชนิดเอกสาร ผลดิบชุดนั้น (รวม `ocr-llm`) ถูกแทนที่แล้ว
+> รันใหม่ได้ paddle/rules 15 `needs_review`/3 `failed`, typhoon/llm 18 `needs_review` (ดู [README](README.md)) ข้อสังเกตเรื่องค่าผิดของ LLM ด้านล่างยังไม่ได้ตรวจซ้ำกับรอบใหม่
+> ตาราง `data/benchmarks/compare_modes.md` เป็นของรอบเก่า
 
-เก็บผลสองชุดคู่กัน ชุด A `data/output/extract/finance_doc_scan__ocr-rules/` = `--mode ocr` (Paddle + rules) ชุด B `data/output/extract/finance_doc_scan__vlm-llm/` = `--mode vlm --keep-raw`
-(Typhoon OCR + `qwen2.5:3b` + rules) ตารางเทียบรายใบ: `data/output/benchmarks/compare_modes.md` (สร้างด้วย `scripts/compare_modes.py`) ไม่มีเฉลย
+ชุดที่เทียบ (ตัวเลขในตารางเป็นของรอบ 2026-11-10): ชุด A = `--mode ocr` (Paddle + rules) ชุด B = `--mode vlm` (Typhoon OCR + `qwen2.5:3b` + rules)
+ปัจจุบันอยู่ที่ `data/result_ocr/paddle/finance_doc_scan/final/rules/` และ `data/result_ocr/typhoon/finance_doc_scan/final/llm/` ตารางเทียบรายใบ: `data/benchmarks/compare_modes.md` (สร้างด้วย `scripts/compare_modes.py`) ไม่มีเฉลย
 
 | | A: ocr | B: vlm |
 |---|---|---|

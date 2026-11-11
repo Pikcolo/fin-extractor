@@ -8,7 +8,7 @@
 >
 > **รันในเครื่องได้จริงบน GPU 6GB** (Docker + WSL2 ด้วยค่าที่ปรับเอง ดูหัวข้อ 5) ข้อมูลไม่ออกนอกเครื่อง
 > ผลกับสแกนจริง 18 ใบ (หัวข้อ 6.2): อักษรจีนโผล่ 17 ใบ, 4 ใบวนซ้ำจนผลยาวผิดปกติและใช้เวลา 4–5 นาทีต่อหน้า
-> รันเต็ม pipeline เทียบกัน (หัวข้อ 6.3 บน 15 ใบที่ทุก engine มีผล): OXR `failed` 12/15 ใบ เทียบ Paddle 2 และ Typhoon 0 และได้ `total_amount` 3 ใบ (Paddle 10, Typhoon 11)
+> รันเต็ม pipeline เทียบกัน (หัวข้อ 6.3 บน 15 ใบที่ทุก engine มีผล): OXR `failed` 12/15 ใบ เทียบ Paddle 2 และ Typhoon 0 และได้ `total_amount` 3 ใบ (Paddle 10, Typhoon 12)
 > ตรวจแล้วว่าไม่ใช่เพราะใช้ผิดวิธี (หัวข้อ 6.4): บรรทัดไทยสะอาดบรรทัดเดียวส่งเข้าโมเดลตรง ๆ ก็ยังอ่านไม่ได้ และไม่มีตัวเลือกภาษา
 
 ## 1. OXR คืออะไร
@@ -36,9 +36,9 @@ flowchart LR
 3. **RSI loop** (Recursive Self-Improvement) เป็นเทคนิคตอนฝึก: ให้โมเดลหาตัวอย่างที่ตัวเองตอบผิดหรืออ่อน แล้วเสริมข้อมูลตรงนั้นโดยไม่ต้องมีคนทำ label โค้ดฝึกไม่เปิดเผย
    (ไม่ใช่การเรียนรู้จากเอกสารของเราตอนใช้งาน)
 
-**ดูภาพแต่ละขั้น** (นำเข้า → preprocess → กรอบ layout → ลำดับการอ่าน → ข้อความของแต่ละบล็อก): `scripts/visualize_oxr.py <เลขไฟล์>` สร้างรายงาน HTML ในเครื่องจากผลดิบที่เก็บไว้ (ไม่รัน OXR ใหม่) ที่ `data/output/visualize/oxr/<เลขไฟล์>/index.html`
+**ดูภาพแต่ละขั้น** (นำเข้า → preprocess → กรอบ layout → ลำดับการอ่าน → ข้อความของแต่ละบล็อก): `scripts/visualize_oxr.py <เลขไฟล์>` สร้างรายงาน HTML ในเครื่องจากผลดิบที่เก็บไว้ (ไม่รัน OXR ใหม่) ที่ `data/result_ocr/oxr/<dataset>/visualize/<เลขไฟล์>_<pdf|preprocessed>/index.html`
 
-**รายงานภาพเรื่องความไม่แม่นของ OXR กับภาษาไทย** (กราฟความน่าจะเป็นของ token, จำนวน token แยกภาษา, ภาพเทียบบล็อกเดียวกันของแต่ละ engine, ภาษากับอักษรจีนที่หลุด): `scripts/explain_oxr.py` สร้างที่ `data/output/visualize/oxr_why/index.html`
+**รายงานภาพเรื่องความไม่แม่นของ OXR กับภาษาไทย** (กราฟความน่าจะเป็นของ token, จำนวน token แยกภาษา, ภาพเทียบบล็อกเดียวกันของแต่ละ engine, ภาษากับอักษรจีนที่หลุด): `scripts/explain_oxr.py` สร้างที่ `data/reports/oxr_why/index.html`
 
 ตัวโมเดลไม่ **สกัด field** (วันที่ ยอดเงิน เลขที่) เอง ต้องเอาผลไปให้ LLM หรือ rules ทำต่อ เหมือนที่ Typhoon ในโปรเจกต์นี้ต้องมีขั้นที่ 4
 
@@ -130,9 +130,9 @@ curl.exe --fail-with-body https://free-oxr.somark.ai/api/v1/parse/sync `
 .venv\Scripts\python scripts\benchmark_oxr.py                # ส่งภาพดิบ
 ```
 
-สคริปต์นี้ชี้ไป **free API** (ค่าคงที่ `API` ในไฟล์) ใช้กับภาพสังเคราะห์เท่านั้น ผลดิบแคชที่ `data/output/oxr/` สรุปที่ `data/output/benchmarks/oxr_synthetic_*.json`
-ผลกับสแกนจริงในหัวข้อ 6.2 ได้จากการส่ง PDF ไปที่ container ในเครื่อง (`http://127.0.0.1:8000`) ทีละไฟล์ เก็บที่ `data/output/oxr/real/` (ถูก gitignore)
-ส่วนหัวข้อ 6.3 รันด้วย `.venv\Scripts\python scripts\extract_oxr.py data/raw/finance_doc_scan` (ปฏิเสธโฮสต์ที่ไม่ใช่ localhost) ได้ผลตาม schema ของโปรเจกต์ที่ `data/output/extract/finance_doc_scan__oxr-rules/`
+สคริปต์นี้ชี้ไป **free API** (ค่าคงที่ `API` ในไฟล์) ใช้กับภาพสังเคราะห์เท่านั้น ผลดิบแคชที่ `data/result_ocr/oxr/synthetic/raw_data/<raw|preprocessed>/` สรุปที่ `data/benchmarks/oxr_synthetic_*.json`
+ผลกับสแกนจริงในหัวข้อ 6.2 ได้จากการส่ง PDF ไปที่ container ในเครื่อง (`http://127.0.0.1:8000`) ทีละไฟล์ เก็บที่ `data/result_ocr/oxr/finance_doc_scan/raw_data/*.pdf.oxr.json` (ถูก gitignore)
+ส่วนหัวข้อ 6.3 รันด้วย `.venv/Scripts/python scripts/extract_oxr.py data/raw/finance_doc_scan` (ปฏิเสธโฮสต์ที่ไม่ใช่ localhost รันต่อจากที่ค้างได้) ได้ผลตาม schema ของโปรเจกต์ที่ `data/result_ocr/oxr/finance_doc_scan/final/rules/` และข้อความ/ผลเต็มของ OXR ที่ `raw_data/`
 
 ## 6. ผลวัดกับภาษาไทย (ตัวอย่างประกอบ)
 
@@ -150,7 +150,7 @@ curl.exe --fail-with-body https://free-oxr.somark.ai/api/v1/parse/sync `
 | เลขภาษี / เลขที่ / วันที่ | 16 / 21 / 19 จาก 21 | — | — |
 | ยอดก่อนภาษี / VAT / ยอดรวม | 21 / 19 / 20 จาก 21 | — | — |
 
-(Paddle/Typhoon: ค่าจาก `data/output/benchmarks/cer_synthetic_*.json` ซึ่งเป็นชุดและเฉลยเดียวกัน ไม่ได้วัด field รายตัวด้วยสคริปต์นี้)
+(Paddle/Typhoon: ค่าจาก `data/benchmarks/cer_synthetic_*.json` ซึ่งเป็นชุดและเฉลยเดียวกัน ไม่ได้วัด field รายตัวด้วยสคริปต์นี้)
 
 ### ตัวอย่าง: ใบ `00_baseline.jpg`
 
@@ -213,22 +213,23 @@ OXR คืน (ตัดมาบางส่วน):
 ### 6.3 รันเต็ม pipeline: OXR เทียบ Paddle และ Typhoon (อินพุตและขั้นสกัดเดียวกัน)
 
 `scripts/extract_oxr.py` ส่งภาพที่ผ่าน loader + preprocess ของโปรเจกต์ไปที่ OXR ในเครื่อง แล้วเข้าขั้นสกัด rules + validation เดิม (ทางเดียวกับ Typhoon)
-เทียบกับ Paddle+rules (`finance_doc_scan__ocr-rules`) และ Typhoon+rules (`finance_doc_scan__vlm-rules`) ผลอยู่ที่ `data/output/extract/finance_doc_scan__oxr-rules/`
+เทียบกับ Paddle+rules (`data/result_ocr/paddle/finance_doc_scan/final/rules/`) และ Typhoon+rules (`.../typhoon/finance_doc_scan/final/rules/`) ผลอยู่ที่ `data/result_ocr/oxr/finance_doc_scan/final/rules/`
 
 > **เทียบบน 15 ใบเดียวกัน:** รัน OXR ถูกระบบหยุดที่ 15 จาก 18 ใบเพราะหน่วยความจำต่ำ (ไม่มี 001321, 001322, 001323) ทุกตัวเลขข้างล่างจึงนับเฉพาะ 15 ใบที่ทุก engine มีผล
-> ทั้งสามชุดรันด้วยโค้ดเดียวกัน (มีโปรไฟล์ชนิดเอกสารแล้ว แต่ยังไม่มีการอ่านชื่อลูกค้าจากป้ายและ check ตามโปรไฟล์) ผลของรันที่ใช้ LLM ช่วย (`ocr-llm`) ไม่มีแล้ว ถูกลบและไม่ได้รันใหม่
+> Paddle และ Typhoon รันใหม่เมื่อ 2026-11-11 ด้วยโค้ดปัจจุบัน (รวมการอ่านชื่อลูกค้าจากป้าย, check ตามโปรไฟล์, แก้ป้ายสำเนา) ส่วน OXR รันก่อนหน้านั้น (ยังไม่มีสามอย่างนี้)
+> ผลของรันที่ใช้ LLM ช่วย (`ocr-llm`) ไม่มีแล้ว ถูกลบและไม่ได้รันใหม่
 
 | (15 ใบ) | Paddle + rules | Typhoon + rules | **OXR + rules** |
 |---|---|---|---|
 | `failed` / `needs_review` | 2 / 13 | 0 / 15 | **12 / 3** |
-| มีค่า `vendor.tax_id` | 10 | 11 | 8 |
-| มีค่า `invoice_no` | 8 | 10 | **4** |
+| มีค่า `vendor.tax_id` | 12 | 13 | 8 |
+| มีค่า `invoice_no` | 8 | 9 | **4** |
 | มีค่า `date` | 14 | 14 | 14 |
-| มีค่า `total_amount` | 10 | 11 | **3** |
-| มีค่า `vendor.name` | 10 | 13 | 8 |
+| มีค่า `total_amount` | 10 | 12 | **3** |
+| มีค่า `vendor.name` | 12 | 13 | 8 |
 
 ค่าที่ OXR สกัดได้ตรงกับอีกสองตัวหรือไม่ (เฉพาะที่ทั้งสองฝั่งมีค่า ไม่มีเฉลย จึงวัดได้แค่ "ตรงกัน" ไม่ใช่ "ถูก"):
-`date` 10/13 (Paddle), 11/13 (Typhoon) · `vendor.tax_id` 5/8, 4/8 · `total_amount` 2/3, 2/3 · `invoice_no` 1/2, 3/3 · **`vendor.name` 0/6, 0/8** (ชื่อไทยไม่เคยตรงเลย)
+`date` 10/13 (Paddle), 11/13 (Typhoon) · `vendor.tax_id` 5/8, 4/8 · `total_amount` 2/3, 2/3 · `invoice_no` 1/2, 3/3 · **`vendor.name` 0/8, 0/8** (ชื่อไทยไม่เคยตรงเลย)
 
 - OXR **ไม่ดีกว่าทั้งสองตัวในทุก field** และมีใบ `failed` มากกว่าเท่าตัวหลายเท่า ไม่มี `auto_approved` ในทั้งสามชุด (โปรไฟล์ชนิดเอกสารยังเป็นฉบับร่าง อนุมัติอัตโนมัติไม่ได้ จึงเทียบ `auto_approved` ไม่ได้)
 - ใบที่ผลเทียบกันได้ดีที่สุดคือเอกสารอังกฤษล้วน 001315: OXR อ่านข้อความครบ (หัวข้อ 6.2) แต่ rules ยังหา `total_amount` ไม่เจอ จึงไม่ได้ประโยชน์จากการอ่านที่ดีกว่า
