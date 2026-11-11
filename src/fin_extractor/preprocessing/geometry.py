@@ -24,9 +24,9 @@ _orientation_model = None
 def _load_orientation_model():
     global _orientation_model
     if _orientation_model is None:
-        from ..ocr.paddle_engine import _expose_nvidia_dlls
+        from ..ocr.paddle_engine import prepare_paddle_env
 
-        _expose_nvidia_dlls()
+        prepare_paddle_env()
         from paddlex import create_model
 
         _orientation_model = create_model(model_name="PP-LCNet_x1_0_doc_ori")

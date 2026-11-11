@@ -13,14 +13,18 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-FONT = "C:/Windows/Fonts/tahoma.ttf"
-FONT_BOLD = "C:/Windows/Fonts/tahomabd.ttf"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from fin_extractor.paths import font_path  # noqa: E402
+
+FONT = str(font_path("Sarabun-Regular.ttf"))  # ฟอนต์ในโปรเจกต์ (assets/fonts) ไม่พึ่งฟอนต์ของเครื่อง
+FONT_BOLD = str(font_path("Sarabun-Bold.ttf"))
 W, H = 1654, 2339  # A4 ที่ 200 dpi
 
 # สี (R, G, B) ที่พบได้จริงในเอกสาร: หมึกดำ, ปากกา/เครื่องพิมพ์สีน้ำเงิน, ตรายางแดง, หมึกซีด/สีอ่อน

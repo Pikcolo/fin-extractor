@@ -11,7 +11,22 @@ from pathlib import Path
 
 import numpy as np
 
+from ..paths import model_dir
 from .base import OCREngine, OCRResult, OCRWord, group_into_lines, polygon_to_bbox
+
+
+def use_project_model_cache() -> None:
+    """ให้ PaddleX เก็บ/หาโมเดลที่ ``models/paddlex/`` ในโปรเจกต์ แทน ``~/.paddlex``
+
+    ต้องเรียกก่อน import paddleocr/paddlex (อ่านค่านี้ตอน import) ถ้าผู้ใช้ตั้ง ``PADDLE_PDX_CACHE_HOME`` เองไว้แล้วจะไม่ทับ
+    """
+    os.environ.setdefault("PADDLE_PDX_CACHE_HOME", str(model_dir(name="paddlex")))
+
+
+def prepare_paddle_env() -> None:
+    """เรียกก่อน import paddle/paddlex ทุกครั้ง: ที่เก็บโมเดลในโปรเจกต์ + DLL ของ CUDA บน Windows."""
+    use_project_model_cache()
+    _expose_nvidia_dlls()
 
 
 def _expose_nvidia_dlls() -> None:
@@ -38,7 +53,7 @@ class PaddleEngine(OCREngine):
     name = "paddle"
 
     def __init__(self, lang: str = "th", use_angle_cls: bool = True):
-        _expose_nvidia_dlls()
+        prepare_paddle_env()
         import paddleocr
         from paddleocr import PaddleOCR
 

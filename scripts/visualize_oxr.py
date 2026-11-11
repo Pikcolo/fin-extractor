@@ -36,7 +36,7 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from fin_extractor.paths import DataPaths, find_dir  # noqa: E402
+from fin_extractor.paths import DataPaths, find_dir, font_path  # noqa: E402
 
 P = DataPaths()
 DATASET = "finance_doc_scan"
@@ -50,7 +50,7 @@ OXR_DPI = 150  # ค่าตายตัวใน oxr/utils/pdf.py
 # สีเข้มพอบนกระดาษขาว แยกกันได้แม้ตาบอดสี (Okabe-Ito) ชนิดอื่นเป็นเทา
 COLORS = {"Title": (213, 94, 0), "Text": (0, 114, 178), "Table": (0, 158, 115), "Picture": (204, 121, 167)}
 OTHER = (110, 110, 110)
-FONT_PATH = "C:/Windows/Fonts/arial.ttf"
+FONT_PATH = str(font_path("Sarabun-Regular.ttf"))  # ฟอนต์ในโปรเจกต์ (assets/fonts)
 ALLOWED_TAG = re.compile(r"<(/?)(table|thead|tbody|tr|td|th|br)((?:\s+(?:colspan|rowspan)=\"\d+\")*)\s*/?>", re.I)
 
 

@@ -29,6 +29,9 @@ from typing import Any
 
 from .config import resolve_path
 
+FONT_DIR = "assets/fonts"
+MODEL_DIR = "models"
+
 DEFAULT_FOLDERS = {
     "raw": "raw",
     "preprocess": "preprocess",
@@ -72,6 +75,17 @@ def find_dir(base: Path, stem: str) -> Path:
 def iter_results(base: Path, pattern: str) -> list[Path]:
     """ไฟล์ที่ตรง ``pattern`` ใต้ ``base`` ทั้งแบบตรง ๆ และในโฟลเดอร์ย่อยต่อไฟล์ (ไม่รวม manifest.json)."""
     return sorted(p for p in [*base.glob(pattern), *base.glob(f"*/{pattern}")] if p.name != "manifest.json")
+
+
+def font_path(name: str = "Sarabun-Regular.ttf") -> Path:
+    """ฟอนต์ที่มากับโปรเจกต์ (``assets/fonts/``) ไม่พึ่งฟอนต์ของเครื่อง."""
+    return resolve_path(FONT_DIR) / name
+
+
+def model_dir(name: str = "") -> Path:
+    """ที่เก็บโมเดลที่ library ดาวน์โหลดเอง (``models/`` ในโปรเจกต์ ไม่ commit)."""
+    root = resolve_path(MODEL_DIR)
+    return root / name if name else root
 
 
 class DataPaths:

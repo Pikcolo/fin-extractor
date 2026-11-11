@@ -9,3 +9,8 @@ __pycache__/
 data/**
 !data/**/
 !data/**/.gitkeep
+
+# โมเดลที่ library ดาวน์โหลดเอง (Paddle) เก็บในโปรเจกต์แต่ไม่ commit
+models/**
+!models/**/
+!models/.gitkeep

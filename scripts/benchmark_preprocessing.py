@@ -56,9 +56,9 @@ def upright(img: np.ndarray, rot_cw: int) -> np.ndarray:
 # ---------- 1. orientation ----------
 
 def paddle_orientation_model():
-    from fin_extractor.ocr.paddle_engine import _expose_nvidia_dlls
+    from fin_extractor.ocr.paddle_engine import prepare_paddle_env
 
-    _expose_nvidia_dlls()
+    prepare_paddle_env()
     from paddlex import create_model
 
     return create_model(model_name="PP-LCNet_x1_0_doc_ori")

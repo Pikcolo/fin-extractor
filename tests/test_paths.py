@@ -81,3 +81,37 @@ def test_nesting_rule_and_helpers(tmp_path):
     (base / "manifest.json").write_text("{}")
     assert [p.name for p in iter_results(base, "*_p*.txt")] == ["a_p1.txt", "b_p1.txt"]
     assert doc_dir(base, "../x", nest=True) == base / "x"   # ชื่อไฟล์แปลก ๆ ไม่ไต่ขึ้นโฟลเดอร์แม่
+
+
+def test_bundled_fonts_exist_and_render_thai():
+    from PIL import ImageFont
+
+    from fin_extractor.paths import font_path
+
+    for name in ("Sarabun-Regular.ttf", "Sarabun-Bold.ttf"):
+        assert font_path(name).is_relative_to(ROOT), name          # ฟอนต์อยู่ในโปรเจกต์ ไม่ใช่ C:/Windows/Fonts
+        assert ImageFont.truetype(str(font_path(name)), 30).getmask("ใบกำกับภาษี TAX").getbbox() is not None
+    assert (ROOT / "assets" / "fonts" / "OFL.txt").exists()          # ใบอนุญาตของฟอนต์มาด้วย
+
+
+def test_paddle_models_cache_goes_into_the_project_unless_user_overrides(monkeypatch):
+    from fin_extractor.ocr.paddle_engine import use_project_model_cache
+    from fin_extractor.paths import model_dir
+
+    monkeypatch.delenv("PADDLE_PDX_CACHE_HOME", raising=False)
+    use_project_model_cache()
+    import os
+
+    assert os.environ["PADDLE_PDX_CACHE_HOME"] == str(model_dir(name="paddlex")) and model_dir().is_relative_to(ROOT)
+    monkeypatch.setenv("PADDLE_PDX_CACHE_HOME", "X:/mine")
+    use_project_model_cache()
+    assert os.environ["PADDLE_PDX_CACHE_HOME"] == "X:/mine"           # ผู้ใช้ตั้งเองได้ ไม่ทับ
+
+
+def test_no_machine_specific_absolute_paths_in_code():
+    import re
+
+    bad = re.compile(r"[\"'][A-Za-z]:[/\\](?:Windows|Users|Program)", re.I)
+    for folder in ("src", "scripts"):
+        for p in (ROOT / folder).rglob("*.py"):
+            assert not bad.search(p.read_text(encoding="utf-8")), p

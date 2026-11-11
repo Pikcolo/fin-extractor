@@ -27,7 +27,7 @@ pytest                                                                     # ต
   เลือก `cuXXX` ให้ตรงกับ driver (ดู `nvidia-smi` → `CUDA Version`)
 - โปรเจกต์ใช้ `opencv-contrib-python` ไม่ใช่ `headless` เพราะ `paddlex` (ที่ PaddleOCR ใช้)
   บังคับรุ่น contrib — สองแพ็กเกจเขียนลงโฟลเดอร์ `cv2` เดียวกัน ห้ามลงคู่กัน
-- รันครั้งแรกจะโหลดโมเดลเก็บไว้ที่ `~/.paddlex/official_models` (ช้ากว่าปกติ) ตั้ง
+- รันครั้งแรกจะโหลดโมเดลของ Paddle (ช้ากว่าปกติ) เก็บไว้ที่ `models/paddlex/official_models/` **ในโปรเจกต์** (ไม่ commit) ไม่ใช่ `~/.paddlex` โค้ดตั้ง `PADDLE_PDX_CACHE_HOME` ให้เอง (ถ้าตั้งไว้เองก่อนแล้วจะไม่ทับ) ย้ายเครื่องแล้วคัดลอกโฟลเดอร์ `models/` ไปด้วยก็ไม่ต้องโหลดใหม่ ตั้ง
   `PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True` เพื่อข้ามการเช็กเซิร์ฟเวอร์โมเดลทุกครั้งที่เริ่ม
   (PowerShell: `$env:PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK = "True"`)
 - Windows: ใส่ `-X utf8` (`python -X utf8 -m fin_extractor ...`) ถ้าคอนโซลแสดงภาษาไทยเพี้ยนหรือ error `charmap`
@@ -38,7 +38,17 @@ pytest                                                                     # ต
 |---|---|---|
 | Ollama + Typhoon OCR | `--mode vlm` | `ollama pull scb10x/typhoon-ocr1.5-3b` |
 | Ollama + LLM | การสกัดด้วย LLM (`--mode vlm`, `--llm on`) | `ollama pull qwen2.5:3b` (เปลี่ยนรุ่นที่ `llm_extractor.model`) |
-| ฟอนต์ Tahoma (Windows) | `scripts/make_synthetic_samples.py` สร้างชุดสังเคราะห์ | มากับ Windows (`C:/Windows/Fonts/tahoma.ttf`) บน OS อื่นต้องแก้ path ในสคริปต์ |
+| ฟอนต์ | `scripts/make_synthetic_samples.py`, `scripts/visualize_oxr.py` | **มากับโปรเจกต์แล้ว** ที่ `assets/fonts/` (Sarabun, SIL OFL) ไม่ใช้ฟอนต์ของเครื่อง ไม่ต้องติดตั้ง |
+
+**อะไรอยู่ในโปรเจกต์ อะไรอยู่นอก:**
+
+| ของ | ที่อยู่ | หมายเหตุ |
+|---|---|---|
+| ฟอนต์ | `assets/fonts/` (commit) | ไม่ใช้ `C:/Windows/Fonts` |
+| โมเดล Paddle (detection, recognition, orientation) | `models/paddlex/` (ไม่ commit) | ตั้งผ่าน `PADDLE_PDX_CACHE_HOME` อัตโนมัติ |
+| ไลบรารี Python | `.venv/` | |
+| ข้อมูล ผลลัพธ์ cache | `data/` | |
+| โมเดลของ Ollama (Typhoon, qwen) | **นอกโปรเจกต์** (ที่เก็บของ Ollama เอง เช่น `~/.ollama`) | Ollama เป็นบริการแยก ย้ายได้ด้วยตัวแปรแวดล้อม `OLLAMA_MODELS` ฝั่งเซิร์ฟเวอร์ของ Ollama โปรเจกต์ตั้งให้ไม่ได้ |
 
 **ใช้ Typhoon API บน cloud แทน Ollama:** คัดลอก `.env.example` เป็น `.env` ใส่ `TYPHOON_API_KEY` แล้วตั้ง `vlm.provider: openai` และ
 `vlm.base_url: https://api.opentyphoon.ai/v1` (ส่งเอกสารการเงินออกนอกเครื่อง ตรวจนโยบายข้อมูลก่อน) โหมด `ocr` ไม่ต้องใช้ทั้ง Ollama และ key
@@ -49,7 +59,7 @@ pytest                                                                     # ต
 หลัง clone จึงไม่มีเอกสารให้รัน มีสองทาง
 
 1. **สแกนจริง:** รับชุดสแกนจากเจ้าของโปรเจกต์นอก git แล้ววางที่ `data/raw/finance_doc_scan/` (ไฟล์ `.pdf`, `.jpg`, `.png`, `.tif`, `.bmp`, `.webp`)
-2. **ชุดสังเคราะห์** (ไม่ต้องรอข้อมูลจริง): `python scripts/make_synthetic_samples.py` ได้ใบกำกับภาษีสมมติ 21 ใบพร้อมเฉลยที่ `data/raw/synthetic/`
+2. **ชุดสังเคราะห์** (ไม่ต้องรอข้อมูลจริง): `python scripts/make_synthetic_samples.py` ได้ใบกำกับภาษีสมมติ 21 ใบพร้อมเฉลยที่ `data/raw/synthetic/` (วาดด้วยฟอนต์ Sarabun ใน `assets/fonts/` ชุดที่สร้างไว้ก่อน 2026-11-11 ใช้ Tahoma ภาพจึงต่างจากชุดใหม่เล็กน้อย ตัวเลข CER/OXR บนชุดสังเคราะห์ในเอกสารมาจากชุด Tahoma เดิม)
 
 ## รันครั้งแรก
 
