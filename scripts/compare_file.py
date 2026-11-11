@@ -94,7 +94,9 @@ def main() -> None:
     lines += ["| ฟิลด์ | " + ("อ้างอิง | " if ref else "") + " | ".join(cols) + " |",
               "|---|" + ("---|" if ref else "") + "---|" * len(cols)]
     table: dict[str, dict] = {}
-    for key in FIELDS:
+    doc_keys = sorted({f"document_fields.{k}" for r in results.values() for k in r["data"]["document_fields"]}
+                      | {k for k in (ref or {}) if k.startswith("document_fields.")})  # ฟิลด์ประจำชนิดตามโปรไฟล์
+    for key in [*FIELDS, *doc_keys]:
         vals = {c: get(results[c], key) for c in cols}
         expected = ref.get(key) if ref else None
         if all(v is None for v in vals.values()) and (not ref or key not in ref):
