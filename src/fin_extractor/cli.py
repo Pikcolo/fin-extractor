@@ -7,6 +7,7 @@
 
 ผลอยู่ใต้ data/ ตามโครงใน fin_extractor/paths.py:
   preprocess/<dataset>/<profile>/{final,steps}/    result_ocr/<engine>/<dataset>/{raw_data,final/<extractor>}/
+(รันที่มีไฟล์อินพุตเกิน 2 ไฟล์ ผลแต่ละไฟล์อยู่ในโฟลเดอร์ย่อยชื่อไฟล์ ดู paths.nest_per_file)
 พร้อม manifest.json (รายละเอียดดู fin_extractor/runs.py)
 """
 
@@ -23,7 +24,7 @@ from pathlib import Path
 from .config import load_config, resolve_path
 from .io import iter_input_files
 from .ocr import ENGINES
-from .paths import DEFAULT_PROFILE, DataPaths, dataset_of
+from .paths import DEFAULT_PROFILE, DataPaths, dataset_of, doc_dir, find_dir, nest_per_file
 from .runs import Run
 from .stages import load_raw, prepared_pages, raw_pages, save_raw
 
@@ -37,9 +38,10 @@ def cmd_preprocess(args, cfg) -> None:
     paths, dataset = DataPaths(cfg), dataset_of(args.input)
     pdir = Path(args.out) if args.out else paths.preprocess(dataset, args.profile)
     with Run("preprocess", args.input, cfg, pdir, {"profile": args.profile, "steps": args.steps, "force": args.force}) as run:
-        for f in iter_input_files(args.input):
-            for page_no, _img, meta in prepared_pages(f, cfg, pdir, steps=args.steps, force=args.force):
-                out = pdir / "final" / f"{f.stem}_p{page_no}.png"
+        files = list(iter_input_files(args.input))
+        for f in files:
+            for page_no, _img, meta in prepared_pages(f, cfg, pdir, steps=args.steps, force=args.force, nest=nest_per_file(len(files))):
+                out = find_dir(pdir / "final", f.stem) / f"{f.stem}_p{page_no}.png"
                 run.add(file=f.name, page=page_no, output=out.relative_to(run.dir).as_posix(), meta=meta)
                 print(f"{out}  {meta}")
     print(f"manifest: {run.dir / 'manifest.json'}")
@@ -63,8 +65,10 @@ def cmd_ocr(args, cfg) -> None:
     pdir = paths.preprocess(dataset, args.profile)
     settings = {"engine": label, "profile": args.profile, **({"model": cfg["vlm"]["model"]} if mode == "vlm" else {})}
     with Run("ocr", args.input, cfg, raw_dir, settings) as run:
-        for f in iter_input_files(args.input):
-            for page_no, img, _ in prepared_pages(f, cfg, pdir):
+        files = list(iter_input_files(args.input))
+        nest = nest_per_file(len(files))
+        for f in files:
+            for page_no, img, _ in prepared_pages(f, cfg, pdir, nest=nest):
                 t0 = time.perf_counter()
                 res = reader.recognize(img)
                 text = res.markdown if mode == "vlm" else res.text
@@ -72,7 +76,7 @@ def cmd_ocr(args, cfg) -> None:
                 seconds = round(time.perf_counter() - t0, 2)
                 meta = {"engine": label, "ocr_confidence": round(conf, 4) if conf is not None else None,
                         "truncated": bool(getattr(res, "truncated", False)), "profile": args.profile, "seconds": seconds}
-                out = save_raw(raw_dir, f"{f.stem}_p{page_no}", text, ext, meta)
+                out = save_raw(doc_dir(raw_dir, f.stem, nest), f"{f.stem}_p{page_no}", text, ext, meta)
                 run.add(file=f.name, page=page_no, output=out.relative_to(run.dir).as_posix(),
                         mean_confidence=meta["ocr_confidence"], seconds=seconds)
                 print(f"--- {f.name} p{page_no} [{label}] {seconds:.1f}s"
@@ -100,7 +104,9 @@ def cmd_extract(args, cfg) -> None:
         **({"llm_model": cfg["llm_extractor"]["model"]} if pipe.llm else {}),
     }
     with Run("extract", args.input, cfg, final_dir, settings) as run:
-        for f in iter_input_files(args.input):
+        files = list(iter_input_files(args.input))
+        nest = nest_per_file(len(files))
+        for f in files:
             t0 = time.perf_counter()
             if args.reuse_raw:
                 pages = raw_pages(raw_dir, f.stem, ext)
@@ -109,16 +115,17 @@ def cmd_extract(args, cfg) -> None:
                     continue
                 results = ((no, pipe.process_raw(str(f), no, *load_raw(p))) for no, p in pages)
             else:
-                results = ((no, pipe.process_page(str(f), no, img)) for no, img, _ in prepared_pages(f, cfg, pdir))
+                results = ((no, pipe.process_page(str(f), no, img)) for no, img, _ in prepared_pages(f, cfg, pdir, nest=nest))
             for page_no, r in results:
                 seconds = round(time.perf_counter() - t0, 2)
                 if not args.reuse_raw:  # ข้อความดิบเก็บแยกที่ raw_data (OCR ครั้งเดียว สกัดได้หลายแบบ)
                     meta = {"engine": r.engine, "ocr_confidence": r.ocr_confidence, "profile": args.profile, "seconds": seconds,
                             "truncated": any(c.name == "vlm_complete" and c.passed is False for c in r.checks)}
-                    save_raw(raw_dir, f"{f.stem}_p{page_no}", r.raw_text or "", ext, meta)
+                    save_raw(doc_dir(raw_dir, f.stem, nest), f"{f.stem}_p{page_no}", r.raw_text or "", ext, meta)
                 if not args.keep_raw:
                     r.raw_text = None
-                out = final_dir / f"{f.stem}_p{r.page}.json"
+                out = doc_dir(final_dir, f.stem, nest) / f"{f.stem}_p{r.page}.json"
+                out.parent.mkdir(parents=True, exist_ok=True)
                 out.write_text(r.model_dump_json(indent=2), encoding="utf-8")
                 passed = sum(c.passed is True for c in r.checks)
                 failed = sum(c.passed is False for c in r.checks)

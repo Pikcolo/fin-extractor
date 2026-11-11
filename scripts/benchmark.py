@@ -11,7 +11,7 @@
     # 3) สรุปผลทุก engine ที่รันแล้ว
     python scripts/benchmark.py report
 
-ชุดข้อมูลอยู่ที่ data/raw/benchmark/ (ไม่ commit) ผลอยู่ที่ data/benchmarks/ieb/
+ชุดข้อมูลอยู่ที่ data/raw/benchmark/ (ไม่ commit) ผลอยู่ที่ data/etc/benchmarks/ieb/
 
 ที่มาของเอกสาร
     Invoice Extraction Benchmark (c) 2026 InvoiceParser Pro — CC BY 4.0

@@ -140,3 +140,31 @@ def test_preprocess_command_manifest_points_at_final_images(env, capsys):
     m = json.loads((pdir / "manifest.json").read_text(encoding="utf-8"))
     assert m["files"][0]["output"] == "final/a_p1.png" and (pdir / "final" / "a_p1.png").exists()
     capsys.readouterr()
+
+
+def test_more_than_two_inputs_get_one_subfolder_per_file_and_reuse_raw_reads_them(env):
+    for name in ("b", "c"):
+        save_image(env.src / f"{name}.png", np.full((30, 50, 3), 180, dtype=np.uint8))
+    run(env, "extract", str(env.src))
+    base = env.data / "result_ocr" / "paddle" / "scans"
+    for stem in ("a", "b", "c"):
+        assert (base / "raw_data" / stem / f"{stem}_p1.txt").exists() and (base / "raw_data" / stem / f"{stem}_p1.meta.json").exists()
+        assert (base / "final" / "rules" / stem / f"{stem}_p1.json").exists()
+        assert (env.data / "preprocess" / "scans" / "default" / "final" / stem / f"{stem}_p1.png").exists()
+    m = json.loads((base / "final" / "rules" / "manifest.json").read_text(encoding="utf-8"))
+    assert sorted(f["output"] for f in m["files"]) == ["a/a_p1.json", "b/b_p1.json", "c/c_p1.json"]
+    FakePipe.log = []
+    run(env, "extract", str(env.src), "--reuse-raw")
+    assert [e[0] for e in FakePipe.log if e[0] != "init"] == ["raw", "raw", "raw"]  # อ่านจากโฟลเดอร์ย่อยครบ ไม่เรียก OCR
+    assert not list((base / "final" / "rules").glob("*_p1.json"))                  # ไม่มีผลกระจายนอกโฟลเดอร์ย่อย
+
+
+def test_two_inputs_stay_flat_and_steps_are_nested_only_when_many(env):
+    save_image(env.src / "b.png", np.full((30, 50, 3), 180, dtype=np.uint8))
+    run(env, "extract", str(env.src))
+    base = env.data / "result_ocr" / "paddle" / "scans"
+    assert (base / "raw_data" / "a_p1.txt").exists() and (base / "final" / "rules" / "b_p1.json").exists()
+    save_image(env.src / "c.png", np.full((30, 50, 3), 180, dtype=np.uint8))
+    run(env, "preprocess", str(env.src), "--steps", "--profile", "s")
+    steps = env.data / "preprocess" / "scans" / "s" / "steps"
+    assert any((steps / "a").iterdir()) and any((steps / "c").iterdir())

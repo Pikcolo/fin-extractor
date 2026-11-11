@@ -15,7 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from fin_extractor.paths import DataPaths  # noqa: E402
+from fin_extractor.paths import DataPaths, iter_results  # noqa: E402
 
 P = DataPaths()
 
@@ -49,12 +49,14 @@ def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")  # คอนโซล Windows เป็น cp1252
 
     a_dir, b_dir = Path(args.a), Path(args.b)
-    names = sorted(p.name for p in a_dir.glob("*.json") if p.name != "manifest.json" and (b_dir / p.name).exists())
+    a_files = {p.name: p for p in iter_results(a_dir, "*.json")}  # ผลอยู่ตรง ๆ หรือในโฟลเดอร์ย่อยต่อไฟล์ก็ได้
+    b_files = {p.name: p for p in iter_results(b_dir, "*.json")}
+    names = sorted(set(a_files) & set(b_files))
     rows, diffs = [], []
     counts = {"a": {}, "b": {}}
     for name in names:
-        a = summary(json.loads((a_dir / name).read_text(encoding="utf-8")))
-        b = summary(json.loads((b_dir / name).read_text(encoding="utf-8")))
+        a = summary(json.loads(a_files[name].read_text(encoding="utf-8")))
+        b = summary(json.loads(b_files[name].read_text(encoding="utf-8")))
         for k, s in (("a", a), ("b", b)):
             counts[k][s["status"]] = counts[k].get(s["status"], 0) + 1
         short = name.removeprefix("BRWAC50DE3689DA_").removesuffix("_p1.json")

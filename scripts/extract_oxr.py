@@ -30,7 +30,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from fin_extractor.config import load_config  # noqa: E402
 from fin_extractor.io import iter_input_files  # noqa: E402
-from fin_extractor.paths import DEFAULT_PROFILE, DataPaths, dataset_of  # noqa: E402
+from fin_extractor.paths import DEFAULT_PROFILE, DataPaths, dataset_of, doc_dir, find_dir, nest_per_file  # noqa: E402
 from fin_extractor.pipeline import FinanceOCRPipeline  # noqa: E402
 from fin_extractor.runs import Run  # noqa: E402
 from fin_extractor.stages import prepared_pages, save_raw  # noqa: E402
@@ -84,10 +84,12 @@ def main() -> None:
     pipe.reader = reader
     settings = {"mode": "oxr", "engine": pipe.engine_name, "api": args.api, "profile": args.profile}
     with Run("extract", args.input, cfg, final_dir, settings) as run:
-        for f in iter_input_files(args.input):
-            for page_no, img, _ in prepared_pages(f, cfg, paths.preprocess(dataset, args.profile)):
+        files = list(iter_input_files(args.input))
+        nest = nest_per_file(len(files))  # เกิน 2 ไฟล์ → โฟลเดอร์ย่อยต่อไฟล์ เหมือนคำสั่ง extract
+        for f in files:
+            for page_no, img, _ in prepared_pages(f, cfg, paths.preprocess(dataset, args.profile), nest=nest):
                 stem = f"{f.stem}_p{page_no}"
-                out = final_dir / f"{stem}.json"
+                out = find_dir(final_dir, f.stem) / f"{stem}.json"  # ที่ที่ผลเก่า (ถ้ามี) อยู่ ใช้ตรวจว่าข้ามได้ไหม
                 if out.exists() and not args.redo:
                     old = json.loads(out.read_text(encoding="utf-8"))  # manifest ของรอบต่อยังนับหน้าที่ทำไว้แล้วด้วย
                     run.add(file=f.name, page=page_no, status=old["status"], missing_fields=old["missing_fields"],
@@ -97,10 +99,13 @@ def main() -> None:
                 t0 = time.perf_counter()
                 r = pipe.process_page(str(f), page_no, img)
                 seconds = round(time.perf_counter() - t0, 2)
-                save_raw(raw_dir, stem, r.raw_text or "", "md", {"engine": "oxr", "profile": args.profile, "seconds": seconds,
+                raw_out = doc_dir(raw_dir, f.stem, nest)
+                save_raw(raw_out, stem, r.raw_text or "", "md", {"engine": "oxr", "profile": args.profile, "seconds": seconds,
                                                                    "ocr_confidence": None, "truncated": False})
-                (raw_dir / f"{stem}.oxr.json").write_text(json.dumps(reader.last_payload, ensure_ascii=False), encoding="utf-8")
+                (raw_out / f"{stem}.oxr.json").write_text(json.dumps(reader.last_payload, ensure_ascii=False), encoding="utf-8")
                 r.raw_text = None
+                out = doc_dir(final_dir, f.stem, nest) / f"{stem}.json"
+                out.parent.mkdir(parents=True, exist_ok=True)
                 out.write_text(r.model_dump_json(indent=2), encoding="utf-8")
                 passed = sum(c.passed is True for c in r.checks)
                 failed = sum(c.passed is False for c in r.checks)

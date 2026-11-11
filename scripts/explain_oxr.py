@@ -3,13 +3,13 @@
 ข้อมูลที่ใช้ (ทั้งหมดอยู่ใต้ data/ ซึ่งไม่เข้า git):
   result_ocr/oxr/<dataset>/raw_data/*.pdf.oxr.json   ผล OXR ของสแกนจริง 18 ใบ (รอบ PDF ดิบ)
   result_ocr/paddle|typhoon/<dataset>/raw_data/      ข้อความดิบของ Paddle / Typhoon
-  benchmarks/*cer*.json                              CER ภาพสังเคราะห์ของ Paddle / Typhoon / OXR
-  compare/oxr_why/*.json                             ค่าที่วัดแยก: ความน่าจะเป็นของ token, จำนวน token ใน vocabulary, บรรทัดจริงที่อ่านจากภาพ
-  compare/english/text_recall.json                   ค่าสำคัญของเอกสารอังกฤษที่ปรากฏในข้อความของแต่ละ engine
+  etc/benchmarks/*cer*.json                              CER ภาพสังเคราะห์ของ Paddle / Typhoon / OXR
+  etc/compare/oxr_why/*.json                             ค่าที่วัดแยก: ความน่าจะเป็นของ token, จำนวน token ใน vocabulary, บรรทัดจริงที่อ่านจากภาพ
+  etc/compare/english/text_recall.json                   ค่าสำคัญของเอกสารอังกฤษที่ปรากฏในข้อความของแต่ละ engine
   result_ocr/oxr/<dataset>/visualize/<ไฟล์>_pdf/     ภาพ layout และภาพตัดบล็อก (สร้างด้วย scripts/visualize_oxr.py ก่อน)
 
 ผล: data/reports/oxr_why/index.html (มีภาพเอกสารจริง เก็บในเครื่องเท่านั้น ลบทิ้งได้)
-ไฟล์ compare/oxr_why/truth_1312.json มีค่าจริงจากเอกสาร จึงไม่ฝังในโค้ดนี้
+ไฟล์ etc/compare/oxr_why/truth_1312.json มีค่าจริงจากเอกสาร จึงไม่ฝังในโค้ดนี้
 
     .venv/Scripts/python scripts/explain_oxr.py
 """
@@ -33,7 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from fin_extractor.extraction import markdown_to_lines  # noqa: E402
 from visualize_oxr import sanitize_table  # noqa: E402
 
-from fin_extractor.paths import DataPaths  # noqa: E402
+from fin_extractor.paths import DataPaths, find_dir, iter_results  # noqa: E402
 
 P = DataPaths()
 DATASET = "finance_doc_scan"
@@ -51,13 +51,18 @@ def load(p: Path):
     return json.loads(p.read_text(encoding="utf-8"))
 
 
+def raw_file(engine: str, doc: str, suffix: str) -> Path:
+    """ข้อความดิบของหน้า 1 ของไฟล์ ``doc`` (ผลอยู่ตรง ๆ หรือในโฟลเดอร์ย่อยต่อไฟล์ก็ได้)."""
+    return find_dir(P.raw_data(engine, DATASET), doc) / f"{doc}_p1{suffix}"
+
+
 def real_rows() -> list[dict]:
     rows = []
-    for f in sorted(P.raw_data("oxr", DATASET).glob("*_p1.pdf.oxr.json")):
+    for f in iter_results(P.raw_data("oxr", DATASET), "*_p1.pdf.oxr.json"):
         stem = f.name.split("_p1")[0][-6:]
         data = load(f)["data"]
         md = data["result"]["outputs"]["markdown"]
-        paddle = (P.raw_data("paddle", DATASET) / f"{PREFIX}{stem}_p1.txt").read_text(encoding="utf-8")
+        paddle = raw_file("paddle", f"{PREFIX}{stem}", ".txt").read_text(encoding="utf-8")
         th, la = len(TH.findall(paddle)), len(LAT.findall(paddle))
         windows = [md[i:i + 20] for i in range(0, max(1, len(md) - 20), 5)]
         top = max((windows.count(w) for w in set(windows)), default=0) / max(1, len(windows))
@@ -280,10 +285,10 @@ def main() -> None:
                       [[str(i + 1), e(t["t"]), f'{t["p"]:.2f}', e(" · ".join(f"{a[0]} {a[1]:.2f}" for a in t["alts"]) or "—")] for i, t in enumerate(lp["tokens"])])
 
     # เทียบบล็อกเดียวกันของแต่ละ engine (001312)
-    oxr = load(P.raw_data("oxr", DATASET) / f"{PREFIX}001312_p1.pdf.oxr.json")["data"]["result"]["outputs"]["json"]["pages"][0]["blocks"]
+    oxr = load(raw_file("oxr", f"{PREFIX}001312", ".pdf.oxr.json"))["data"]["result"]["outputs"]["json"]["pages"][0]["blocks"]
     by_idx = {b["idx"]: b for b in oxr}
-    pad_lines = [l for l in (P.raw_data("paddle", DATASET) / f"{PREFIX}001312_p1.txt").read_text(encoding="utf-8").split("\n") if l.strip()]
-    typ_lines = markdown_to_lines((P.raw_data("typhoon", DATASET) / f"{PREFIX}001312_p1.md").read_text(encoding="utf-8"))
+    pad_lines = [l for l in raw_file("paddle", f"{PREFIX}001312", ".txt").read_text(encoding="utf-8").split("\n") if l.strip()]
+    typ_lines = markdown_to_lines(raw_file("typhoon", f"{PREFIX}001312", ".md").read_text(encoding="utf-8"))
     cmp_rows = []
     for key in sorted(truth, key=lambda k: int(k) if k.isdigit() else 0):
         if not key.isdigit():

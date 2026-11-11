@@ -10,7 +10,12 @@
         raw_data/     ข้อความดิบจาก OCR (.txt/.md) เขียนครั้งเดียวต่อ engine
         final/<extractor>/   ผลตาม schema (.json) extractor = rules | llm
         visualize/    ภาพให้ดูว่าอ่านอย่างไร
-    benchmarks/  compare/  reports/             งานที่ข้าม engine/ข้ามไฟล์
+    etc/benchmarks/  etc/compare/               งานทดสอบ/เปรียบเทียบที่ข้าม engine/ข้ามไฟล์
+    reports/                                    รายงานภาพ
+
+ถ้ารันหนึ่งครั้งมีไฟล์อินพุตมากกว่า ``NEST_OVER`` (2) ไฟล์ ผลของแต่ละไฟล์ (preprocess/final/steps, raw_data, final/<extractor>)
+จะอยู่ในโฟลเดอร์ย่อยชื่อไฟล์ เช่น ``raw_data/001312/001312_p1.txt`` เพื่อดูทีละไฟล์ง่าย ถ้าไม่เกินก็วางตรง ๆ ใต้โฟลเดอร์นั้น
+ผู้เขียนใช้ ``doc_dir`` ผู้อ่านใช้ ``find_dir`` (รับได้ทั้งสองแบบ จึงอ่านผลที่ปนกันได้)
 
 ``<dataset>`` คือชื่อโฟลเดอร์อินพุต (ไฟล์เดี่ยวใช้ชื่อโฟลเดอร์ที่ไฟล์อยู่) ชื่อไฟล์ผลใช้ ``<ไฟล์>_p<หน้า>`` เหมือนกันทุกขั้น
 จึงดูไฟล์เดียวข้ามขั้น/ข้าม engine ได้ด้วยชื่อเดียว ลบ engine หรือ extractor ที่ไม่ใช้ = ลบโฟลเดอร์เดียว
@@ -28,11 +33,12 @@ DEFAULT_FOLDERS = {
     "raw": "raw",
     "preprocess": "preprocess",
     "result_ocr": "result_ocr",
-    "benchmarks": "benchmarks",
-    "compare": "compare",
+    "benchmarks": "etc/benchmarks",
+    "compare": "etc/compare",
     "reports": "reports",
 }
 DEFAULT_PROFILE = "default"
+NEST_OVER = 2  # รันที่มีไฟล์อินพุตเกินจำนวนนี้ → โฟลเดอร์ย่อยต่อไฟล์
 
 
 def slug(text: str) -> str:
@@ -45,6 +51,27 @@ def dataset_of(input_path: str | Path) -> str:
     """ชื่อชุดข้อมูลของอินพุต: โฟลเดอร์ = ชื่อโฟลเดอร์, ไฟล์ = ชื่อโฟลเดอร์ที่ไฟล์อยู่."""
     p = Path(input_path)
     return slug(p.name if p.is_dir() else p.resolve().parent.name)
+
+
+def nest_per_file(n_inputs: int) -> bool:
+    return n_inputs > NEST_OVER
+
+
+def doc_dir(base: Path, stem: str, nest: bool) -> Path:
+    """โฟลเดอร์ที่ผู้เขียนใช้เก็บผลของไฟล์ ``stem`` ใต้ ``base`` (ถ้าเคยมีโฟลเดอร์ย่อยอยู่แล้วก็ใช้ต่อ กันผลกระจายสองที่)."""
+    sub = base / slug(stem)
+    return sub if nest or sub.is_dir() else base
+
+
+def find_dir(base: Path, stem: str) -> Path:
+    """โฟลเดอร์ที่ผู้อ่านควรมองหาผลของไฟล์ ``stem`` (โฟลเดอร์ย่อยถ้ามี ไม่งั้นตรง ๆ ใต้ ``base``)."""
+    sub = base / slug(stem)
+    return sub if sub.is_dir() else base
+
+
+def iter_results(base: Path, pattern: str) -> list[Path]:
+    """ไฟล์ที่ตรง ``pattern`` ใต้ ``base`` ทั้งแบบตรง ๆ และในโฟลเดอร์ย่อยต่อไฟล์ (ไม่รวม manifest.json)."""
+    return sorted(p for p in [*base.glob(pattern), *base.glob(f"*/{pattern}")] if p.name != "manifest.json")
 
 
 class DataPaths:

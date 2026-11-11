@@ -20,6 +20,7 @@ import numpy as np
 
 from .io import load_pages, read_image, save_image
 from .io.loader import page_count
+from .paths import doc_dir, find_dir
 from .preprocessing import preprocess
 
 log = logging.getLogger(__name__)
@@ -32,10 +33,13 @@ def preprocess_settings(cfg: dict[str, Any]) -> dict[str, Any]:
 
 
 def prepared_pages(path: str | Path, cfg: dict[str, Any], profile_dir: Path, *, steps: bool = False,
-                   force: bool = False) -> Iterator[tuple[int, np.ndarray, dict[str, Any]]]:
-    """(เลขหน้า, ภาพที่ผ่าน preprocess, meta) ของไฟล์ — ใช้ภาพที่เก็บไว้ถ้าตั้งค่าตรงกันและครบทุกหน้า."""
+                   force: bool = False, nest: bool = False) -> Iterator[tuple[int, np.ndarray, dict[str, Any]]]:
+    """(เลขหน้า, ภาพที่ผ่าน preprocess, meta) ของไฟล์ — ใช้ภาพที่เก็บไว้ถ้าตั้งค่าตรงกันและครบทุกหน้า.
+
+    ``nest``: เก็บภาพของไฟล์นี้ในโฟลเดอร์ย่อยชื่อไฟล์ใต้ final/ และ steps/ (รันที่มีไฟล์มาก ดู paths.nest_per_file)
+    """
     path = Path(path)
-    final = profile_dir / "final"
+    final = find_dir(profile_dir / "final", path.stem)  # ที่ที่ภาพเก่า (ถ้ามี) อยู่
     wanted = preprocess_settings(cfg)
     settings_path = profile_dir / SETTINGS_FILE
     stored = json.loads(settings_path.read_text(encoding="utf-8")) if settings_path.exists() else None
@@ -51,16 +55,18 @@ def prepared_pages(path: str | Path, cfg: dict[str, Any], profile_dir: Path, *, 
             raise ValueError(f"{profile_dir} ถูกสร้างด้วยตั้งค่า preprocess อื่น — ใช้ --profile ชื่อใหม่ "
                              "หรือ --force เพื่อล้างโฟลเดอร์ profile นี้แล้วทำใหม่")
         log.warning("ล้าง %s แล้วทำ preprocess ใหม่ (ตั้งค่าเปลี่ยน)", profile_dir)
-        shutil.rmtree(final, ignore_errors=True)
+        shutil.rmtree(profile_dir / "final", ignore_errors=True)
         shutil.rmtree(profile_dir / "steps", ignore_errors=True)
     profile_dir.mkdir(parents=True, exist_ok=True)
     settings_path.write_text(json.dumps(wanted, ensure_ascii=False, indent=2), encoding="utf-8")
+    final = doc_dir(profile_dir / "final", path.stem, nest)
+    steps_dir = doc_dir(profile_dir / "steps", path.stem, nest)
 
     for i, img in enumerate(load_pages(path, cfg["loader"]["pdf_dpi"]), start=1):
         res = preprocess(img, cfg["preprocessing"], keep_steps=steps)
         save_image(final / f"{path.stem}_p{i}.png", res.image)
         if steps:
-            res.save_steps(profile_dir / "steps", f"{path.stem}_p{i}")
+            res.save_steps(steps_dir, f"{path.stem}_p{i}")
         yield i, res.image, res.meta
 
 
@@ -73,9 +79,9 @@ def save_raw(raw_dir: Path, stem: str, text: str, ext: str, meta: dict[str, Any]
 
 
 def raw_pages(raw_dir: Path, file_stem: str, ext: str) -> list[tuple[int, Path]]:
-    """(เลขหน้า, ไฟล์ข้อความดิบ) ของไฟล์หนึ่ง เรียงตามหน้า."""
+    """(เลขหน้า, ไฟล์ข้อความดิบ) ของไฟล์หนึ่ง เรียงตามหน้า (อยู่ใต้ raw_dir ตรง ๆ หรือในโฟลเดอร์ย่อยชื่อไฟล์)."""
     pages = []
-    for p in raw_dir.glob(f"{file_stem}_p*.{ext}"):
+    for p in find_dir(raw_dir, file_stem).glob(f"{file_stem}_p*.{ext}"):
         m = re.fullmatch(re.escape(file_stem) + r"_p(\d+)", p.stem)
         if m:
             pages.append((int(m.group(1)), p))

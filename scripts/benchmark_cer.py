@@ -116,7 +116,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--samples", default="data/raw/synthetic")
     ap.add_argument("--engines", nargs="+", default=["paddle"], choices=["paddle", "vlm"])
-    ap.add_argument("--out", help="ไฟล์ผล (ค่าตั้งต้น data/benchmarks/cer_synthetic_<engines>.json)")
+    ap.add_argument("--out", help="ไฟล์ผล (ค่าตั้งต้น data/etc/benchmarks/cer_synthetic_<engines>.json)")
     args = ap.parse_args()
 
     cfg = load_config()

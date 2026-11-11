@@ -1,9 +1,9 @@
 """จัดผล ``benchmark_real_scans.py`` ให้เป็นโฟลเดอร์ต่อ preprocessing หนึ่งชุด
 
-อ่าน ``data/benchmarks/real_scans.json`` (ไม่รัน OCR ซ้ำ) แล้วเรนเดอร์ภาพของแต่ละชุดใหม่
+อ่าน ``data/etc/benchmarks/real_scans.json`` (ไม่รัน OCR ซ้ำ) แล้วเรนเดอร์ภาพของแต่ละชุดใหม่
 เพื่อให้เปิดดูได้ว่าชุดนั้นทำอะไรกับภาพ
 
-    data/benchmarks/preprocess_experiments/
+    data/etc/benchmarks/preprocess_experiments/
       README.md            ตารางเทียบทุกชุด + คำอธิบายโฟลเดอร์
       <ชุด>/
         settings.json      ค่าที่ override + profile จริงที่ใช้

@@ -20,7 +20,7 @@ def test_layout_follows_stage_then_engine(tmp_path):
     assert p.raw_data("paddle", "scans") == tmp_path / "result_ocr" / "paddle" / "scans" / "raw_data"
     assert p.final("typhoon", "scans", "llm") == tmp_path / "result_ocr" / "typhoon" / "scans" / "final" / "llm"
     assert p.visualize("oxr", "scans") == tmp_path / "result_ocr" / "oxr" / "scans" / "visualize"
-    assert p.benchmarks() == tmp_path / "benchmarks" and p.compare("1312") == tmp_path / "compare" / "1312"
+    assert p.benchmarks() == tmp_path / "etc" / "benchmarks" and p.compare("1312") == tmp_path / "etc" / "compare" / "1312"
     assert p.reports("oxr_why") == tmp_path / "reports" / "oxr_why" and p.reports() == tmp_path / "reports"
 
 
@@ -63,5 +63,21 @@ def test_config_defaults_to_data_dir_from_default_yaml():
 def test_gitignore_blocks_everything_under_data_except_keepfiles():
     rules = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
     assert "data/**" in rules and "!data/**/.gitkeep" in rules  # ข้อมูลจริง (ภาษี/ส่วนบุคคล) ห้ามเข้า git
-    for folder in ("raw", "preprocess", "result_ocr", "benchmarks", "compare", "reports"):
+    for folder in ("raw", "preprocess", "result_ocr", "etc/benchmarks", "etc/compare", "reports"):
         assert (ROOT / "data" / folder / ".gitkeep").exists(), folder
+
+
+def test_nesting_rule_and_helpers(tmp_path):
+    from fin_extractor.paths import doc_dir, find_dir, iter_results, nest_per_file
+
+    assert [nest_per_file(n) for n in (1, 2, 3, 18)] == [False, False, True, True]  # เกิน 2 ไฟล์ → โฟลเดอร์ย่อยต่อไฟล์
+    base = tmp_path / "raw_data"
+    assert doc_dir(base, "a", nest=False) == base and doc_dir(base, "a", nest=True) == base / "a"
+    assert find_dir(base, "a") == base                      # ยังไม่มีโฟลเดอร์ย่อย → ตรง ๆ
+    (base / "a").mkdir(parents=True)
+    assert find_dir(base, "a") == base / "a" and doc_dir(base, "a", nest=False) == base / "a"  # มีแล้วใช้ต่อ ไม่กระจายสองที่
+    (base / "a" / "a_p1.txt").write_text("x")
+    (base / "b_p1.txt").write_text("y")
+    (base / "manifest.json").write_text("{}")
+    assert [p.name for p in iter_results(base, "*_p*.txt")] == ["a_p1.txt", "b_p1.txt"]
+    assert doc_dir(base, "../x", nest=True) == base / "x"   # ชื่อไฟล์แปลก ๆ ไม่ไต่ขึ้นโฟลเดอร์แม่

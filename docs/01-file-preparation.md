@@ -119,8 +119,11 @@ data/
 ├── raw/<dataset>/                    ใส่เอกสารต้นฉบับที่นี่
 ├── preprocess/<dataset>/<profile>/   ผล preprocess (คำสั่ง preprocess): final/ ภาพสุดท้าย, steps/ ภาพแต่ละขั้น (ใส่ --steps)
 ├── result_ocr/<engine>/<dataset>/    raw_data/ ข้อความดิบ (คำสั่ง ocr), final/<rules|llm>/ ผล JSON (คำสั่ง extract)
-└── benchmarks/ · compare/ · reports/ ผลวัดและรายงาน
+├── etc/benchmarks/ · etc/compare/    งานทดสอบ/เปรียบเทียบ (ผลวัด, เทียบรายไฟล์)
+└── reports/                          รายงานภาพ
 ```
+
+ถ้ารันหนึ่งครั้งมีไฟล์อินพุตมากกว่า 2 ไฟล์ ผลของแต่ละไฟล์จะอยู่ในโฟลเดอร์ย่อยชื่อไฟล์ (เช่น `raw_data/<ไฟล์>/<ไฟล์>_p1.txt`) ไม่เกิน 2 ไฟล์ก็วางตรง ๆ (ตั้งที่ `NEST_OVER` ใน `src/fin_extractor/paths.py`)
 
 ## ผลลัพธ์ของขั้นนี้
 

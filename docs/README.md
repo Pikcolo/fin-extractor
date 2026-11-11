@@ -45,8 +45,9 @@ flowchart TD
 
 \* วัดจาก `data/raw/BITKUB-001.jpg` บนเครื่องที่พัฒนา
 
-ผลกับสแกนจริง 18 ใบ (`data/raw/finance_doc_scan`) **รันใหม่เมื่อ 2026-11-11** ตามโครงข้อมูลใหม่ (ผลของรอบก่อนถูกแทนที่แล้ว ไม่มีชุด `ocr-llm`):
+ผลกับสแกนจริง 18 ใบ (`data/raw/finance_doc_scan`) **รันใหม่เมื่อ 2026-11-11** ตามโครงข้อมูลใหม่ (ผลของรอบก่อนถูกแทนที่แล้ว):
 - **Paddle + rules** (`data/result_ocr/paddle/finance_doc_scan/final/rules/`): 15 `needs_review`, 3 `failed`, ไม่มี `auto_approved` ข้อความดิบ OCR และข้อมูลที่สกัดเหมือนรอบก่อนทุกใบ (18/18)
+- **Paddle + LLM** (`data/result_ocr/paddle/finance_doc_scan/final/llm/`): 15 `needs_review`, 1 `failed`, 2 `auto_approved` (001313, 001314 ซึ่งเป็น Tax Invoice อังกฤษใบเดียวกัน) `buyer.name` มี 17 ใบ สกัดจากข้อความ Paddle ชุดเดียวกับ Paddle + rules ด้วย `--llm on --reuse-raw` (ไม่เรียก Paddle ซ้ำ) รัน 2026-11-11
 - **Typhoon + rules** (`data/result_ocr/typhoon/finance_doc_scan/final/rules/`): 18 `needs_review` (สกัดจากข้อความ Typhoon ชุดเดียวกับ LLM ด้วย `--reuse-raw` ไม่เรียก Typhoon ซ้ำ)
 - **Typhoon + LLM** (`data/result_ocr/typhoon/finance_doc_scan/final/llm/`): 18 `needs_review` `buyer.name` มี 16 ใบ (rules ล้วน: Paddle 13, Typhoon 11)
 - **ผลของ VLM/LLM ไม่ซ้ำกันทุกรอบ** (Typhoon สุ่มเล็กน้อย): ข้อความ Typhoon รอบใหม่ต่างจากรอบก่อนทั้ง 18 ใบ และรอบก่อนมี `auto_approved` 2 ใบ รอบนี้ 0 ส่วนผล rules ล้วนบนข้อความ Paddle ซ้ำได้เหมือนเดิม

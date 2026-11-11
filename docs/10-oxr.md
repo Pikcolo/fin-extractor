@@ -130,7 +130,7 @@ curl.exe --fail-with-body https://free-oxr.somark.ai/api/v1/parse/sync `
 .venv\Scripts\python scripts\benchmark_oxr.py                # ส่งภาพดิบ
 ```
 
-สคริปต์นี้ชี้ไป **free API** (ค่าคงที่ `API` ในไฟล์) ใช้กับภาพสังเคราะห์เท่านั้น ผลดิบแคชที่ `data/result_ocr/oxr/synthetic/raw_data/<raw|preprocessed>/` สรุปที่ `data/benchmarks/oxr_synthetic_*.json`
+สคริปต์นี้ชี้ไป **free API** (ค่าคงที่ `API` ในไฟล์) ใช้กับภาพสังเคราะห์เท่านั้น ผลดิบแคชที่ `data/result_ocr/oxr/synthetic/raw_data/<raw|preprocessed>/` สรุปที่ `data/etc/benchmarks/oxr_synthetic_*.json`
 ผลกับสแกนจริงในหัวข้อ 6.2 ได้จากการส่ง PDF ไปที่ container ในเครื่อง (`http://127.0.0.1:8000`) ทีละไฟล์ เก็บที่ `data/result_ocr/oxr/finance_doc_scan/raw_data/*.pdf.oxr.json` (ถูก gitignore)
 ส่วนหัวข้อ 6.3 รันด้วย `.venv/Scripts/python scripts/extract_oxr.py data/raw/finance_doc_scan` (ปฏิเสธโฮสต์ที่ไม่ใช่ localhost รันต่อจากที่ค้างได้) ได้ผลตาม schema ของโปรเจกต์ที่ `data/result_ocr/oxr/finance_doc_scan/final/rules/` และข้อความ/ผลเต็มของ OXR ที่ `raw_data/`
 
@@ -150,7 +150,7 @@ curl.exe --fail-with-body https://free-oxr.somark.ai/api/v1/parse/sync `
 | เลขภาษี / เลขที่ / วันที่ | 16 / 21 / 19 จาก 21 | — | — |
 | ยอดก่อนภาษี / VAT / ยอดรวม | 21 / 19 / 20 จาก 21 | — | — |
 
-(Paddle/Typhoon: ค่าจาก `data/benchmarks/cer_synthetic_*.json` ซึ่งเป็นชุดและเฉลยเดียวกัน ไม่ได้วัด field รายตัวด้วยสคริปต์นี้)
+(Paddle/Typhoon: ค่าจาก `data/etc/benchmarks/cer_synthetic_*.json` ซึ่งเป็นชุดและเฉลยเดียวกัน ไม่ได้วัด field รายตัวด้วยสคริปต์นี้)
 
 ### ตัวอย่าง: ใบ `00_baseline.jpg`
 
@@ -217,7 +217,7 @@ OXR คืน (ตัดมาบางส่วน):
 
 > **เทียบบน 15 ใบเดียวกัน:** รัน OXR ถูกระบบหยุดที่ 15 จาก 18 ใบเพราะหน่วยความจำต่ำ (ไม่มี 001321, 001322, 001323) ทุกตัวเลขข้างล่างจึงนับเฉพาะ 15 ใบที่ทุก engine มีผล
 > Paddle และ Typhoon รันใหม่เมื่อ 2026-11-11 ด้วยโค้ดปัจจุบัน (รวมการอ่านชื่อลูกค้าจากป้าย, check ตามโปรไฟล์, แก้ป้ายสำเนา) ส่วน OXR รันก่อนหน้านั้น (ยังไม่มีสามอย่างนี้)
-> ผลของรันที่ใช้ LLM ช่วย (`ocr-llm`) ไม่มีแล้ว ถูกลบและไม่ได้รันใหม่
+> ชุด Paddle + LLM รันใหม่แล้วที่ `data/result_ocr/paddle/finance_doc_scan/final/llm/` (ดู [README](README.md)) แต่ยังไม่ได้ใส่ในตารางนี้
 
 | (15 ใบ) | Paddle + rules | Typhoon + rules | **OXR + rules** |
 |---|---|---|---|

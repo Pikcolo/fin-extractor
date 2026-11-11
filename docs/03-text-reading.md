@@ -158,10 +158,10 @@ VLM อ่านทั้งหน้าเป็น Markdown และเข้
 
 > **หมายเหตุ (2026-11-11):** ตัวเลขและข้อสังเกตในหัวข้อนี้มาจากรันของ 2026-11-10 ก่อนมีโปรไฟล์ชนิดเอกสาร ผลดิบชุดนั้น (รวม `ocr-llm`) ถูกแทนที่แล้ว
 > รันใหม่ได้ paddle/rules 15 `needs_review`/3 `failed`, typhoon/llm 18 `needs_review` (ดู [README](README.md)) ข้อสังเกตเรื่องค่าผิดของ LLM ด้านล่างยังไม่ได้ตรวจซ้ำกับรอบใหม่
-> ตาราง `data/benchmarks/compare_modes.md` เป็นของรอบเก่า
+> ตาราง `data/etc/benchmarks/compare_modes.md` เป็นของรอบเก่า
 
 ชุดที่เทียบ (ตัวเลขในตารางเป็นของรอบ 2026-11-10): ชุด A = `--mode ocr` (Paddle + rules) ชุด B = `--mode vlm` (Typhoon OCR + `qwen2.5:3b` + rules)
-ปัจจุบันอยู่ที่ `data/result_ocr/paddle/finance_doc_scan/final/rules/` และ `data/result_ocr/typhoon/finance_doc_scan/final/llm/` ตารางเทียบรายใบ: `data/benchmarks/compare_modes.md` (สร้างด้วย `scripts/compare_modes.py`) ไม่มีเฉลย
+ปัจจุบันอยู่ที่ `data/result_ocr/paddle/finance_doc_scan/final/rules/` และ `data/result_ocr/typhoon/finance_doc_scan/final/llm/` ตารางเทียบรายใบ: `data/etc/benchmarks/compare_modes.md` (สร้างด้วย `scripts/compare_modes.py`) ไม่มีเฉลย
 
 | | A: ocr | B: vlm |
 |---|---|---|

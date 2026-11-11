@@ -1,9 +1,9 @@
 """เทียบผลสกัดของไฟล์เดียวรายฟิลด์ ข้ามทุก engine/extractor ที่อยู่ใน data/result_ocr/<engine>/<dataset>/final/<extractor>/
 
-อ่านเฉพาะไฟล์ผลที่มีอยู่แล้ว ไม่เรียก OCR/LLM/GPU ผลเขียนที่ data/compare/<ไฟล์>/compare.md (และ compare.json)
+อ่านเฉพาะไฟล์ผลที่มีอยู่แล้ว ไม่เรียก OCR/LLM/GPU ผลเขียนที่ data/etc/compare/<ไฟล์>/compare.md (และ compare.json)
 ลบทิ้งทั้งโฟลเดอร์ได้เมื่อไม่ใช้
 
-คอลัมน์ "อ้างอิง" มาจาก data/compare/<ไฟล์>/reference.json ถ้ามี (ไม่บังคับ) ไฟล์นั้นเป็นค่าที่คนอ่านจากภาพ ไม่ใช่เฉลยทางการ
+คอลัมน์ "อ้างอิง" มาจาก data/etc/compare/<ไฟล์>/reference.json ถ้ามี (ไม่บังคับ) ไฟล์นั้นเป็นค่าที่คนอ่านจากภาพ ไม่ใช่เฉลยทางการ
 ช่องที่มีอ้างอิงจะมีเครื่องหมาย ✓ (ตรง) / ✗ (ไม่ตรง) เทียบแบบตัดช่องว่าง ตัวเลขเทียบเป็นค่า
 
     .venv/Scripts/python scripts/compare_file.py 001312
@@ -22,7 +22,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from fin_extractor.paths import DataPaths  # noqa: E402
+from fin_extractor.paths import DataPaths, iter_results  # noqa: E402
 
 P = DataPaths()
 DEFAULT_RUNS = {  # ชื่อคอลัมน์ → (engine, extractor)
@@ -86,7 +86,7 @@ def main() -> None:
     results: dict[str, dict] = {}
     for label, (engine, extractor) in runs.items():
         folder = P.final(engine, args.dataset, extractor)
-        hits = sorted(folder.glob(f"*{args.stem}*_p1.json"))
+        hits = iter_results(folder, f"*{args.stem}*_p1.json")
         if hits:
             results[label] = json.loads(hits[0].read_text(encoding="utf-8"))
         else:

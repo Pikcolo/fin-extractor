@@ -36,7 +36,7 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from fin_extractor.paths import DataPaths  # noqa: E402
+from fin_extractor.paths import DataPaths, find_dir  # noqa: E402
 
 P = DataPaths()
 DATASET = "finance_doc_scan"
@@ -66,7 +66,8 @@ def color(t: str) -> tuple[int, int, int]:
 
 
 def oxr_json(stem: str, source: str) -> Path:
-    return OXR_DIR / f"{PREFIX}{stem}_p1{'.pdf' if source == 'pdf' else ''}.oxr.json"
+    name = f"{PREFIX}{stem}"
+    return find_dir(OXR_DIR, name) / f"{name}_p1{'.pdf' if source == 'pdf' else ''}.oxr.json"
 
 
 def pick_source(stem: str, source: str) -> str:

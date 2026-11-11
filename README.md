@@ -67,8 +67,11 @@ data/
 │   ├── raw_data/                        ข้อความดิบจาก OCR (เขียนครั้งเดียวต่อ engine)
 │   ├── final/<rules|llm>/               ผลตาม schema (JSON)
 │   └── visualize/                       ภาพให้ดูว่าอ่านอย่างไร
-└── benchmarks/ · compare/ · reports/    ผลวัด / เทียบรายไฟล์ / รายงานภาพ
+├── etc/benchmarks/ · etc/compare/       งานทดสอบ/เปรียบเทียบ (ผลวัด / เทียบรายไฟล์)
+└── reports/                             รายงานภาพ
 ```
+
+ถ้ารันหนึ่งครั้งมีไฟล์อินพุตมากกว่า 2 ไฟล์ ผลของแต่ละไฟล์จะอยู่ในโฟลเดอร์ย่อยชื่อไฟล์ (เช่น `raw_data/<ไฟล์>/<ไฟล์>_p1.txt`) ไม่เกิน 2 ไฟล์ก็วางตรง ๆ (ตั้งที่ `NEST_OVER` ใน `src/fin_extractor/paths.py`)
 
 เช่น `extract data/raw/finance_doc_scan` → `data/result_ocr/paddle/finance_doc_scan/final/rules/<ไฟล์>_p1.json` และข้อความดิบที่ `raw_data/`
 `extract ... --reuse-raw` สกัดซ้ำจากข้อความดิบโดยไม่เรียก OCR/GPU ดู [docs/06-usage.md](docs/06-usage.md#โครงเก็บผลลัพธ์)

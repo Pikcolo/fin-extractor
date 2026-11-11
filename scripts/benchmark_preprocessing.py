@@ -1,6 +1,6 @@
 """วัด preprocessing กับชุดสังเคราะห์ (``make_synthetic_samples.py``) ที่รู้เฉลย
 
-วัดสามเรื่อง ผลบันทึกใน ``--out`` (ค่าตั้งต้น ``data/benchmarks/preprocessing_synthetic.json``)
+วัดสามเรื่อง ผลบันทึกใน ``--out`` (ค่าตั้งต้น ``data/etc/benchmarks/preprocessing_synthetic.json``)
   1. orientation : Tesseract OSD เทียบกับตัวจำแนกทิศทั้งหน้าของ Paddle ถูกกี่ใบจากภาพตะแคง
   2. deskew      : มุมที่วัดได้คลาดจากมุมที่ใส่จริงกี่องศา
   3. ocr         : Paddle อ่านค่าสำคัญได้ครบกี่ค่า (จาก 6) เมื่อเปลี่ยนชุด preprocessing

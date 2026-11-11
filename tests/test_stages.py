@@ -139,3 +139,13 @@ def test_process_raw_gives_the_same_result_as_extracting_those_lines_and_adds_me
     truncated = p.process_raw("a.pdf", 1, text, {"truncated": True})
     assert any(c.name == "vlm_complete" and c.passed is False for c in truncated.checks)   # ตอบไม่จบจากตอนอ่านสด ติดมากับ meta
     assert not any(c.name == "vlm_complete" for c in p.process_raw("a.pdf", 1, text).checks)  # ไม่มี meta = ไม่มีธง
+
+
+def test_cache_is_found_in_per_file_subfolder_even_when_reader_does_not_nest(tmp_path, cfg, counted):
+    img = tmp_path / "scans" / "a.png"
+    make_image(img)
+    pdir = tmp_path / "pre"
+    list(prepared_pages(img, cfg, pdir, nest=True))
+    assert (pdir / "final" / "a" / "a_p1.png").exists() and len(counted) == 1
+    assert next(prepared_pages(img, cfg, pdir))[2] == {"cached": True} and len(counted) == 1   # รันไฟล์เดียวทีหลัง ใช้ภาพเดิมได้
+    assert not (pdir / "final" / "a_p1.png").exists()

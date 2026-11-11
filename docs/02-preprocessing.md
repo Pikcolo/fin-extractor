@@ -67,7 +67,7 @@ OCR ตัดภาพเป็นบรรทัดก่อนแล้วอ�
 ชุดทดสอบ: ใบกำกับภาษีไทยสังเคราะห์ 21 ใบ สร้างด้วย `scripts/make_synthetic_samples.py` เนื้อหาเดียวกันทุกใบ
 เปลี่ยนทีละปัจจัย (มุมเอียง, สีตัวอักษร 5 แบบ, แถบหัวสี, ตราประทับแดงทับยอด, เอฟเฟกต์สแกน, ตะแคง 90/180/270°)
 และมีใบที่รวมหลายปัจจัย เฉลย (มุมที่ใส่จริง สี ค่าเงิน) อยู่ใน `data/raw/synthetic/truth.json`
-วัดด้วย `scripts/benchmark_preprocessing.py` ผลดิบอยู่ใน `data/benchmarks/preprocessing_synthetic.json`
+วัดด้วย `scripts/benchmark_preprocessing.py` ผลดิบอยู่ใน `data/etc/benchmarks/preprocessing_synthetic.json`
 
 > **ข้อจำกัดสำคัญ:** ผลวัดในหัวข้อนี้ (ก่อนถึง [ผลวัดบนสแกนจริง](#ผลวัดบนสแกนจริง)) เป็น **ภาพสังเคราะห์ ไม่ใช่สแกนจริง**
 > ใช้เทียบทีละปัจจัยได้ แต่ภาพเรนเดอร์สะอาด ผลจึงง่ายกว่าของจริง
@@ -120,8 +120,8 @@ OCR ตัดภาพเป็นบรรทัดก่อนแล้วอ�
 ## ผลวัดบนสแกนจริง
 
 ชุดทดสอบ: `data/raw/finance_doc_scan` PDF สแกน 18 ใบ (หน้าเดียว render ที่ 300 dpi ได้ราว 2500×3520 px) **ไม่มีเฉลย**
-วัดด้วย `scripts/benchmark_real_scans.py` ผลดิบและข้อความ OCR อยู่ใน `data/benchmarks/real_scans.json`
-ส่วน `settings.json`, `metrics.csv` และข้อความ OCR แยกตามชุดอยู่ใน `data/benchmarks/preprocess_experiments/` (เริ่มดูที่ `README.md` ในโฟลเดอร์นั้น)
+วัดด้วย `scripts/benchmark_real_scans.py` ผลดิบและข้อความ OCR อยู่ใน `data/etc/benchmarks/real_scans.json`
+ส่วน `settings.json`, `metrics.csv` และข้อความ OCR แยกตามชุดอยู่ใน `data/etc/benchmarks/preprocess_experiments/` (เริ่มดูที่ `README.md` ในโฟลเดอร์นั้น)
 เก็บภาพไว้เฉพาะชุด `base`, `raw`, `no_deskew`, `no_orient` ส่วนชุดที่ผลวัดไม่ช่วย (เทา, denoise, CLAHE, crop, binarize) ไม่เก็บภาพ
 สร้างใหม่ได้ด้วย `organize_preprocess_results.py --images-for <ชุด>`
 
@@ -179,8 +179,8 @@ OCR ตัดภาพเป็นบรรทัดก่อนแล้วอ�
 รันชุดวัดซ้ำ:
 
 ```bash
-.venv/Scripts/python scripts/benchmark_real_scans.py                    # ~10 นาที (13 ชุด × 18 ไฟล์) → data/benchmarks/real_scans.json
-.venv/Scripts/python scripts/organize_preprocess_results.py             # จัดเป็นโฟลเดอร์ต่อชุด → data/benchmarks/preprocess_experiments/
+.venv/Scripts/python scripts/benchmark_real_scans.py                    # ~10 นาที (13 ชุด × 18 ไฟล์) → data/etc/benchmarks/real_scans.json
+.venv/Scripts/python scripts/organize_preprocess_results.py             # จัดเป็นโฟลเดอร์ต่อชุด → data/etc/benchmarks/preprocess_experiments/
 ```
 
 ## ที่ยังไม่ได้วัด
