@@ -177,7 +177,7 @@ fin_extractor/
 ├── data/                       raw/ (เอกสารต้นฉบับ) · preprocess/ · result_ocr/ · etc/{benchmarks,compare} · reports/ ไม่ถูก commit ยกเว้น .gitkeep
 ├── docs/                       เอกสารนี้
 ├── schemas/invoice.schema.json Data Contract (generate จาก schema.py)
-├── scripts/                    benchmark (มีเฉลย) · benchmark_preprocessing + benchmark_cer + make_synthetic_samples (สังเคราะห์)
+├── scripts/                    visualize_bbox (กรอบ Paddle) · benchmark (มีเฉลย) · benchmark_preprocessing + benchmark_cer + make_synthetic_samples (สังเคราะห์)
 │                               · benchmark_real_scans + organize_preprocess_results + compare_modes (สแกนจริง ไม่ใช้เฉลย)
 ├── src/fin_extractor/
 │   ├── schema.py               Data Contract (pydantic)
