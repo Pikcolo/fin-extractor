@@ -5,8 +5,7 @@ __pycache__/
 .env
 .pytest_cache/
 
-# ข้อมูลจริงอาจมีข้อมูลส่วนบุคคล/ภาษี — ไม่ commit
-data/raw/*
-data/output/*
-!data/raw/.gitkeep
-!data/output/.gitkeep
+# ข้อมูลจริงอาจมีข้อมูลส่วนบุคคล/ภาษี — ไม่ commit อะไรใต้ data/ ทั้งหมด ยกเว้น .gitkeep ที่รักษาโครงโฟลเดอร์
+data/**
+!data/**/
+!data/**/.gitkeep
