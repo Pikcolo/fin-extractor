@@ -11,7 +11,7 @@ OCR + Information Extraction สำหรับเอกสารการเง
       └─ preprocessing  upscale → orientation → deskew   (คงสี; denoise/CLAHE/binarize ปิดเป็นค่าตั้งต้น)
           ├─ ocr/       PaddleOCR                         (mode=ocr)   → ข้อความ + bbox + confidence
           ├─ vlm/       Typhoon OCR → Markdown/HTML table  (mode=vlm)
-          └─ สายงานล่าสุด: แบ่งหน้าเป็น section → OpenThai OCR ทีละส่วน → Markdown ต่อกัน → rules   (ดู "สายงานล่าสุด")
+          └─ sections/  flow หลัก: แบ่งเป็นส่วน → ภาพรายส่วน → OpenThai ทีละส่วน → .md + chunks.json → rules   (ดู "flow หลัก")
               └─ extraction/  rules (regex+keyword)  และ/หรือ  LLM → InvoiceData
                   └─ validation/  checksum เลขภาษี, Σitems, ส่วนลด, ก่อนVAT+VAT=รวม, VAT 7% → status + field_evidence
 ```
@@ -36,64 +36,68 @@ pytest                                    # ต้องผ่านทั้ง
 
 ### รันครั้งแรก
 
-เอกสารจริงไม่อยู่ใน git (ทุกอย่างใต้ `data/` ถูก `.gitignore`) วางไฟล์ของคุณที่ `data/raw/` หรือสร้างชุดสังเคราะห์:
+เอกสารจริงไม่อยู่ใน git (ทุกอย่างใต้ `data/` ถูก `.gitignore`) วางไฟล์ของคุณที่ `data/01_input/` หรือสร้างชุดสังเคราะห์:
 
 ```powershell
-python scripts/make_synthetic_samples.py                  # ใบกำกับภาษีสมมติ 21 ใบ → data/raw/synthetic/
-python -X utf8 -m fin_extractor extract data/raw/synthetic   # Paddle + rules → data/result_ocr/paddle/synthetic/final/rules/
+python scripts/make_synthetic_samples.py                  # ใบกำกับภาษีสมมติ 21 ใบ → data/01_input/synthetic/
+python -X utf8 -m fin_extractor extract data/01_input/synthetic   # Paddle + rules → data/05_extract/synthetic/paddle/page/rules/
 ```
 
 ### คำสั่งหลัก
 
 ```powershell
-python -m fin_extractor preprocess data/raw --steps           # ดูผล preprocess ทีละขั้น
-python -m fin_extractor ocr data/raw/BITKUB-001.jpg           # ข้อความดิบ (--engine vlm = Typhoon OCR)
-python -m fin_extractor extract data/raw                      # pipeline เต็ม → JSON (ค่าตั้งต้น --mode ocr)
-python -m fin_extractor extract data/raw --mode vlm           # Typhoon OCR + LLM + rules (ต้องเปิด Ollama)
+python -m fin_extractor preprocess data/01_input --steps           # ดูผล preprocess ทีละขั้น
+python -m fin_extractor ocr data/01_input/BITKUB-001.jpg           # ข้อความดิบ (--engine vlm = Typhoon OCR)
+python -m fin_extractor extract data/01_input                      # pipeline เต็ม → JSON (ค่าตั้งต้น --mode ocr)
+python -m fin_extractor extract data/01_input --mode vlm           # Typhoon OCR + LLM + rules (ต้องเปิด Ollama)
 python -m fin_extractor schema                                # export JSON Schema (หลังแก้ schema.py)
 pytest
 ```
 
 โหมด `vlm` ต้อง `ollama pull scb10x/typhoon-ocr1.5-3b` และ `ollama pull qwen2.5:3b` (หรือใช้ Typhoon API ตั้งค่าใน `.env`)
 
-### สายงานล่าสุด: แบ่ง section แล้วอ่านด้วย OpenThai (สแกนจริง)
+### flow หลัก: แบ่ง section แล้วอ่านด้วย OpenThai (สแกนจริง)
 
-แบ่งหน้าเป็นแถบ/ท่อน (ตารางเป็นก้อนเดียว ตัดท่อนสูงไม่เกิน 0.3 ของหน้า ไม่ใช้ OCR คัดส่วน) เตรียมภาพรายส่วน แล้วให้ OpenThai อ่านทีละส่วน
-ข้อมูลทั้งหมดอยู่ใต้ `data/` ใช้ GPU เฉพาะขั้นที่ 4 ([docs/14](docs/14-section-preprocess.md))
+อินพุต → preprocess → **แบ่งเป็นส่วน (เก็บผังไว้ดู/debug)** → ภาพแต่ละส่วนที่เตรียมก่อน OCR → OCR ทีละส่วน → **ข้อความ + ที่มาของแต่ละท่อน** → สกัดเป็น schema (ข้อมูลสำคัญที่ไม่มีช่องไปอยู่ใน `remark`)
+ไม่ใช้ OCR คัดส่วน ตารางเป็นก้อนเดียว ตัดท่อนสูงไม่เกิน 0.3 ของหน้า ใช้ GPU เฉพาะขั้น 4 ([docs/14](docs/14-section-preprocess.md))
 
 ```powershell
-python -m fin_extractor preprocess data/raw/finance_doc_scan                                   # 1 ภาพทั้งหน้า ตรงแล้ว (สี)
-python -X utf8 scripts/make_section_layouts.py data/raw/finance_doc_scan                       # 2 ผังแบ่ง section
-python -X utf8 scripts/make_clean_sections.py data/raw/finance_doc_scan                        # 3 ภาพรายส่วน clean/<luma|flat|bin>/<ไฟล์>/sNN.png (CPU)
-python -X utf8 scripts/run_sections.py data/raw/finance_doc_scan --engine openthai --variant luma   # 4 อ่านทีละส่วน (GPU)
-python -m fin_extractor extract data/raw/finance_doc_scan --mode vlm --engine openthai --llm off --reuse-raw --variant luma   # 5 สกัดด้วย rules (CPU)
+python -X utf8 -m fin_extractor sections data/01_input/finance_doc_scan            # รันครบ 5 ขั้น ขั้นที่ผลยังใช้ได้ถูกข้าม
+python -X utf8 -m fin_extractor sections data/01_input/finance_doc_scan --from ocr --only 1306   # เริ่มกลางทาง/เฉพาะบางไฟล์
 ```
 
-- **ค่าตั้งต้นคือ `luma`**: เทียบ 3 แบบบน 18 ใบ (ไม่มีเฉลย วัดแค่ความครบ) luma ขาดฟิลด์รวม 14, flat 16, bin (ตัวขาวบนดำ) 28 ([docs/14](docs/14-section-preprocess.md))
-- `--variant flat|bin` ผลแยกโฟลเดอร์ (`raw_data_<วิธี>/`, `final_<วิธี>/`) ไม่ทับกัน
+| ขั้น | ผลที่ดูได้ (ใต้ `data/`) | ใช้อะไรดู debug |
+|---|---|---|
+| 1 preprocess | `02_preprocess/<ชุด>/<profile>/final/` ภาพทั้งหน้าตรงแล้ว | ภาพ + `manifest.json` (`orientation_error`) |
+| 2 layout | `03_sections/<ชุด>/<profile>/layout/<ไฟล์>.json` + `_layout.png` | ภาพกรอบสี + เลข id ของแต่ละส่วน |
+| 3 images | `03_sections/<ชุด>/<profile>/images/luma/<ไฟล์>/sNN.png` | ภาพที่ส่งเข้า OCR จริง |
+| 4 ocr | `04_ocr/<ชุด>/openthai/luma/<ไฟล์>/` `.md` `.sections.json` `.chunks.json` | `chunks.json` = ท่อนข้อความ ↔ ภาพ section ↔ บรรทัดใน `.md` |
+| 5 extract | `05_extract/<ชุด>/openthai/luma/rules/<ไฟล์>_p1.json` | `field_evidence`, `remark[].source_chunk` ชี้กลับไปที่ section |
+
+- **ค่าตั้งต้นคือ `luma`**: เทียบ 3 แบบบน 18 ใบ (ไม่มีเฉลย วัดแค่ความครบ) luma ขาดฟิลด์รวม 14, flat 16, bin (ตัวขาวบนดำ) 28 ([docs/14](docs/14-section-preprocess.md)) `--variant flat|bin|color` ผลแยกโฟลเดอร์ ไม่ทับกัน
+- รันทีละขั้นได้ด้วยสคริปต์เดิม (`scripts/make_section_layouts.py` `make_clean_sections.py` `run_sections.py` เป็นตัวห่อบางๆ ของ `src/fin_extractor/sections/`)
 - ข้อมูลภาษีจริงไม่ถูก commit และผลวัดทั้งหมดไม่ใช่คะแนนความถูกต้อง
 - ข้อควรระวัง: ตรวจ `orientation_error` ใน `manifest.json` ของ preprocess ก่อนเชื่อผล (ตัวตรวจทิศอาจล้มเงียบ)
+- ย้ายข้อมูลจากโครงเก่า (โฟลเดอร์ `raw` `preprocess` `result_ocr`) มาโครงนี้ด้วย `python scripts/migrate_data_layout.py` (dry-run ก่อน `--apply`)
 
 ### ผลลัพธ์อยู่ที่ไหน
 
-ข้อมูลทั้งหมดอยู่ใต้ `data/` (ไม่ commit) แยกตามขั้น แล้วแยกตาม engine:
+ข้อมูลทั้งหมดอยู่ใต้ `data/` (ไม่ commit) ชื่อโฟลเดอร์เรียงตามขั้น ทุกขั้นใช้ `<ชุด>` และ `<ไฟล์>` เดียวกัน ตามไฟล์เดียวข้ามขั้นได้ด้วยชื่อเดียว:
 
 ```
 data/
-├── raw/<dataset>/                       ไฟล์อินพุต
-├── preprocess/<dataset>/<profile>/      final/ ภาพสุดท้ายที่ทุก engine ใช้ร่วมกัน · steps/ ภาพทีละขั้น · sections/ ผังและภาพรายส่วน (features/ clean/<วิธี>/)
-├── result_ocr/<engine>/<dataset>/       engine = paddle | typhoon | oxr | openthai
-│   ├── raw_data/                        ข้อความดิบจาก OCR (เขียนครั้งเดียวต่อ engine)
-│   ├── final/<rules|llm>/               ผลตาม schema (JSON)
-│   └── visualize/                       ภาพให้ดูว่าอ่านอย่างไร
-│   (openthai: raw_data_<luma|flat|bin>/ ข้อความดิบรายส่วน · final_<วิธี>/rules/ ผลตาม schema)
-├── etc/benchmarks/ · etc/compare/       งานทดสอบ/เปรียบเทียบ (ผลวัด / เทียบรายไฟล์)
-└── reports/                             รายงานภาพ
+├── 01_input/<ชุด>/                              ไฟล์อินพุต
+├── 02_preprocess/<ชุด>/<profile>/{final,steps}  ภาพสุดท้ายที่ทุกขั้นถัดไปใช้ร่วมกัน · ภาพทีละขั้น
+├── 03_sections/<ชุด>/<profile>/                 แบ่งเป็นส่วน: layout/ (ผัง + ภาพตรวจ) · images/<luma|flat|bin>/<ไฟล์>/ (ภาพรายส่วน)
+├── 04_ocr/<ชุด>/<engine>/<วิธี>/<ไฟล์>/          ข้อความจาก OCR (วิธี = page อ่านทั้งหน้า · luma|flat|bin|color อ่านทีละส่วน) + visualize/
+├── 05_extract/<ชุด>/<engine>/<วิธี>/<extractor>/ ผลตาม schema (JSON) extractor = rules | llm | hybrid
+├── etc/benchmarks/ · etc/compare/ · etc/experiments/   งานทดสอบ/เปรียบเทียบ
+└── reports/                                     รายงานภาพ
 ```
 
-ถ้ารันหนึ่งครั้งมีไฟล์อินพุตมากกว่า 2 ไฟล์ ผลของแต่ละไฟล์จะอยู่ในโฟลเดอร์ย่อยชื่อไฟล์ (เช่น `raw_data/<ไฟล์>/<ไฟล์>_p1.txt`) ไม่เกิน 2 ไฟล์ก็วางตรง ๆ (ตั้งที่ `NEST_OVER` ใน `src/fin_extractor/paths.py`)
+ถ้ารันหนึ่งครั้งมีไฟล์อินพุตมากกว่า 2 ไฟล์ ผลของแต่ละไฟล์จะอยู่ในโฟลเดอร์ย่อยชื่อไฟล์ (เช่น `04_ocr/<ชุด>/paddle/page/<ไฟล์>/<ไฟล์>_p1.txt`) ไม่เกิน 2 ไฟล์ก็วางตรง ๆ (ตั้งที่ `NEST_OVER` ใน `src/fin_extractor/paths.py`)
 
-เช่น `extract data/raw/finance_doc_scan` → `data/result_ocr/paddle/finance_doc_scan/final/rules/<ไฟล์>_p1.json` และข้อความดิบที่ `raw_data/`
+เช่น `extract data/01_input/finance_doc_scan` → `data/05_extract/finance_doc_scan/paddle/page/rules/<ไฟล์>_p1.json` และข้อความดิบที่ `data/04_ocr/finance_doc_scan/paddle/page/`
 `extract ... --reuse-raw` สกัดซ้ำจากข้อความดิบโดยไม่เรียก OCR/GPU ดู [docs/06-usage.md](docs/06-usage.md#โครงเก็บผลลัพธ์)
 
 ## โครงสร้างโฟลเดอร์
@@ -101,9 +105,9 @@ data/
 ```
 fin_extractor/
 ├── configs/default.yaml        ค่าตั้งต้นทั้งหมด (preprocess, engine, endpoint VLM/LLM, document_types)
-├── data/                       raw/ เอกสารต้นฉบับ · output/ ผล (ไม่ commit ยกเว้น .gitkeep)
+├── data/                       01_input … 05_extract เรียงตามขั้น (ไม่ commit ยกเว้น .gitkeep)
 ├── schemas/                    JSON Schema (Data Contract) — generate จาก schema.py
-├── scripts/                    make_section_layouts → make_clean_sections → run_sections (สายงานล่าสุด) · make_synthetic_samples + benchmark_preprocessing + benchmark_cer (ชุดสังเคราะห์) ·
+├── scripts/                    migrate_data_layout (ย้ายข้อมูลโครงเก่า) · make_section_layouts / make_clean_sections / run_sections (ตัวห่อบางๆ ของ flow หลัก) · make_synthetic_samples + benchmark_preprocessing + benchmark_cer (ชุดสังเคราะห์) ·
 │                               benchmark_real_scans + organize_preprocess_results + compare_modes (สแกนจริง ไม่ใช้เฉลย) ·
 │                               benchmark (ชุดมีเฉลย วัดความถูกต้องรายฟิลด์)
 ├── src/fin_extractor/
@@ -119,6 +123,7 @@ fin_extractor/
 │   │   ├── binarize.py         Otsu / adaptive / Sauvola
 │   │   └── pipeline.py         รวมขั้นตอนตาม config
 │   ├── ocr/                    base.py (interface กลาง) + paddle_engine.py
+│   ├── sections/               ★ flow หลัก: layout.py (ผัง) · images.py (luma/flat/bin) · crops.py · build.py (ขั้น 2–3) · read.py (ขั้น 4 OCR รายส่วน + chunks.json) · flow.py (กติกาข้ามขั้น)
 │   ├── vlm/                    client.py (Ollama/OpenAI-compatible), typhoon_ocr.py, openthai_ocr.py, oxr_local.py, prompts.py
 │   ├── extraction/             patterns.py (regex), rule_extractor.py, llm_extractor.py, hybrid.py
 │   └── validation/             tax_id.py, checks.py, scoring.py, evidence.py

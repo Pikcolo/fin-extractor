@@ -6,28 +6,30 @@
 
 ขั้นเตรียมภาพใช้ภาพล้วน ไม่เรียก OCR ไม่ทิ้งส่วนที่มีหมึก (สายงานคัดส่วนด้วย OCR และสคริปต์ทดลองรุ่นก่อนถูกถอดออกแล้ว ดูได้ใน git history ก่อน commit นี้)
 
-## ลำดับและไฟล์
+## ลำดับและไฟล์ (flow หลัก)
 
-| ขั้น | คำสั่ง | Input | Output |
-|---|---|---|---|
-| 1 | `python -m fin_extractor preprocess data/raw/<ชุด>` | `raw/<ชุด>/<ไฟล์>.pdf` | `preprocess/<ชุด>/default/final/<ไฟล์>/<ไฟล์>_p1.png` (ภาพสีทั้งหน้า ตรงแล้ว) |
-| 2 | `scripts/make_section_layouts.py` | ภาพ `final/` | `.../sections/features/<ไฟล์>.json` (ผัง: `layout_sections`, `layout_params`) · `<ไฟล์>_layout.png` (ภาพตรวจด้วยตา) |
-| 3 | `scripts/make_clean_sections.py` | `final/` + ผัง | `.../sections/clean/<วิธี>/<ไฟล์>/sNN.png` + `index.json` (วิธี = `luma` `flat` `bin` แยกโฟลเดอร์) |
-| 4 | `scripts/run_sections.py --engine openthai --variant luma` (หรือ `flat` / `bin`) | ภาพใน `clean/<วิธี>/` + ผัง | `result_ocr/openthai/<ชุด>/raw_data_luma/<ไฟล์>/<ไฟล์>_p1.sections.json` และ `<ไฟล์>_p1.md` |
+คำสั่งเดียวรันครบ: `python -X utf8 -m fin_extractor sections data/01_input/<ชุด> [--variant luma] [--from <ขั้น>] [--to <ขั้น>] [--only <เลขไฟล์>] [--redo]`
+ขั้นที่ผลของมันยังใช้ได้ถูกข้าม (กติกาใน `src/fin_extractor/sections/flow.py`): layout ข้ามถ้าพารามิเตอร์ตรงและผังใหม่กว่าภาพ final · images ข้ามถ้า `index.json` ตรงกับผัง · ocr ข้ามถ้ามีผลที่ลายนิ้วมือผังตรงและครบ (ไม่โหลดโมเดลเลยถ้าข้ามทุกไฟล์) · extract รันใหม่ทุกครั้ง (CPU เร็ว)
 
-| 5 | `python -m fin_extractor extract data/raw/<ชุด> --mode vlm --engine openthai --llm off --reuse-raw --variant luma` | `raw_data_luma/<ไฟล์>/<ไฟล์>_p1.md` | `result_ocr/openthai/<ชุด>/final_luma/rules/<ไฟล์>/<ไฟล์>_p1.json` (JSON ตาม schema) + `manifest.json` |
+| ขั้น | `--from/--to` | สคริปต์ที่รันเดี่ยวได้ | Input | Output (ใต้ `data/`) | โค้ด |
+|---|---|---|---|---|---|
+| 1 | `preprocess` | `fin_extractor preprocess` | `01_input/<ชุด>/<ไฟล์>.pdf` | `02_preprocess/<ชุด>/default/final/<ไฟล์>/<ไฟล์>_p1.png` (ภาพสีทั้งหน้า ตรงแล้ว) + `manifest.json` | `preprocessing/`, `stages.py` |
+| 2 | `layout` | `scripts/make_section_layouts.py` | ภาพ `final/` | `03_sections/<ชุด>/default/layout/<ไฟล์>.json` (`layout_sections`, `layout_params`) + `<ไฟล์>_layout.png` ภาพตรวจด้วยตา | `sections/layout.py`, `sections/build.py` |
+| 3 | `images` | `scripts/make_clean_sections.py` | `final/` + ผัง | `03_sections/<ชุด>/default/images/<วิธี>/<ไฟล์>/sNN.png` + `index.json` (ค่าตั้งต้นของ `sections` เขียนเฉพาะวิธีที่ใช้ สคริปต์เขียนทั้ง luma/flat/bin) | `sections/images.py`, `sections/build.py` |
+| 4 | `ocr` | `scripts/run_sections.py` | ภาพใน `images/<วิธี>/` + ผัง | `04_ocr/<ชุด>/openthai/<วิธี>/<ไฟล์>/` `<ไฟล์>_p1.sections.json` `.md` `.chunks.json` | `sections/read.py` |
+| 5 | `extract` | `fin_extractor extract ... --reuse-raw --variant <วิธี>` | `.md` ของขั้น 4 | `05_extract/<ชุด>/openthai/<วิธี>/rules/<ไฟล์>_p1.json` + `manifest.json` | `pipeline.py`, `extraction/`, `validation/` |
 
-ขั้น 5 ใช้ CPU ล้วน (`--llm off` = rules; ค่า `auto` ในโหมด vlm จะเรียก LLM) `--variant` ใช้คู่ `--reuse-raw` เท่านั้น ไฟล์ที่ยังไม่มีข้อความดิบถูกข้ามพร้อมข้อความบอก ผลไม่ทับ `raw_data/` และ `final/` ปกติ
+ขั้น 5 ใช้ CPU ล้วน (`--llm off` = rules; ค่า `auto` ในโหมด vlm จะเรียก LLM) `--variant` ใช้คู่ `--reuse-raw` เท่านั้น ไฟล์ที่ยังไม่มีข้อความดิบถูกข้ามพร้อมข้อความบอก
+`--variant color` ตัดจากภาพสีใน memory (ไม่มีขั้น images) ผลอยู่ `04_ocr/…/color/` · วิธีอื่นแยกโฟลเดอร์ `…/luma/` `…/flat/` `…/bin/` ไม่ทับกัน (ทั้งในขั้น 3, 4, 5)
 
-`--variant color` ตัดจากภาพสีใน memory (ไม่ผ่าน luma/flat/bin) ผลอยู่ `raw_data/` · `--variant flat` ผลอยู่ `raw_data_flat/` · `--variant bin` ผลอยู่ `raw_data_bin/` (สกัดต่อด้วย `extract ... --reuse-raw --variant bin` → `final_bin/`)
 ตัวอ่านรับ **ภาพทีละส่วน** ได้ข้อความทีละก้อน สคริปต์เก็บแยกต่อส่วนใน `sections.json` และต่อกันตามลำดับอ่านใน `.md`
-(ป้ายแต่ละท่อนเป็นคอมเมนต์ HTML ที่ rules ตัดทิ้ง) ป้ายกับค่าที่อยู่คนละส่วนจึงอยู่ใกล้กันในไฟล์ แต่ไม่มีการจับคู่จากตำแหน่ง
+(ป้ายแต่ละท่อนเป็นคอมเมนต์ HTML `<!-- sNN kind -->` ที่ rules ตัดทิ้งจากตัวบรรทัดแต่ใช้บอก `source_chunk` ของ remark) ป้ายกับค่าที่อยู่คนละส่วนจึงอยู่ใกล้กันในไฟล์ แต่ไม่มีการจับคู่จากตำแหน่ง
 
-ทดลองโดยไม่ทับผลจริง: ทุกสคริปต์ข้างบนรับ `--config <ไฟล์>` ที่เปลี่ยน `paths.data_dir` ได้
+ทดลองโดยไม่ทับผลจริง: ทุกคำสั่งรับ `--config <ไฟล์>` ที่เปลี่ยน `paths.data_dir` ได้ (ใช้ตรวจว่า refactor ไม่เปลี่ยนผล: สร้างผัง+ภาพลง data_dir ชั่วคราวแล้วเทียบไบต์กับของเดิม) ย้ายข้อมูลจากโครงเก่าด้วย `scripts/migrate_data_layout.py`
 
 ## แบบ `bin`: ขาวดำ ตัวอักษรขาว กระดาษดำ
 
-`make_clean_sections.py` เขียน `clean/bin/<ไฟล์>/sNN.png` เพิ่มจาก luma/flat · อ่านด้วย `run_sections.py --variant bin` (ผลอยู่ `raw_data_bin/`) · `extract --reuse-raw --variant bin`
+`make_clean_sections.py` เขียน `images/bin/<ไฟล์>/sNN.png` เพิ่มจาก luma/flat (flow `sections --variant bin` เขียนเฉพาะ bin) · อ่านด้วย `run_sections.py --variant bin` (ผลอยู่ `04_ocr/<ชุด>/openthai/bin/`) · `extract --reuse-raw --variant bin`
 - **ไม่ใช้ความสว่าง** ตัดสินจากระยะสี (Lab) ของพิกเซลจากสีพื้นรอบข้าง (median หน้าต่างใหญ่) แล้ว threshold (Otsu ขั้นต่ำ `BIN_FLOOR`) ตัวดำบนขาว ตัวขาวบนแถบเขียว/น้ำเงิน ตัวสีบนพื้นสี ได้ผลแบบเดียวกัน ดูด้วยตาบน 1306 s07/s20, 1310, 1312 s02, 1317 s03, 1318 s03, 1319 s02 **ยังไม่ได้วัดว่า OCR อ่านแบบนี้ได้ดีกว่า luma หรือไม่** (ยังไม่ได้รัน OpenThai กับ bin)
 - จุดอ่อน: ขอบของแถบสีมุมโค้ง (1312) เกิดเส้นบางตามขอบ
 - `--drop-empty-rows` (ใช้กับฟอร์มอย่าง 1307 เท่านั้น ไม่ใช่ค่าตั้งต้น): ทาดำแถวตารางที่ช่องตัวเลขว่าง เหลือแถวที่มีค่าพร้อมป้ายของมัน จากภาพล้วน (ไม่ใช้ OCR) หาคอลัมน์ป้ายจากเซลล์กว้างสุดตามเส้นตั้ง ตัดจุดไข่ปลา/เศษเส้นด้วยขนาดชิ้นหมึก (ค่าวัดบน 1307 ที่เดียว ดู `labkit.py`) ใช้คอลัมน์เดียวกันทั้งตาราง (ส่วนที่ตัดมาไม่เห็นเส้นตั้งครบ) ส่วนที่ทาดำหมดไม่มีไฟล์ `bin` ตัวอ่านข้าม 1307: เหลือแถวที่ 1 (วันที่ 05/10/2026, 2,000.00, 60.00), หัวคอลัมน์ และแถวรวม · ผิดพลาดที่เห็น: แถว (1.2) ท้ายส่วน s01 ถูกเก็บไว้ทั้งที่ว่าง (เศษที่ขอบตัด) ตรวจกับใบอื่นแค่ 1307 ใบเดียว
@@ -45,13 +47,13 @@
 
 ## ไฟล์ chunks: ข้อความท่อนนี้มาจากภาพ section ไหน
 
-`run_sections.py` เขียน `<ไฟล์>_p1.chunks.json` ข้างไฟล์ `.md` และ `.sections.json` ใน `raw_data_<วิธี>/<ไฟล์>/` (สร้างใหม่จากผลที่มีอยู่ได้โดยไม่ใช้ GPU: `run_sections.py --variant <วิธี> --markdown-only`) `extract --reuse-raw` อ่านเฉพาะ `.md` จึงไม่กระทบการสกัด
+`run_sections.py` เขียน `<ไฟล์>_p1.chunks.json` ข้างไฟล์ `.md` และ `.sections.json` ใน `04_ocr/<ชุด>/<engine>/<วิธี>/<ไฟล์>/` (สร้างใหม่จากผลที่มีอยู่ได้โดยไม่ใช้ GPU: `run_sections.py --variant <วิธี> --markdown-only`) `extract --reuse-raw` อ่านเฉพาะ `.md` จึงไม่กระทบการสกัด
 
 ต่อหนึ่งท่อนข้อความ (`chunks[]`):
 - `section`, `kind`, `part`/`parts`: ท่อนมาจากส่วนไหนของผัง
 - `md_lines`: ช่วงบรรทัดของท่อนใน `.md` (นับจาก 1 รวมบรรทัดคอมเมนต์ `<!-- sNN ... -->`)
 - `text`: **ข้อความที่ได้จากภาพนั้น** (ภาพ `image` → `text` อ่านคู่กันได้ในไฟล์เดียว)
-- `image`: ภาพที่ส่งเข้าตัวอ่าน (สัมพัทธ์กับ `data/`, เช่น `preprocess/finance_doc_scan/default/sections/clean/luma/<ไฟล์>/s05.png`) `--variant color` ไม่มีไฟล์ ตัดจากภาพ final ตาม `page_bbox_xywh` (บนสำเนาด้านยาว 1600 px)
+- `image`: ภาพที่ส่งเข้าตัวอ่าน (สัมพัทธ์กับ `data/`, เช่น `03_sections/finance_doc_scan/default/images/luma/<ไฟล์>/s05.png`) `--variant color` ไม่มีไฟล์ ตัดจากภาพ final ตาม `page_bbox_xywh` (บนสำเนาด้านยาว 1600 px)
 - `chars`, `seconds`, `truncated`: ขนาดข้อความ เวลาอ่าน และธงชนเพดาน token
 - `script_mix`: จำนวนอักขระไทย / ละติน / ตัวเลขในข้อความที่ตัวอ่านตอบ (ไม่นับแท็ก HTML) **นับจากผล ไม่ใช่การเลือกภาษาของโมเดล** ดู [12 หัวข้อ 2.1](12-openthai-ocr.md#21-เลือกภาษาไทยอังกฤษอย่างไร)
 
@@ -73,7 +75,7 @@
 
 ข้อความที่เดาเองของ 1306 หาย แต่ผลรวมไม่ดีขึ้น (ส่วนใหญ่ขึ้นลงจากการที่ส่วนใหญ่ขึ้น OCR อ่านต่างไป) และส่วนที่ถูกตัดกลางกล่องข้อมูลของ 1317 (ตัดที่ `max_piece_frac` เพราะไม่มีแถวว่างเหลือ) ผังเดิมทั้ง 18 ใบจึงยังเป็นค่าตั้งต้น (ผังเก่าไม่มีคีย์ `fill_text_ink` = แบบเดิม) ใช้เมื่อต้องการ: `sections ... --fill-aware` หรือ `make_section_layouts.py --fill-aware` **ยังไม่ได้ลองวิธีรวมแถบที่เตี้ยกว่าบรรทัดข้อความ** (วัดแล้วแถบที่ปัญหา 30 px สูงกว่าความสูงตัวอักษรอยู่ดี จึงไม่ช่วยกรณี 1306)
 
-## กฎการแบ่ง (`notebooks/preprocess_lab/labkit.py`)
+## กฎการแบ่ง (`src/fin_extractor/sections/layout.py`)
 
 ทำบนสำเนาด้านยาว 1600 px (Otsu) แล้วตัดภาพจริงจากภาพเต็มสี ค่าตั้งต้น `--table-mode rows`
 1. **แถบแนวนอนเต็มความกว้างหน้า** จุดตัดผู้สมัคร = ขอบบน/ล่างของตาราง + เส้นแนวนอนยาวเต็มตาราง (`table_rules`) ตัดเฉพาะที่ **แถวนั้นว่างตลอดความกว้างหน้า** (`band_cuts`) ไม่ตัดผ่านข้อความข้างตาราง ป้ายที่อยู่ซ้ายของกล่องตัวเลข (เช่น กล่องยอดรวมของ 1306) จึงอยู่ภาพเดียวกับค่าของแถวนั้น แถบคลุมทั้งหน้าพอดี ไม่มีหมึกตกหล่น (วัด 0% ทุกใบ)

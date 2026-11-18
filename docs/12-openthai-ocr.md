@@ -60,7 +60,7 @@ flowchart LR
 flowchart TD
     A["ภาพที่ผ่าน preprocess<br/>(ชุดเดียวกับ Paddle/Typhoon)"] --> B["OpenThaiOCR.recognize<br/>vlm/openthai_ocr.py"]
     B --> C["DocumentParser (nemotron_parse)<br/>โหลดจาก models/OpenThai2.0-OCR-Markdown"]
-    C --> D["Markdown ดิบ<br/>result_ocr/openthai/&lt;dataset&gt;/raw_data/*.md"]
+    C --> D["Markdown ดิบ<br/>04_ocr/&lt;dataset&gt;/openthai/&lt;วิธี&gt;/*.md"]
     D --> E["markdown_to_lines<br/>(แปลงสระอำ + ช่องว่างทศนิยม)"]
     E --> F["rules / LLM → validation → JSON<br/>.../final/rules/"]
 ```
@@ -74,7 +74,7 @@ flowchart TD
 | การถอดรหัส | greedy (`temperature=0`, `top_k=1`, `repetition_penalty=1.1`) ตามตัวอย่างของผู้ทำโมเดล ซึ่งระบุว่า sampling ทำให้หน้าเพี้ยนบน Mac |
 | prompt | ส่ง `"\n" + prompt` ในโหมด Transformers เพื่อให้ token ตรงกับที่ vLLM server อ่าน (ตามตัวอย่างของ iApp) ยังไม่ได้เทียบผลกับ vLLM จริง |
 | ตอบไม่จบ | `GenerationError` (ชน `max_tokens=8744`) → เก็บเท่าที่อ่านได้ และตั้งธง `truncated` เหมือน Typhoon |
-| ชื่อโฟลเดอร์ผล | `--engine openthai` → `result_ocr/openthai/`; `extract --mode vlm` ที่ไม่ระบุ engine ยังเป็น `typhoon` เหมือนเดิม |
+| ชื่อโฟลเดอร์ผล | `--engine openthai` → `04_ocr/<dataset>/openthai/` และ `05_extract/<dataset>/openthai/`; `extract --mode vlm` ที่ไม่ระบุ engine ยังเป็น `typhoon` เหมือนเดิม |
 
 ### การทำความสะอาดข้อความก่อนสกัด (`extraction/rule_extractor.py: markdown_to_lines`)
 
@@ -86,7 +86,7 @@ flowchart TD
 ทั้งสองข้อใช้กับข้อความของทุก engine: ตรวจแล้วว่า **ผลของ Typhoon ไม่เปลี่ยน** (สกัดซ้ำจากข้อความดิบ JSON เหมือนเดิม 18/18)
 ข้อความดิบที่เก็บไว้ไม่ถูกแก้ การแปลงทำตอนสกัดเท่านั้น
 
-## 4. ผลวัดบนสแกนจริง 18 ใบ (`data/raw/finance_doc_scan`)
+## 4. ผลวัดบนสแกนจริง 18 ใบ (`data/01_input/finance_doc_scan`)
 
 เครื่อง: RTX 4050 Laptop 6GB, torch 2.11.0+cu128 รันเมื่อ 2026-11-14
 
@@ -124,11 +124,11 @@ flowchart TD
 ติดตั้งและดาวน์โหลดโมเดล: ดู [06-usage.md](06-usage.md) (ตาราง "ส่วนเสริม")
 
 ```bash
-# อ่านข้อความดิบ (ใช้ GPU) → data/result_ocr/openthai/<dataset>/raw_data/
-python -m fin_extractor ocr data/raw/finance_doc_scan --engine openthai
+# อ่านข้อความดิบ (ใช้ GPU) → data/04_ocr/<dataset>/openthai/page/
+python -m fin_extractor ocr data/01_input/finance_doc_scan --engine openthai
 
 # สกัดจากข้อความดิบ ไม่แตะ GPU
-python -m fin_extractor extract data/raw/finance_doc_scan --mode vlm --engine openthai --llm off --reuse-raw
+python -m fin_extractor extract data/01_input/finance_doc_scan --mode vlm --engine openthai --llm off --reuse-raw
 
 # ลองโหมดอ่านตารางซ้ำ: ไฟล์ override เล็ก ๆ (deep-merge ทับ default.yaml)
 #   openthai:

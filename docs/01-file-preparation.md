@@ -2,7 +2,7 @@
 
 โค้ด: `src/fin_extractor/io/loader.py`
 
-วางเอกสารต้นฉบับไว้ใน `data/raw/` แล้วสั่งรันได้ทั้งทีละไฟล์หรือทั้งโฟลเดอร์
+วางเอกสารต้นฉบับไว้ใน `data/01_input/` แล้วสั่งรันได้ทั้งทีละไฟล์หรือทั้งโฟลเดอร์
 ระบบจะแปลงทุกไฟล์เป็นภาพ 1 ภาพต่อ 1 หน้า แล้วทำขั้นที่ 2–7 แยกทีละหน้า
 
 ## หลักการ
@@ -117,9 +117,9 @@ PDF สแกน → pypdfium2 render เป็นภาพ (300 DPI) → prepro
 
 ```
 data/
-├── raw/<dataset>/                    ใส่เอกสารต้นฉบับที่นี่
-├── preprocess/<dataset>/<profile>/   ผล preprocess (คำสั่ง preprocess): final/ ภาพสุดท้าย, steps/ ภาพแต่ละขั้น (ใส่ --steps), sections/ ผลแบ่งภาพย่อย (features/ ผังแบ่ง, clean/ luma+flat, router/ ผลคัด, ocr/ ภาพพร้อม OCR)
-├── result_ocr/<engine>/<dataset>/    raw_data/ ข้อความดิบ (คำสั่ง ocr), final/<rules|llm>/ ผล JSON (คำสั่ง extract)
+├── 01_input/<dataset>/                    ใส่เอกสารต้นฉบับที่นี่
+├── 02_preprocess/<dataset>/<profile>/   ผล preprocess (คำสั่ง preprocess): final/ ภาพสุดท้าย, steps/ ภาพแต่ละขั้น (ใส่ --steps), sections/ ผลแบ่งภาพย่อย (features/ ผังแบ่ง, clean/ luma+flat, router/ ผลคัด, ocr/ ภาพพร้อม OCR)
+├── 04_ocr/<dataset>/<engine>/<page|วิธี>/   ข้อความดิบ (คำสั่ง ocr) · 05_extract/<dataset>/<engine>/<page|วิธี>/<rules|llm>/ ผล JSON (คำสั่ง extract) · 03_sections/ ผังและภาพรายส่วน (docs/14)
 ├── etc/benchmarks/ · etc/compare/    งานทดสอบ/เปรียบเทียบ (ผลวัด, เทียบรายไฟล์)
 ├── etc/experiments/<ชื่อ>/           การทดลองครั้งเดียวนอก pipeline (etc ไม่เก็บผลของ pipeline)
 └── reports/                          รายงานภาพ

@@ -66,7 +66,7 @@ OCR ตัดภาพเป็นบรรทัดก่อนแล้วอ�
 
 ชุดทดสอบ: ใบกำกับภาษีไทยสังเคราะห์ 21 ใบ สร้างด้วย `scripts/make_synthetic_samples.py` เนื้อหาเดียวกันทุกใบ
 เปลี่ยนทีละปัจจัย (มุมเอียง, สีตัวอักษร 5 แบบ, แถบหัวสี, ตราประทับแดงทับยอด, เอฟเฟกต์สแกน, ตะแคง 90/180/270°)
-และมีใบที่รวมหลายปัจจัย เฉลย (มุมที่ใส่จริง สี ค่าเงิน) อยู่ใน `data/raw/synthetic/truth.json`
+และมีใบที่รวมหลายปัจจัย เฉลย (มุมที่ใส่จริง สี ค่าเงิน) อยู่ใน `data/01_input/synthetic/truth.json`
 วัดด้วย `scripts/benchmark_preprocessing.py` ผลดิบอยู่ใน `data/etc/benchmarks/preprocessing_synthetic.json`
 
 > **ข้อจำกัดสำคัญ:** ผลวัดในหัวข้อนี้ (ก่อนถึง [ผลวัดบนสแกนจริง](#ผลวัดบนสแกนจริง)) เป็น **ภาพสังเคราะห์ ไม่ใช่สแกนจริง**
@@ -119,7 +119,7 @@ OCR ตัดภาพเป็นบรรทัดก่อนแล้วอ�
 
 ## ผลวัดบนสแกนจริง
 
-ชุดทดสอบ: `data/raw/finance_doc_scan` PDF สแกน 18 ใบ (หน้าเดียว render ที่ 300 dpi ได้ราว 2500×3520 px) **ไม่มีเฉลย**
+ชุดทดสอบ: `data/01_input/finance_doc_scan` PDF สแกน 18 ใบ (หน้าเดียว render ที่ 300 dpi ได้ราว 2500×3520 px) **ไม่มีเฉลย**
 วัดด้วย `scripts/benchmark_real_scans.py` ผลดิบและข้อความ OCR อยู่ใน `data/etc/benchmarks/real_scans.json`
 ส่วน `settings.json`, `metrics.csv` และข้อความ OCR แยกตามชุดอยู่ใน `data/etc/benchmarks/preprocess_experiments/` (เริ่มดูที่ `README.md` ในโฟลเดอร์นั้น)
 เก็บภาพไว้เฉพาะชุด `base`, `raw`, `no_deskew`, `no_orient` ส่วนชุดที่ผลวัดไม่ช่วย (เทา, denoise, CLAHE, crop, binarize) ไม่เก็บภาพ
@@ -366,11 +366,11 @@ OCR ตัดภาพเป็นบรรทัดก่อนแล้วอ�
 ## ผลกับภาพตัวอย่าง
 
 ```bash
-python -m fin_extractor preprocess data/raw --steps
+python -m fin_extractor preprocess data/01_input --steps
 ```
 
-ได้ไฟล์ใน `data/preprocess/<dataset>/<profile>/steps/`: `00_original` → `01_color` → (ขั้นที่เปิด เช่น `orientation`, `deskew`)
-ใช้ไล่ดูได้ว่าขั้นไหนทำให้ภาพแย่ลง ภาพสุดท้ายอยู่ที่ `data/preprocess/<dataset>/<profile>/final/<ชื่อไฟล์>_p<หน้า>.png`
+ได้ไฟล์ใน `data/02_preprocess/<dataset>/<profile>/steps/`: `00_original` → `01_color` → (ขั้นที่เปิด เช่น `orientation`, `deskew`)
+ใช้ไล่ดูได้ว่าขั้นไหนทำให้ภาพแย่ลง ภาพสุดท้ายอยู่ที่ `data/02_preprocess/<dataset>/<profile>/final/<ชื่อไฟล์>_p<หน้า>.png`
 
 รันชุดวัดซ้ำ:
 

@@ -21,28 +21,28 @@
 
 ## Workflow
 
-**สายงานล่าสุดสำหรับสแกนจริง** (`--engine openthai`, ไม่ใช้ OCR คัดส่วน) อยู่ในแผนภาพถัดไป ส่วนแผนภาพหลักข้างล่างคือสองโหมดเดิม (`ocr` / `vlm`)
+**flow หลักสำหรับสแกนจริง** (`python -m fin_extractor sections <input>` = ห้าขั้นนี้ในคำสั่งเดียว ข้ามขั้นที่ผลยังใช้ได้ ไม่ใช้ OCR คัดส่วน) อยู่ในแผนภาพถัดไป ส่วนแผนภาพหลักข้างล่างคือสองโหมดเดิม (`ocr` / `vlm`)
 
 ```mermaid
 flowchart TD
     A["ไฟล์ .pdf .jpg .png"]
 
-    subgraph PRE["PREPROCESS — ภาพล้วน ไม่เรียก OCR (CPU)"]
+    subgraph PRE["PREPROCESS + แบ่ง section — ภาพล้วน ไม่เรียก OCR (CPU)"]
         direction TB
         B["1. preprocess<br/>ตะแคง/เอียง · คงสี → final/"]
-        C["2. make_section_layouts.py<br/>ผังแบ่งแถบ/ท่อน (ตารางก้อนเดียว)"]
-        D["3. make_clean_sections.py<br/>clean/luma · flat · bin /ไฟล์/sNN.png"]
+        C["2. layout<br/>ผังแบ่งแถบ/ท่อน → 03_sections/…/layout/ (เก็บไว้ดู debug)"]
+        D["3. images<br/>03_sections/…/images/&lt;วิธี&gt;/&lt;ไฟล์&gt;/sNN.png"]
         B --> C --> D
     end
 
     subgraph OCR["OCR — อ่านข้อความ (GPU)"]
-        E["4. run_sections.py --variant luma<br/>OpenThai อ่านทีละส่วน → raw_data_luma/"]
+        E["4. ocr<br/>OpenThai อ่านทีละส่วน → 04_ocr/…/luma/&lt;ไฟล์&gt;/<br/>.md + .sections.json + .chunks.json (ที่มาของแต่ละท่อน)"]
     end
 
     subgraph EXT["EXTRACTION + VALIDATION (CPU)"]
         direction TB
-        F["5. extract --reuse-raw --variant luma --llm off<br/>rules → validation"]
-        G["final_luma/rules/ JSON + manifest.json"]
+        F["5. extract<br/>rules → validation · remark เก็บข้อมูลสำคัญที่ไม่มีช่อง (source_chunk)"]
+        G["05_extract/…/luma/rules/ JSON + manifest.json"]
         F --> G
     end
 
@@ -81,7 +81,7 @@ flowchart TD
         H["4C. เลือกผลที่ตัวเลขสอดคล้องกว่า<br/>+ เติม field ที่ขาด"]
         I["5. Validation<br/>checksum, ผลรวม, VAT"]
         J["6. สถานะ (กฎจาก check + field ที่ขาด)"]
-        K["7. บันทึก JSON<br/>data/result_ocr/…/final/"]
+        K["7. บันทึก JSON<br/>data/05_extract/&lt;ชุด&gt;/&lt;engine&gt;/page/&lt;extractor&gt;/"]
     end
 
     C -- "--mode ocr" --> D1 --> E1 --> F
@@ -101,13 +101,13 @@ flowchart TD
 | `--mode ocr` | PaddleOCR | rules (เพิ่ม LLM ได้ด้วย `--llm on`) | ~5 วินาที (Paddle, GPU) | ใช้งานทั่วไป |
 | `--mode vlm` | Typhoon OCR (`scb10x/typhoon-ocr1.5-3b`) | rules + LLM แล้วเลือกผลที่ดีกว่า | ~54 วินาที | ต้องการความแม่น เอกสารไม่มี pattern |
 
-\* วัดจาก `data/raw/BITKUB-001.jpg` บนเครื่องที่พัฒนา
+\* วัดจาก `data/01_input/BITKUB-001.jpg` บนเครื่องที่พัฒนา
 
-ผลกับสแกนจริง 18 ใบ (`data/raw/finance_doc_scan`) **รันใหม่เมื่อ 2026-11-11** ตามโครงข้อมูลใหม่ (ผลของรอบก่อนถูกแทนที่แล้ว):
-- **Paddle + rules** (`data/result_ocr/paddle/finance_doc_scan/final/rules/`): 15 `needs_review`, 3 `failed`, ไม่มี `auto_approved` ข้อความดิบ OCR และข้อมูลที่สกัดเหมือนรอบก่อนทุกใบ (18/18)
-- **Paddle + LLM** (`data/result_ocr/paddle/finance_doc_scan/final/llm/`): 15 `needs_review`, 1 `failed`, 2 `auto_approved` (001313, 001314 ซึ่งเป็น Tax Invoice อังกฤษใบเดียวกัน) `buyer.name` มี 17 ใบ สกัดจากข้อความ Paddle ชุดเดียวกับ Paddle + rules ด้วย `--llm on --reuse-raw` (ไม่เรียก Paddle ซ้ำ) รัน 2026-11-11
-- **Typhoon + rules** (`data/result_ocr/typhoon/finance_doc_scan/final/rules/`): 18 `needs_review` (สกัดจากข้อความ Typhoon ชุดเดียวกับ LLM ด้วย `--reuse-raw` ไม่เรียก Typhoon ซ้ำ)
-- **Typhoon + LLM** (`data/result_ocr/typhoon/finance_doc_scan/final/llm/`): 18 `needs_review` `buyer.name` มี 16 ใบ (rules ล้วน: Paddle 13, Typhoon 11)
+ผลกับสแกนจริง 18 ใบ (`data/01_input/finance_doc_scan`) **รันใหม่เมื่อ 2026-11-11** ตามโครงข้อมูลใหม่ (ผลของรอบก่อนถูกแทนที่แล้ว):
+- **Paddle + rules** (`data/05_extract/finance_doc_scan/paddle/page/rules/`): 15 `needs_review`, 3 `failed`, ไม่มี `auto_approved` ข้อความดิบ OCR และข้อมูลที่สกัดเหมือนรอบก่อนทุกใบ (18/18)
+- **Paddle + LLM** (`data/05_extract/finance_doc_scan/paddle/page/llm/`): 15 `needs_review`, 1 `failed`, 2 `auto_approved` (001313, 001314 ซึ่งเป็น Tax Invoice อังกฤษใบเดียวกัน) `buyer.name` มี 17 ใบ สกัดจากข้อความ Paddle ชุดเดียวกับ Paddle + rules ด้วย `--llm on --reuse-raw` (ไม่เรียก Paddle ซ้ำ) รัน 2026-11-11
+- **Typhoon + rules** (`data/05_extract/finance_doc_scan/typhoon/page/rules/`): 18 `needs_review` (สกัดจากข้อความ Typhoon ชุดเดียวกับ LLM ด้วย `--reuse-raw` ไม่เรียก Typhoon ซ้ำ)
+- **Typhoon + LLM** (`data/05_extract/finance_doc_scan/typhoon/page/llm/`): 18 `needs_review` `buyer.name` มี 16 ใบ (rules ล้วน: Paddle 13, Typhoon 11)
 - **ผลของ VLM/LLM ไม่ซ้ำกันทุกรอบ** (Typhoon สุ่มเล็กน้อย): ข้อความ Typhoon รอบใหม่ต่างจากรอบก่อนทั้ง 18 ใบ และรอบก่อนมี `auto_approved` 2 ใบ รอบนี้ 0 ส่วนผล rules ล้วนบนข้อความ Paddle ซ้ำได้เหมือนเดิม
 - เทียบสถานะกับรอบเก่าตรง ๆ ไม่ได้: โปรไฟล์ชนิดเอกสารยังเป็นฉบับร่างและอนุมัติอัตโนมัติไม่ได้ ([08 หัวข้อ 3.6](08-solution-and-roadmap.md))
 - ข้อสังเกตเรื่องค่าผิดของ LLM จากรอบ 2026-11-10 (แต่งตัวเลข แปลงปีผิด สลับผู้ขาย/ผู้ซื้อ ดู [ขั้นที่ 3](03-text-reading.md#ผลเทียบสองโหมดบนสแกนจริง-18-ใบ---mode-ocr-เทียบ---mode-vlm)) ยังไม่ได้ตรวจซ้ำกับรอบใหม่

@@ -36,7 +36,7 @@ flowchart LR
 3. **RSI loop** (Recursive Self-Improvement) เป็นเทคนิคตอนฝึก: ให้โมเดลหาตัวอย่างที่ตัวเองตอบผิดหรืออ่อน แล้วเสริมข้อมูลตรงนั้นโดยไม่ต้องมีคนทำ label โค้ดฝึกไม่เปิดเผย
    (ไม่ใช่การเรียนรู้จากเอกสารของเราตอนใช้งาน)
 
-**ดูภาพแต่ละขั้น** (นำเข้า → preprocess → กรอบ layout → ลำดับการอ่าน → ข้อความของแต่ละบล็อก): `scripts/visualize_oxr.py <เลขไฟล์>` สร้างรายงาน HTML ในเครื่องจากผลดิบที่เก็บไว้ (ไม่รัน OXR ใหม่) ที่ `data/result_ocr/oxr/<dataset>/visualize/<เลขไฟล์>_<pdf|preprocessed>/index.html`
+**ดูภาพแต่ละขั้น** (นำเข้า → preprocess → กรอบ layout → ลำดับการอ่าน → ข้อความของแต่ละบล็อก): `scripts/visualize_oxr.py <เลขไฟล์>` สร้างรายงาน HTML ในเครื่องจากผลดิบที่เก็บไว้ (ไม่รัน OXR ใหม่) ที่ `data/04_ocr/<dataset>/oxr/visualize/<เลขไฟล์>_<pdf|preprocessed>/index.html`
 
 **รายงานภาพเรื่องความไม่แม่นของ OXR กับภาษาไทย** (กราฟความน่าจะเป็นของ token, จำนวน token แยกภาษา, ภาพเทียบบล็อกเดียวกันของแต่ละ engine, ภาษากับอักษรจีนที่หลุด): `scripts/explain_oxr.py` สร้างที่ `data/reports/oxr_why/index.html`
 
@@ -106,7 +106,7 @@ docker run -d --name oxr --gpus all --ipc=host -p 127.0.0.1:8000:8000 `
 
 ```powershell
 curl.exe --fail-with-body http://127.0.0.1:8000/v1/parse/sync `
-  -F "file=@data/raw/synthetic/00_baseline.jpg" -F "api_key=dummy" `
+  -F "file=@data/01_input/synthetic/00_baseline.jpg" -F "api_key=dummy" `
   -F "output_formats=markdown" -F "output_formats=json"
 ```
 
@@ -139,12 +139,12 @@ curl.exe --fail-with-body http://127.0.0.1:8000/v1/parse/sync `
 
 ```powershell
 curl.exe --fail-with-body https://free-oxr.somark.ai/api/v1/parse/sync `
-  -F "file=@data/raw/synthetic/00_baseline.jpg" -F "api_key=dummy" `
+  -F "file=@data/01_input/synthetic/00_baseline.jpg" -F "api_key=dummy" `
   -F "output_formats=markdown" -F "output_formats=json"
 ```
 
 ไม่ต้องมี key (ใส่ `dummy`) มีคิวและจำกัดอัตรา (ตอบ `429` ถ้าส่งถี่ — สคริปต์วัดรอแล้วลองใหม่เอง)
-**ส่งได้เฉพาะภาพสังเคราะห์** ห้ามส่งสแกนจริงใน `data/raw/finance_doc_scan` เพราะนำข้อมูลไปปรับปรุงโมเดลและลบกลับไม่ได้
+**ส่งได้เฉพาะภาพสังเคราะห์** ห้ามส่งสแกนจริงใน `data/01_input/finance_doc_scan` เพราะนำข้อมูลไปปรับปรุงโมเดลและลบกลับไม่ได้
 
 ### วัดซ้ำในโปรเจกต์
 
@@ -153,9 +153,9 @@ curl.exe --fail-with-body https://free-oxr.somark.ai/api/v1/parse/sync `
 .venv\Scripts\python scripts\benchmark_oxr.py                # ส่งภาพดิบ
 ```
 
-สคริปต์นี้ชี้ไป **free API** (ค่าคงที่ `API` ในไฟล์) ใช้กับภาพสังเคราะห์เท่านั้น ผลดิบแคชที่ `data/result_ocr/oxr/synthetic/raw_data/<raw|preprocessed>/` สรุปที่ `data/etc/benchmarks/oxr_synthetic_*.json`
-ผลกับสแกนจริงในหัวข้อ 6.2 ได้จากการส่ง PDF ไปที่ container ในเครื่อง (`http://127.0.0.1:8000`) ทีละไฟล์ เก็บที่ `data/result_ocr/oxr/finance_doc_scan/raw_data/*.pdf.oxr.json` (ถูก gitignore)
-ส่วนหัวข้อ 6.3 รันด้วย `.venv/Scripts/python scripts/extract_oxr.py data/raw/finance_doc_scan` (ปฏิเสธโฮสต์ที่ไม่ใช่ localhost รันต่อจากที่ค้างได้) ได้ผลตาม schema ของโปรเจกต์ที่ `data/result_ocr/oxr/finance_doc_scan/final/rules/` และข้อความ/ผลเต็มของ OXR ที่ `raw_data/`
+สคริปต์นี้ชี้ไป **free API** (ค่าคงที่ `API` ในไฟล์) ใช้กับภาพสังเคราะห์เท่านั้น ผลดิบแคชที่ `data/04_ocr/synthetic/oxr/page/<raw|preprocessed>/` สรุปที่ `data/etc/benchmarks/oxr_synthetic_*.json`
+ผลกับสแกนจริงในหัวข้อ 6.2 ได้จากการส่ง PDF ไปที่ container ในเครื่อง (`http://127.0.0.1:8000`) ทีละไฟล์ เก็บที่ `data/04_ocr/finance_doc_scan/oxr/page/*.pdf.oxr.json` (ถูก gitignore)
+ส่วนหัวข้อ 6.3 รันด้วย `.venv/Scripts/python scripts/extract_oxr.py data/01_input/finance_doc_scan` (ปฏิเสธโฮสต์ที่ไม่ใช่ localhost รันต่อจากที่ค้างได้) ได้ผลตาม schema ของโปรเจกต์ที่ `data/05_extract/finance_doc_scan/oxr/page/rules/` และข้อความ/ผลเต็มของ OXR ที่ `raw_data/`
 
 ## 6. ผลวัดกับภาษาไทย (ตัวอย่างประกอบ)
 
@@ -198,7 +198,7 @@ OXR คืน (ตัดมาบางส่วน):
 
 ### 6.2 สแกนจริง 18 ใบ (self-host ในเครื่อง ข้อมูลไม่ออกนอกเครื่อง)
 
-ส่ง PDF ใน `data/raw/finance_doc_scan` ทั้ง 18 ใบ (1 หน้า/ไฟล์) ไปที่ container ในเครื่อง ตอบ `code 0` ครบ 18 ใบ
+ส่ง PDF ใน `data/01_input/finance_doc_scan` ทั้ง 18 ใบ (1 หน้า/ไฟล์) ไปที่ container ในเครื่อง ตอบ `code 0` ครบ 18 ใบ
 **ไม่มีเฉลยของสแกนจริง จึงวัด CER ไม่ได้** ตัวเลขข้างล่างเป็นอาการของผล ไม่ใช่ความแม่นยำ
 
 | อาการ | ผล |
@@ -236,11 +236,11 @@ OXR คืน (ตัดมาบางส่วน):
 ### 6.3 รันเต็ม pipeline: OXR เทียบ Paddle และ Typhoon (อินพุตและขั้นสกัดเดียวกัน)
 
 `scripts/extract_oxr.py` ส่งภาพที่ผ่าน loader + preprocess ของโปรเจกต์ไปที่ OXR ในเครื่อง แล้วเข้าขั้นสกัด rules + validation เดิม (ทางเดียวกับ Typhoon)
-เทียบกับ Paddle+rules (`data/result_ocr/paddle/finance_doc_scan/final/rules/`) และ Typhoon+rules (`.../typhoon/finance_doc_scan/final/rules/`) ผลอยู่ที่ `data/result_ocr/oxr/finance_doc_scan/final/rules/`
+เทียบกับ Paddle+rules (`data/05_extract/finance_doc_scan/paddle/page/rules/`) และ Typhoon+rules (`.../typhoon/finance_doc_scan/final/rules/`) ผลอยู่ที่ `data/05_extract/finance_doc_scan/oxr/page/rules/`
 
 > **เทียบบน 15 ใบเดียวกัน:** รัน OXR ถูกระบบหยุดที่ 15 จาก 18 ใบเพราะหน่วยความจำต่ำ (ไม่มี 001321, 001322, 001323) ทุกตัวเลขข้างล่างจึงนับเฉพาะ 15 ใบที่ทุก engine มีผล
 > Paddle และ Typhoon รันใหม่เมื่อ 2026-11-11 ด้วยโค้ดปัจจุบัน (รวมการอ่านชื่อลูกค้าจากป้าย, check ตามโปรไฟล์, แก้ป้ายสำเนา) ส่วน OXR รันก่อนหน้านั้น (ยังไม่มีสามอย่างนี้)
-> ชุด Paddle + LLM รันใหม่แล้วที่ `data/result_ocr/paddle/finance_doc_scan/final/llm/` (ดู [README](README.md)) แต่ยังไม่ได้ใส่ในตารางนี้
+> ชุด Paddle + LLM รันใหม่แล้วที่ `data/05_extract/finance_doc_scan/paddle/page/llm/` (ดู [README](README.md)) แต่ยังไม่ได้ใส่ในตารางนี้
 
 | (15 ใบ) | Paddle + rules | Typhoon + rules | **OXR + rules** |
 |---|---|---|---|
