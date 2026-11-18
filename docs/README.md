@@ -17,28 +17,83 @@
 | — | แผน decision engine กับ confidence รายฟิลด์ (ความเห็น ข้อแย้ง ตัวชี้วัด แผนเป็นขั้น) | | [11-decision-engine-confidence-plan.md](11-decision-engine-confidence-plan.md) |
 | — | OXR: ตัวอ่านเอกสารที่ลองแล้ว (หลักการ ข้อดีข้อเสีย ผลวัดภาษาไทย) | `scripts/benchmark_oxr.py`, `scripts/extract_oxr.py` | [10-oxr.md](10-oxr.md) |
 | — | Preprocess router: คัดภาพย่อย (section) ก่อนเข้า OCR ด้วยป้ายและค่า (กฎ ผลวัด สิ่งที่ผิดระหว่างทาง ข้อจำกัด) | `routing/`, `scripts/route_sections.py` | [13-preprocess-router.md](13-preprocess-router.md) |
-| — | แบ่งหน้าเป็น section ก่อน OCR (สายงานปัจจุบัน: ตารางก้อนเดียว, ท่อนสูงสุด 0.3 ของหน้า, luma, อ่านทีละส่วนด้วย OpenThai; ผลวัด 9 ใบและข้อจำกัด) | `notebooks/preprocess_lab/labkit.py`, `scripts/make_section_layouts.py`, `scripts/run_sections.py` | [14-section-preprocess.md](14-section-preprocess.md) |
+| — | **สายงานล่าสุด** แบ่งหน้าเป็น section ก่อน OCR (ตารางก้อนเดียว, ท่อนสูงสุด 0.3 ของหน้า, ภาพรายส่วน luma/flat/bin แยกโฟลเดอร์ ค่าตั้งต้น luma, อ่านทีละส่วนด้วย OpenThai; เทียบ 3 แบบบน 18 ใบและข้อจำกัด) | `notebooks/preprocess_lab/labkit.py`, `scripts/make_section_layouts.py`, `scripts/run_sections.py` | [14-section-preprocess.md](14-section-preprocess.md) |
 | — | OpenThai 2.0 OCR: ตัวอ่าน VLM ภาษาไทยที่ต่อเข้าแล้ว (หลักการ การต่อเข้าโปรเจกต์ ผลวัด 18 ใบ) | `vlm/openthai_ocr.py` | [12-openthai-ocr.md](12-openthai-ocr.md) |
 
 ## Workflow
 
+**สายงานล่าสุดสำหรับสแกนจริง** (`--engine openthai`, ไม่ใช้ OCR คัดส่วน) อยู่ในแผนภาพถัดไป ส่วนแผนภาพหลักข้างล่างคือสองโหมดเดิม (`ocr` / `vlm`)
+
 ```mermaid
 flowchart TD
-    A["ไฟล์ input<br/>.jpg .png .pdf"] --> B["1. โหลดไฟล์<br/>PDF → ภาพทีละหน้า"]
-    B --> C{"โหมด"}
-    C -- "--mode ocr" --> D1["2. Preprocess<br/>ตะแคง/เอียง · คงสี"]
-    C -- "--mode vlm" --> D2["2. Preprocess<br/>ตะแคง/เอียง · คงสี"]
-    D1 --> E1["3A. OCR engine<br/>PaddleOCR"]
-    D2 --> E2["3B. Typhoon OCR<br/>→ Markdown + ตาราง HTML"]
-    E1 --> F["4A. Rules (regex + keyword)"]
-    E2 --> F
-    E2 --> G["4B. LLM → JSON"]
-    F --> H["4C. เลือกผลที่ตัวเลขสอดคล้องกว่า<br/>+ เติม field ที่ขาด"]
-    G --> H
-    H --> I["5. Validation<br/>checksum, ผลรวม, VAT"]
-    I --> J["6. สถานะ (กฎจาก check + field ที่ขาด)"]
-    J --> K["7. บันทึก JSON<br/>data/result_ocr/…/final/"]
+    A["ไฟล์ .pdf .jpg .png"]
+
+    subgraph PRE["PREPROCESS — ภาพล้วน ไม่เรียก OCR (CPU)"]
+        direction TB
+        B["1. preprocess<br/>ตะแคง/เอียง · คงสี → final/"]
+        C["2. make_section_layouts.py<br/>ผังแบ่งแถบ/ท่อน (ตารางก้อนเดียว)"]
+        D["3. make_clean_sections.py<br/>clean/luma · flat · bin /ไฟล์/sNN.png"]
+        B --> C --> D
+    end
+
+    subgraph OCR["OCR — อ่านข้อความ (GPU)"]
+        E["4. run_sections.py --variant luma<br/>OpenThai อ่านทีละส่วน → raw_data_luma/"]
+    end
+
+    subgraph EXT["EXTRACTION + VALIDATION (CPU)"]
+        direction TB
+        F["5. extract --reuse-raw --variant luma --llm off<br/>rules → validation"]
+        G["final_luma/rules/ JSON + manifest.json"]
+        F --> G
+    end
+
+    A --> B
+    D --> E --> F
 ```
+
+
+ค่าตั้งต้น `luma` (ฟิลด์ที่ขาดรวม 18 ใบ: luma 14 · flat 16 · bin 28 ไม่มีเฉลย) รายละเอียดและข้อจำกัดใน [14-section-preprocess.md](14-section-preprocess.md)
+
+### สองโหมดเดิม
+
+```mermaid
+flowchart TD
+    A["ไฟล์ input<br/>.jpg .png .pdf"] --> B
+
+    subgraph LOAD["โหลดไฟล์"]
+        B["1. โหลดไฟล์<br/>PDF → ภาพทีละหน้า"]
+    end
+
+    B --> C{"โหมด"}
+
+    subgraph PRE["PREPROCESS"]
+        D1["2. Preprocess<br/>ตะแคง/เอียง · คงสี"]
+        D2["2. Preprocess<br/>ตะแคง/เอียง · คงสี"]
+    end
+
+    subgraph OCR["OCR / VLM — อ่านข้อความ"]
+        E1["3A. OCR engine<br/>PaddleOCR"]
+        E2["3B. Typhoon OCR<br/>→ Markdown + ตาราง HTML"]
+    end
+
+    subgraph EXT["EXTRACTION + VALIDATION + OUTPUT"]
+        F["4A. Rules (regex + keyword)"]
+        G["4B. LLM → JSON"]
+        H["4C. เลือกผลที่ตัวเลขสอดคล้องกว่า<br/>+ เติม field ที่ขาด"]
+        I["5. Validation<br/>checksum, ผลรวม, VAT"]
+        J["6. สถานะ (กฎจาก check + field ที่ขาด)"]
+        K["7. บันทึก JSON<br/>data/result_ocr/…/final/"]
+    end
+
+    C -- "--mode ocr" --> D1 --> E1 --> F
+    C -- "--mode vlm" --> D2 --> E2
+    E2 --> F
+    E2 --> G
+    F --> H
+    G --> H
+    H --> I --> J --> K
+```
+
 
 ## สองโหมดการทำงาน
 
