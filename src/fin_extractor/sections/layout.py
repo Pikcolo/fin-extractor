@@ -181,7 +181,8 @@ def band_cuts(ink: np.ndarray, candidates: set[int]) -> list[int]:
 
 def layout_sections(binary_black_on_white: np.ndarray, min_table_ratio: float = 0.02,
                     min_component_px: int = 8, table_mode: str = "rows",
-                    max_piece_frac: float | None = MAX_PIECE_FRAC) -> list[dict]:
+                    max_piece_frac: float | None = MAX_PIECE_FRAC, fill_region: np.ndarray | None = None,
+                    fill_text: np.ndarray | None = None) -> list[dict]:
     """แบ่งหน้าเป็นภาพย่อยตามตาราง แล้วเรียงตามลำดับอ่าน (บนลงล่าง ซ้ายไปขวา)
 
     - ``table_mode="rows"`` (ค่าตั้งต้น): **แถบแนวนอนเต็มความกว้างหน้า** ตัดที่ขอบตารางและเส้นแนวนอนยาวเต็มตาราง (``table_rules``) เฉพาะแถวที่ **ว่างตลอดความกว้างหน้า**
@@ -205,13 +206,16 @@ def layout_sections(binary_black_on_white: np.ndarray, min_table_ratio: float = 
         raise ValueError(f"table_mode ต้องเป็น 'whole', 'cells', 'bands' หรือ 'rows': {table_mode!r}")
     h_img, w_img = binary_black_on_white.shape
     ink = text_ink(binary_black_on_white)
+    if fill_text is not None:  # ตัวอักษรบนพื้นสี (images.fill_masks) นับเป็นหมึกด้วย: แถบที่มีแต่ตัวอักษรบนพื้นสีไม่ถูกทิ้งเป็นว่าง
+        ink = cv2.bitwise_or(ink, fill_text)
+    cut_ink = cv2.bitwise_or(ink, fill_region) if fill_region is not None else ink  # แถวที่อยู่ในพื้นสีไม่ใช่ "แถวว่าง" จึงไม่ตัดผ่าแถบสี
     tables = table_regions(binary_black_on_white, min_table_ratio)
     if table_mode != "cells":
         tables = drop_frames(tables)  # โหมดช่องแตกกรอบเป็นช่องอยู่แล้ว
     secs: list[dict] = []
 
     def add(kind: str, box: tuple[int, int, int, int], table: int | None, part: tuple[int, int] | None = None) -> None:
-        pieces = split_rows(ink, box, max_piece_frac * h_img) if max_piece_frac and part is None else [box]
+        pieces = split_rows(cut_ink, box, max_piece_frac * h_img) if max_piece_frac and part is None else [box]
         if len(pieces) > 1:
             for k, piece in enumerate(pieces, start=1):
                 add(kind, piece, table, (k, len(pieces)))
@@ -232,7 +236,7 @@ def layout_sections(binary_black_on_white: np.ndarray, min_table_ratio: float = 
             cands |= {ty, ty + th}
             if horiz is not None:
                 cands |= set(table_rules(horiz, (tx, ty, tw, th)))
-        cuts = band_cuts(ink, cands)
+        cuts = band_cuts(cut_ink, cands)
         for y0, y1 in zip(cuts, cuts[1:]):
             over = [max(0, min(y1, ty + th) - max(y0, ty)) for tx, ty, tw, th in tables]
             best = int(np.argmax(over)) if over else None

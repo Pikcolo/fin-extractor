@@ -65,12 +65,32 @@ def binarize_inverted(crop: np.ndarray) -> np.ndarray:
     ตัดสินจากระยะสี (Lab) ของแต่ละพิกเซลจากสีพื้นรอบข้าง (median หน้าต่างใหญ่) ไม่ใช่จากความสว่าง: ตัวดำบนกระดาษขาว ตัวขาวบนแถบสีเขียว/น้ำเงิน
     และตัวสีบนพื้นสี ได้ผลแบบเดียวกัน (วัดดูด้วยตาบน 1306 s07/s20, 1310, 1312 s02, 1317 s03, 1318 s03, 1319 s02) จุดอ่อน: ขอบของแถบสีที่เป็นมุมโค้งเกิดรอยเส้นบาง ๆ
     """
+    dist, _bg = _bg_distance(crop)
+    otsu, _ = cv2.threshold(np.clip(dist, 0, 255).astype(np.uint8), 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    return ((dist > max(otsu, BIN_FLOOR)) * 255).astype(np.uint8)
+
+
+def _bg_distance(crop: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """(ระยะสี Lab ของแต่ละพิกเซลจากสีพื้นรอบข้าง, ภาพสีพื้น Lab) สีพื้น = median หน้าต่างใหญ่บนภาพย่อ."""
     lab = cv2.cvtColor(crop, cv2.COLOR_BGR2LAB)
     small = cv2.resize(lab, None, fx=1 / BG_SCALE, fy=1 / BG_SCALE, interpolation=cv2.INTER_AREA)
     bg = cv2.resize(cv2.medianBlur(small, BG_KERNEL), (lab.shape[1], lab.shape[0]), interpolation=cv2.INTER_LINEAR)
-    dist = np.linalg.norm(lab.astype(np.float32) - bg.astype(np.float32), axis=2)
+    return np.linalg.norm(lab.astype(np.float32) - bg.astype(np.float32), axis=2), bg
+
+
+def fill_masks(page: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """(พื้นสี, ตัวอักษรบนพื้นสี) ของภาพทั้งหน้า เป็นหน้ากาก 255/0 ที่ผังแบ่ง section ใช้ร่วมกับหมึกดำบนกระดาษ
+    ผังเดิมนับเฉพาะหมึกเข้มบนพื้นสว่าง ตัวขาวบนแถบสีจึงดูเป็นพื้นว่างและถูกตัดผ่ากลางได้ (1306 s01/s02: แถบเทา "Receipt" ถูกตัดเหลือเสี้ยวให้ OCR
+    แล้วโมเดลเดาข้อความเอง) พื้นสี = ที่สีพื้นรอบข้าง (``_bg_distance``) ต่างจากสีกระดาษของหน้า (median ของสีพื้นทั้งหน้า) เกิน ``BIN_FLOOR``
+    กัดขอบเข้า ``MIN_GLYPH_W`` px กันรอยเส้นตามขอบแถบ ส่วนบนกระดาษ (พื้นปกติ) ไม่นับ เพื่อไม่ให้รอยยับของกระดาษกลายเป็นหมึก
+    ตัวอักษรบนพื้นสีเท่านั้นที่ตามไปนับเป็นหมึก ส่วนพื้นสีทั้งผืนใช้ห้ามตัดผ่า"""
+    dist, bg = _bg_distance(page)
     otsu, _ = cv2.threshold(np.clip(dist, 0, 255).astype(np.uint8), 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    return ((dist > max(otsu, BIN_FLOOR)) * 255).astype(np.uint8)
+    text = dist > max(otsu, BIN_FLOOR)
+    paper = np.median(bg.reshape(-1, 3), axis=0)
+    fill = np.linalg.norm(bg.astype(np.float32) - paper.astype(np.float32), axis=2) > BIN_FLOOR
+    fill = cv2.erode(fill.astype(np.uint8), np.ones((2 * MIN_GLYPH_W + 1,) * 2, np.uint8)) > 0
+    return (fill * 255).astype(np.uint8), ((text & fill) * 255).astype(np.uint8)
 
 
 def _runs(mask_1d: np.ndarray, gap: int = 0) -> list[tuple[int, int]]:

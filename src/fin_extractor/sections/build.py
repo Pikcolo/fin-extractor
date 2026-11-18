@@ -36,13 +36,13 @@ def page_images(final_dir: Path) -> dict[str, Path]:
     return {p.name[: -len("_p1.png")]: p for p in sorted(final_dir.rglob("*_p1.png"))}
 
 
-def layout_params(table_mode: str, max_piece_frac: float | None, full: np.ndarray, work: np.ndarray) -> dict:
-    return {"table_mode": table_mode, "max_piece_frac": max_piece_frac, "work_long_side": L.WORK,
+def layout_params(table_mode: str, max_piece_frac: float | None, full: np.ndarray, work: np.ndarray, fill_text: bool = False) -> dict:
+    return {"table_mode": table_mode, "fill_text_ink": fill_text, "max_piece_frac": max_piece_frac, "work_long_side": L.WORK,
             "page_size": [int(full.shape[1]), int(full.shape[0])], "work_size": [int(work.shape[1]), int(work.shape[0])]}
 
 
 def build_layouts(paths: DataPaths, dataset: str, profile: str = DEFAULT_PROFILE, only: list[str] | None = None,
-                  table_mode: str = "rows", max_piece_frac: float | None = L.MAX_PIECE_FRAC) -> dict[str, int]:
+                  table_mode: str = "rows", max_piece_frac: float | None = L.MAX_PIECE_FRAC, fill_text: bool = False) -> dict[str, int]:
     """ผังแบ่ง section ของทุกไฟล์ใน ``02_preprocess/<dataset>/<profile>/final/`` (กรองด้วยท้ายชื่อใน ``only``)
     เขียนเฉพาะคีย์ ``layout`` ``layout_params`` ``layout_sections`` คีย์อื่นที่ notebook เคยบันทึกไว้คงเดิม คืนยอดรวม."""
     final_dir = paths.preprocess_final(dataset, profile)
@@ -60,7 +60,8 @@ def build_layouts(paths: DataPaths, dataset: str, profile: str = DEFAULT_PROFILE
         full = read_image(pages[stem])
         work, _ = L.resize_to_work(full)
         bw = bin_ops.otsu(enhance.to_gray(work))
-        secs = L.layout_sections(bw, table_mode=table_mode, max_piece_frac=max_piece_frac or None)
+        region, text_on_fill = I.fill_masks(work) if fill_text else (None, None)
+        secs = L.layout_sections(bw, table_mode=table_mode, max_piece_frac=max_piece_frac or None, fill_region=region, fill_text=text_on_fill)
         kept = [s for s in secs if s["keep"]]
         by_kind = {k: sum(1 for s in secs if s["kind"] == k) for k in ("cell", "text", "table")}
         summary = {"tables": len({s["table"] for s in secs if s["table"] is not None}), "sections": len(secs),
@@ -68,7 +69,7 @@ def build_layouts(paths: DataPaths, dataset: str, profile: str = DEFAULT_PROFILE
 
         path = out_dir / f"{stem}.json"
         doc = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-        doc.update(layout=summary, layout_sections=[dict(s) for s in secs], layout_params=layout_params(table_mode, max_piece_frac, full, work))
+        doc.update(layout=summary, layout_sections=[dict(s) for s in secs], layout_params=layout_params(table_mode, max_piece_frac, full, work, fill_text))
         path.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
 
         overlay = L.draw_sections(work, secs)

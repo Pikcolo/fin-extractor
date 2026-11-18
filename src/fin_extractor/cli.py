@@ -183,10 +183,10 @@ def cmd_sections(args, cfg) -> None:
         sys.exit(f"ไม่พบภาพ final ใน {paths.preprocess_final(dataset, args.profile)} — เริ่มจาก --from preprocess")
     if "layout" in todo:
         banner("layout")
-        stale = stems_needing(lambda s: not args.redo and layout_is_current(paths, dataset, s, args.table_mode, args.max_piece_frac, args.profile), stems)
+        stale = stems_needing(lambda s: not args.redo and layout_is_current(paths, dataset, s, args.table_mode, args.max_piece_frac, args.profile, args.fill_aware), stems)
         print(f"ผังใช้ได้อยู่แล้ว {len(stems) - len(stale)} ไฟล์ · ทำใหม่ {len(stale)}", flush=True)
         if stale:
-            build_layouts(paths, dataset, args.profile, stale, args.table_mode, args.max_piece_frac)
+            build_layouts(paths, dataset, args.profile, stale, args.table_mode, args.max_piece_frac, args.fill_aware)
     variants = () if args.variant == "color" else (args.variant,)  # ค่าตั้งต้นเขียนเฉพาะวิธีที่ใช้ (flat/bin ทดลองผ่าน scripts/make_clean_sections.py)
     if "images" in todo and variants:
         banner("images")
@@ -279,6 +279,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--table-mode", choices=["whole", "cells", "bands", "rows"], default="rows", help="วิธีแบ่งตาราง (ดู docs/14)")
     s.add_argument("--max-piece-frac", type=float, default=None,
                    help="ส่วนที่สูงกว่านี้ (สัดส่วนความสูงหน้า) ถูกตัดเป็นท่อน 0 = ไม่ตัด (ไม่ใส่ = ค่าใน sections/layout.py)")
+    s.add_argument("--fill-aware", action="store_true",
+                   help="ผังนับตัวอักษรบนพื้นสีเป็นหมึกและไม่ตัดผ่านแถบสี (กัน OCR เดาข้อความจากเสี้ยวแถบ เช่น 1306) ผลวัด 6 ใบที่ผังเปลี่ยน: ฟิลด์ที่ขาดรวมเท่าเดิม (ดู docs/14) จึงไม่เปิดเป็นค่าตั้งต้น")
     s.add_argument("--drop-empty-rows", action="store_true", help="แบบ bin เท่านั้น: ลบแถวตารางที่ช่องตัวเลขว่าง (ดู docs/14)")
     profile_arg(s)
     s.set_defaults(func=cmd_sections)
