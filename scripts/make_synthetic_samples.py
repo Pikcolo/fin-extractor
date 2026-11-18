@@ -6,7 +6,7 @@
 ข้อมูลทั้งหมดเป็นข้อมูลสมมติ (เลขผู้เสียภาษีสร้างจากสูตร checksum ไม่ใช่ของใคร)
 ไม่ใช่สแกนจริง ใช้เทียบ "ปัจจัยต่อปัจจัย" ได้ แต่ไม่แทนการทดสอบกับสแกนจริงของผู้ใช้
 
-    .venv/Scripts/python scripts/make_synthetic_samples.py [--out data/raw/synthetic]
+    .venv/Scripts/python scripts/make_synthetic_samples.py [--out data/01_input/synthetic]
 """
 
 from __future__ import annotations
@@ -177,7 +177,7 @@ def variants() -> list[dict]:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default="data/raw/synthetic")
+    ap.add_argument("--out", default="data/01_input/synthetic")
     args = ap.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)

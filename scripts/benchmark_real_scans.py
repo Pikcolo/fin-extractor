@@ -9,7 +9,7 @@
 
 ผลดิบ (รวมข้อความ OCR) บันทึกใน ``--out`` เพื่อเปิดดูย้อนหลังได้
 
-    .venv/Scripts/python scripts/benchmark_real_scans.py [--input data/raw/finance_doc_scan] [--only base,gray]
+    .venv/Scripts/python scripts/benchmark_real_scans.py [--input data/01_input/finance_doc_scan] [--only base,gray]
 """
 
 from __future__ import annotations
@@ -75,7 +75,7 @@ def has_amount_triple(text: str, tol: float, vat: float) -> bool:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--input", default="data/raw/finance_doc_scan")
+    ap.add_argument("--input", default="data/01_input/finance_doc_scan")
     ap.add_argument("--only", help="ชื่อชุดที่ต้องการ คั่นด้วย , (ค่าตั้งต้น: ทุกชุด)")
     ap.add_argument("--out", default=str(DataPaths().benchmarks() / "real_scans.json"))
     args = ap.parse_args()

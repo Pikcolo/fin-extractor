@@ -181,7 +181,7 @@ def test_run_sections_refuses_stale_or_missing_clean_images(tmp_path):
 
     layout = [{"id": "s00", "kind": "text", "bbox": [0, 0, 10, 10], "keep": True},
               {"id": "s01", "kind": "text", "bbox": [0, 10, 10, 10], "keep": False}]
-    with pytest.raises(SystemExit, match="make_clean_sections"):
+    with pytest.raises(SystemExit, match="--from images"):
         run_sections.clean_index(tmp_path, layout, "doc1")  # ไม่มี index.json
     (tmp_path / "index.json").write_text(json.dumps({"sections": [{"id": "s00", "bbox": [0, 0, 10, 10]}]}), encoding="utf-8")
     assert list(run_sections.clean_index(tmp_path, layout, "doc1")) == ["s00"]  # ตรงกับส่วนที่ keep

@@ -1,12 +1,12 @@
 """รายงานภาพ "ทำไม OXR ไม่แม่นกับภาษาไทย" จากข้อมูลที่วัดไว้แล้ว (ไม่เรียก OXR/GPU)
 
 ข้อมูลที่ใช้ (ทั้งหมดอยู่ใต้ data/ ซึ่งไม่เข้า git):
-  result_ocr/oxr/<dataset>/raw_data/*.pdf.oxr.json   ผล OXR ของสแกนจริง 18 ใบ (รอบ PDF ดิบ)
-  result_ocr/paddle|typhoon/<dataset>/raw_data/      ข้อความดิบของ Paddle / Typhoon
+  04_ocr/<dataset>/oxr/page/*.pdf.oxr.json   ผล OXR ของสแกนจริง 18 ใบ (รอบ PDF ดิบ)
+  04_ocr/<dataset>/paddle|typhoon/page/            ข้อความดิบของ Paddle / Typhoon
   etc/benchmarks/*cer*.json                              CER ภาพสังเคราะห์ของ Paddle / Typhoon / OXR
   etc/compare/oxr_why/*.json                             ค่าที่วัดแยก: ความน่าจะเป็นของ token, จำนวน token ใน vocabulary, บรรทัดจริงที่อ่านจากภาพ
   etc/compare/english/text_recall.json                   ค่าสำคัญของเอกสารอังกฤษที่ปรากฏในข้อความของแต่ละ engine
-  result_ocr/oxr/<dataset>/visualize/<ไฟล์>_pdf/     ภาพ layout และภาพตัดบล็อก (สร้างด้วย scripts/visualize_oxr.py ก่อน)
+  04_ocr/<dataset>/oxr/visualize/<ไฟล์>_pdf/     ภาพ layout และภาพตัดบล็อก (สร้างด้วย scripts/visualize_oxr.py ก่อน)
 
 ผล: data/reports/oxr_why/index.html (มีภาพเอกสารจริง เก็บในเครื่องเท่านั้น ลบทิ้งได้)
 ไฟล์ etc/compare/oxr_why/truth_1312.json มีค่าจริงจากเอกสาร จึงไม่ฝังในโค้ดนี้

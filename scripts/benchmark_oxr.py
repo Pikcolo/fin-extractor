@@ -8,7 +8,7 @@
 - field ที่ตัวอักษรตรงเป๊ะ: เลขภาษี, เลขที่ใบกำกับ, วันที่, ยอดสามตัว, ชื่อผู้ขาย (ค้นในข้อความที่ normalize แล้ว)
 - จำนวนตัวอักษร CJK ที่ OXR คืนมา ทั้งที่ภาพไม่มี (ใช้บอกว่าโมเดลแต่งอักษร)
 
-ผลดิบจาก API เก็บแคชที่ result_ocr/oxr/synthetic/raw_data/<tag>/ รันซ้ำไม่เรียก API อีก (ใส่ --refresh เพื่อเรียกใหม่)
+ผลดิบจาก API เก็บแคชที่ 04_ocr/synthetic/oxr/page/<tag>/ รันซ้ำไม่เรียก API อีก (ใส่ --refresh เพื่อเรียกใหม่)
 
     .venv/Scripts/python scripts/benchmark_oxr.py [--preprocess] [--refresh]
 """
@@ -64,12 +64,12 @@ def field_hits(truth_fields: dict, text: str) -> dict[str, bool]:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--samples", default="data/raw/synthetic")
+    ap.add_argument("--samples", default="data/01_input/synthetic")
     ap.add_argument("--preprocess", action="store_true", help="ผ่าน preprocess ของโปรเจกต์ก่อนส่ง (เทียบกับ Paddle/Typhoon ได้ตรง)")
     ap.add_argument("--refresh", action="store_true")
     args = ap.parse_args()
     if "finance_doc_scan" in Path(args.samples).resolve().parts:  # สแกนจริงห้ามส่งขึ้น free API (ข้อมูลถูกใช้ปรับปรุงโมเดล)
-        sys.exit("ปฏิเสธ: ห้ามส่งสแกนจริงขึ้น free API ใช้ได้เฉพาะภาพสังเคราะห์ (data/raw/synthetic)")
+        sys.exit("ปฏิเสธ: ห้ามส่งสแกนจริงขึ้น free API ใช้ได้เฉพาะภาพสังเคราะห์ (data/01_input/synthetic)")
 
     tag = "preprocessed" if args.preprocess else "raw"
     cache = DataPaths().raw_data("oxr", "synthetic") / tag

@@ -1,11 +1,11 @@
 """manifest ของการรันหนึ่งครั้ง — เขียนไว้ในโฟลเดอร์ผลของรันนั้น.
 
-โครงโฟลเดอร์ทั้งหมดอยู่ที่ ``paths.py`` (preprocess/<dataset>/<profile>/, result_ocr/<engine>/<dataset>/{raw_data,final/<extractor>}/)
+โครงโฟลเดอร์ทั้งหมดอยู่ที่ ``paths.py`` (02_preprocess/<dataset>/<profile>/, 04_ocr/<dataset>/<engine>/<dataset>/{raw_data,final/<extractor>}/)
 ``Run`` รับโฟลเดอร์จากผู้เรียก แล้วเขียน ``manifest.json`` ตอนจบ (หรือตอนล้ม) ไว้ข้างผลของมัน:
 
     preprocess  → preprocess/<dataset>/<profile>/manifest.json            (ภาพอยู่ใน final/, steps/)
-    ocr         → result_ocr/<engine>/<dataset>/raw_data/manifest.json
-    extract     → result_ocr/<engine>/<dataset>/final/<extractor>/manifest.json
+    ocr         → 04_ocr/<dataset>/<engine>/<page|วิธี>/manifest.json
+    extract     → 05_extract/<dataset>/<engine>/<page|วิธี>/<extractor>/manifest.json
 
 manifest เก็บ: คำสั่งที่รัน, ค่าที่ใช้, เวลา, รายการไฟล์พร้อมสถานะ และพาธผลแบบสัมพัทธ์กับโฟลเดอร์ของ manifest
 รันซ้ำด้วยโฟลเดอร์เดิมจะเขียนทับ

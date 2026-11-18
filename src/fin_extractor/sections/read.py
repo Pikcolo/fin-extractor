@@ -35,13 +35,13 @@ def fingerprint(layout: list[dict]) -> list[list]:
 
 
 def clean_index(clean_dir: Path, layout: list[dict], stem: str) -> dict[str, dict]:
-    """index.json ของภาพย่อยใน sections/clean/ (id → รายการ) หยุดถ้าไม่ตรงกับผังปัจจุบัน — ภาพล้าสมัยจะอ่านผิดส่วนโดยไม่รู้ตัว."""
+    """index.json ของภาพย่อยใน 03_sections/…/images/<วิธี>/ (id → รายการ) หยุดถ้าไม่ตรงกับผังปัจจุบัน — ภาพล้าสมัยจะอ่านผิดส่วนโดยไม่รู้ตัว."""
     path = clean_dir / "index.json"
     if not path.exists():
-        sys.exit(f"{stem[-4:]}: ไม่มีภาพย่อยใน {clean_dir} — รัน scripts/make_clean_sections.py ก่อน")
+        sys.exit(f"{stem[-4:]}: ไม่มีภาพย่อยใน {clean_dir} — รัน: python -m fin_extractor sections <input> --from images")
     index = json.loads(path.read_text(encoding="utf-8"))["sections"]
     if [(s["id"], list(s["bbox"])) for s in index] != kept_layout(layout):
-        sys.exit(f"{stem[-4:]}: ภาพย่อยใน {clean_dir} ไม่ตรงกับผังแบ่งปัจจุบัน (สร้างจากผังเก่า) — รัน scripts/make_clean_sections.py ใหม่")
+        sys.exit(f"{stem[-4:]}: ภาพย่อยใน {clean_dir} ไม่ตรงกับผังแบ่งปัจจุบัน (สร้างจากผังเก่า) — รัน: python -m fin_extractor sections <input> --from images --redo")
     return {s["id"]: s for s in index}
 
 

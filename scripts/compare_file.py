@@ -1,4 +1,4 @@
-"""เทียบผลสกัดของไฟล์เดียวรายฟิลด์ ข้ามทุก engine/extractor ที่อยู่ใน data/result_ocr/<engine>/<dataset>/final/<extractor>/
+"""เทียบผลสกัดของไฟล์เดียวรายฟิลด์ ข้ามทุก engine/extractor ที่อยู่ใน data/05_extract/<dataset>/<engine>/<page|วิธี>/<extractor>/
 
 อ่านเฉพาะไฟล์ผลที่มีอยู่แล้ว ไม่เรียก OCR/LLM/GPU ผลเขียนที่ data/etc/compare/<ไฟล์>/compare.md (และ compare.json)
 ลบทิ้งทั้งโฟลเดอร์ได้เมื่อไม่ใช้
@@ -74,7 +74,7 @@ def cell(value, ref, has_ref: bool) -> str:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("stem", help="ส่วนท้ายของชื่อไฟล์ เช่น 001312")
-    ap.add_argument("--dataset", default="finance_doc_scan", help="ชุดข้อมูลใน data/raw/ (ค่าตั้งต้น finance_doc_scan)")
+    ap.add_argument("--dataset", default="finance_doc_scan", help="ชุดข้อมูลใน data/01_input/ (ค่าตั้งต้น finance_doc_scan)")
     ap.add_argument("--runs", nargs="*", help="ชื่อคอลัมน์=engine/extractor เช่น Paddle=paddle/rules (ค่าตั้งต้น: Paddle/Typhoon/OXR)")
     args = ap.parse_args()
     runs = ({k: tuple(v.split("/", 1)) for k, v in (r.split("=", 1) for r in args.runs)} if args.runs else DEFAULT_RUNS)

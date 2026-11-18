@@ -4,7 +4,7 @@
 หลักการ
 - ทำงานบนสำเนาขนาดคงที่ (ด้านยาว ``WORK`` พิกเซล) ให้ตัวเลขเทียบข้ามไฟล์ได้ ค่าที่กวาด (kernel, gap, threshold) เป็น **ค่าทดลอง**
   ไม่ใช่ค่าตั้งต้นของระบบ router ต้องอ้างผลรวมจากทุกไฟล์ ไม่ใช่ค่าที่ตั้งไว้ที่นี่
-- ผลอยู่ที่ ``data/preprocess/<dataset>/<profile>/sections/features/<ไฟล์>.json`` และ ``.../clean/<ไฟล์>/`` (พาธมาจาก ``DataPaths`` ใน paths.py
+- ผลอยู่ที่ ``data/03_sections/<dataset>/<profile>/layout/<ไฟล์>.json`` และ ``.../images/<วิธี>/<ไฟล์>/`` (พาธมาจาก ``DataPaths`` ใน paths.py
   ที่เดียว ใต้ data/ ไม่ถูก commit เพราะเป็นข้อมูลภาษีจริง)
 """
 

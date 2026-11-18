@@ -1,13 +1,13 @@
 """สร้างผังแบ่ง section ของทั้งชุดในครั้งเดียว (ไม่ต้องเปิด notebook ทีละเล่ม) ขั้นภาพล้วน ไม่ใช้ OCR/GPU
 
-    python -X utf8 -m fin_extractor preprocess data/raw/finance_doc_scan          # ต้องมีภาพที่ตรงแล้วก่อน
-    python -X utf8 scripts/make_section_layouts.py data/raw/finance_doc_scan
-    python -X utf8 scripts/make_section_layouts.py data/raw/finance_doc_scan --only 1309 1311 --table-mode cells
-    python -X utf8 scripts/make_section_layouts.py data/raw/finance_doc_scan --max-piece-frac 0      # ไม่ตัดส่วนสูงเป็นกลุ่มแถว
+    python -X utf8 -m fin_extractor preprocess data/01_input/finance_doc_scan          # ต้องมีภาพที่ตรงแล้วก่อน
+    python -X utf8 scripts/make_section_layouts.py data/01_input/finance_doc_scan
+    python -X utf8 scripts/make_section_layouts.py data/01_input/finance_doc_scan --only 1309 1311 --table-mode cells
+    python -X utf8 scripts/make_section_layouts.py data/01_input/finance_doc_scan --max-piece-frac 0      # ไม่ตัดส่วนสูงเป็นกลุ่มแถว
 
 อินพุต: ภาพทั้งหน้าที่ preprocess แล้ว (``preprocess/<dataset>/<profile>/final/``)
 วิธี: ย่อเป็นสำเนาทำงานด้านยาว ``labkit.WORK`` → เทา → Otsu (blur 3) → ``labkit.layout_sections`` (ค่าเดียวกับที่ notebook ใช้)
-ผล: ``preprocess/<dataset>/<profile>/sections/features/<ไฟล์>.json`` เขียนเฉพาะคีย์ ``layout``, ``layout_params``, ``layout_sections``
+ผล: ``03_sections/<dataset>/<profile>/layout/<ไฟล์>.json`` เขียนเฉพาะคีย์ ``layout``, ``layout_params``, ``layout_sections``
     (คีย์อื่นที่ notebook เคยบันทึกไว้คงเดิม) และภาพตรวจด้วยตา ``<ไฟล์>_layout.png``
     (เขียว = ช่องตารางที่เก็บ, น้ำเงิน = ตารางทั้งก้อน/ท่อน, ส้ม = ข้อความนอกตาราง, แดงหนา = ว่าง)
     ส่วนที่สูงเกิน ``--max-piece-frac`` ถูกตัดเป็นกลุ่มแถว มี ``part``/``parts`` ใน ``layout_sections`` (ท่อนหลังไม่มีหัวคอลัมน์ซ้ำ)

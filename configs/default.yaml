@@ -2,7 +2,7 @@
 
 paths:
   data_dir: data            # ข้อมูลทุกอย่างอยู่ใต้นี้ โครงดู src/fin_extractor/paths.py (ไม่ commit ทั้งหมด)
-  # folders: {result_ocr: ocr_results}   # เปลี่ยนชื่อโฟลเดอร์ระดับบนได้ (ไม่บังคับ)
+  # folders: {ocr: ocr_results}   # เปลี่ยนชื่อโฟลเดอร์ระดับบนได้ (ไม่บังคับ)
 
 loader:
   pdf_dpi: 300            # ความละเอียดตอน render PDF เป็นภาพ
@@ -100,7 +100,7 @@ core_labels:
 #                  ชื่อที่ใช้ได้: vendor_tax_id_checksum, buyer_tax_id_checksum, items_sum, discount, before_vat_plus_vat, vat_rate, date_range
 #   fields         key / label / type (text|code|money|date|tax_id|percent) / aliases (ป้ายที่พิมพ์) / source (ป้ายนี้เห็นจากที่ไหน)
 #
-# สถานะ: draft — รายการฟิลด์และ required ด้านล่างมาจากป้ายที่พิมพ์บนสแกนใน data/raw/finance_doc_scan (ระบุใน source)
+# สถานะ: draft — รายการฟิลด์และ required ด้านล่างมาจากป้ายที่พิมพ์บนสแกนใน data/01_input/finance_doc_scan (ระบุใน source)
 #        ยังไม่ได้ให้ฝ่ายบัญชียืนยัน ต้องยืนยันก่อนใช้ตัดสินจริง (docs/08 หัวข้อ 3.6)
 # รูปแบบเก่า (ชื่อชนิด → not_applicable เทียบกับ data.document_type ตรง ๆ) ยังใช้ได้
 document_types:

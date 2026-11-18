@@ -1,7 +1,7 @@
 """สร้าง notebook รายไฟล์สำหรับเช็คการ preprocess (edge detection / threshold / การแบ่ง section) ไฟล์ละ 1 เล่ม
 
-    python scripts/make_preprocess_notebooks.py data/raw/finance_doc_scan
-    python scripts/make_preprocess_notebooks.py data/raw/finance_doc_scan --out notebooks/preprocess_lab/finance_doc_scan
+    python scripts/make_preprocess_notebooks.py data/01_input/finance_doc_scan
+    python scripts/make_preprocess_notebooks.py data/01_input/finance_doc_scan --out notebooks/preprocess_lab/finance_doc_scan
 
 เครื่องมือวิเคราะห์อยู่ที่ notebooks/preprocess_lab/labkit.py (notebook เรียกใช้ ไม่มีโค้ดซ้ำ) ถ้ามีไฟล์เพิ่ม รันสคริปต์ซ้ำได้
 notebook ที่สร้างไม่มี output (สะอาด) เพราะภาพสแกนเป็นข้อมูลภาษีจริง — .gitignore ไม่ให้ commit *.ipynb ในโฟลเดอร์นี้
@@ -170,7 +170,7 @@ def build(path: Path, rel: str) -> nbformat.NotebookNode:
         new_code_cell(TABLE_LAYOUT),
         new_code_cell(TABLE_VARIANTS),
         new_code_cell(TABLE_SAVE),
-        new_markdown_cell("## 6. บันทึกผล และเทียบกับไฟล์อื่น\n\nเขียนผลลง `data/preprocess/<dataset>/<profile>/sections/features/<ไฟล์>.json` แล้วเทียบ features ของใบนี้กับใบอื่นที่รันแล้ว (เปอร์เซ็นไทล์)"),
+        new_markdown_cell("## 6. บันทึกผล และเทียบกับไฟล์อื่น\n\nเขียนผลลง `data/03_sections/<dataset>/<profile>/layout/<ไฟล์>.json` แล้วเทียบ features ของใบนี้กับใบอื่นที่รันแล้ว (เปอร์เซ็นไทล์)"),
         new_code_cell(SAVE),
         new_markdown_cell(VERDICT_MD),
         new_code_cell(VERDICT),

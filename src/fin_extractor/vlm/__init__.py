@@ -4,7 +4,7 @@ from typing import Any
 
 from .typhoon_ocr import TyphoonOCR, VLMResult
 
-# ชื่อ engine ที่เป็น VLM (อ่านทั้งหน้าเป็น Markdown) → ชื่อโฟลเดอร์ใน result_ocr/
+# ชื่อ engine ที่เป็น VLM (อ่านทั้งหน้าเป็น Markdown) → ชื่อโฟลเดอร์ใน 04_ocr/ และ 05_extract/
 VLM_ENGINES = {"vlm": "typhoon", "openthai": "openthai"}
 
 

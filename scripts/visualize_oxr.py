@@ -1,9 +1,9 @@
 """วาดภาพแต่ละขั้นของ OXR จากผลดิบที่เก็บไว้ (ไม่เรียก OXR/GPU) แล้วรวมเป็นรายงาน HTML ในเครื่อง
 
-อินพุต: ผลเต็มของ OXR ใน ``result_ocr/oxr/<dataset>/raw_data/`` สองแบบ
+อินพุต: ผลเต็มของ OXR ใน ``04_ocr/<dataset>/oxr/page/`` สองแบบ
   ``<ไฟล์>_p1.oxr.json``      รอบที่ส่งภาพที่ผ่าน preprocess (ภาพ = preprocess/<dataset>/default/final/)  ← scripts/extract_oxr.py
   ``<ไฟล์>_p1.pdf.oxr.json``  รอบที่ส่ง PDF ดิบ (ภาพ = PDF เรนเดอร์ 150 dpi เหมือนที่ OXR เรนเดอร์เอง)
-ผล: ``result_ocr/oxr/<dataset>/visualize/<เลขไฟล์>_<pdf|preprocessed>/index.html`` พร้อมภาพประกอบ (เปิดในเบราว์เซอร์ ลบทั้งโฟลเดอร์ได้)
+ผล: ``04_ocr/<dataset>/oxr/visualize/<เลขไฟล์>_<pdf|preprocessed>/index.html`` พร้อมภาพประกอบ (เปิดในเบราว์เซอร์ ลบทั้งโฟลเดอร์ได้)
 **ไม่ publish ขึ้นบริการภายนอก** เอกสารเป็นข้อมูลจริง
 
 ขั้นที่แสดง

@@ -1,11 +1,11 @@
 """สร้างภาพย่อย (section) ที่ทำความสะอาดแล้วสำหรับส่งเข้า OCR ไฟล์ละ 3 แบบต่อ section
 
-    python -X utf8 scripts/make_clean_sections.py data/raw/finance_doc_scan
-    python -X utf8 scripts/make_clean_sections.py data/raw/finance_doc_scan --only 1309
-    python -X utf8 scripts/make_clean_sections.py data/raw/finance_doc_scan --only 1307 --drop-empty-rows
+    python -X utf8 scripts/make_clean_sections.py data/01_input/finance_doc_scan
+    python -X utf8 scripts/make_clean_sections.py data/01_input/finance_doc_scan --only 1309
+    python -X utf8 scripts/make_clean_sections.py data/01_input/finance_doc_scan --only 1307 --drop-empty-rows
 
 อินพุต: ภาพทั้งหน้าที่ preprocess แล้ว (ตรงแล้ว สี) + ผังแบ่ง section (notebooks/preprocess_lab → features/<ไฟล์>.json)
-ผล: data/preprocess/<dataset>/<profile>/sections/clean/<วิธี>/<ไฟล์>/  (วิธี = luma | flat | bin แยกโฟลเดอร์ แต่ละโฟลเดอร์มี sNN.png + index.json ของตัวเอง)
+ผล: data/03_sections/<dataset>/<profile>/images/<วิธี>/<ไฟล์>/  (วิธี = luma | flat | bin แยกโฟลเดอร์ แต่ละโฟลเดอร์มี sNN.png + index.json ของตัวเอง)
     luma/sNN.png   เทาแบบ luma (ไม่แต่งอะไรอีก) — วัดแล้วไม่แย่กว่าภาพสี และไม่ทำลายตัวอักษรจางบนพื้นสี
     flat/sNN.png   ช่อง V (กำจัดสี) + พื้นหลังเรียบ — ช่วย 1306/1307 แต่ทำลายตัวอักษรจางบนพื้นสีของ 1317
     bin/sNN.png    ขาวดำ **ตัวอักษรขาว กระดาษดำ** ตัดสินจากระยะสีจากพื้นรอบข้าง จึงไม่ขึ้นกับสีพื้น/สีตัวอักษร (ตัวขาวบนแถบสีเขียว/น้ำเงิน ก็ออกมาขาวบนดำ)

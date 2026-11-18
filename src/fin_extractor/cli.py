@@ -188,7 +188,7 @@ def cmd_sections(args, cfg) -> None:
         print(f"ผังใช้ได้อยู่แล้ว {len(stems) - len(stale)} ไฟล์ · ทำใหม่ {len(stale)}", flush=True)
         if stale:
             build_layouts(paths, dataset, args.profile, stale, args.table_mode, args.max_piece_frac, args.fill_aware)
-    variants = () if args.variant == "color" else (args.variant,)  # ค่าตั้งต้นเขียนเฉพาะวิธีที่ใช้ (flat/bin ทดลองผ่าน scripts/make_clean_sections.py)
+    variants = () if args.variant == "color" else (args.variant,)  # ค่าตั้งต้นเขียนเฉพาะวิธีที่ใช้ (flat/bin ทดลองผ่าน scripts/make_clean_sections.py ซึ่งเขียนครบทั้งสามวิธี)
     if "images" in todo and variants:
         banner("images")
         stale = stems_needing(lambda s: not args.redo and not args.drop_empty_rows and images_are_current(paths, dataset, s, variants, args.profile), stems)
@@ -245,7 +245,7 @@ def build_parser() -> argparse.ArgumentParser:
                    help="สั่งมุมหมุน (องศาตามเข็ม) เองแทนตัวตรวจทิศอัตโนมัติ ใช้เมื่อตัวตรวจล้ม (ดูคำเตือน/ meta.orientation_error ใน manifest) "
                         "ทำใหม่ไฟล์นั้นทันที ไม่เก็บลง settings.json เหมาะกับสั่งทีละไฟล์")
     s.add_argument("--force", action="store_true", help="ทำใหม่ทับ ถ้าตั้งค่าเปลี่ยนจากที่เก็บไว้ = ล้างโฟลเดอร์ profile นั้นก่อน")
-    s.add_argument("--out", help="โฟลเดอร์ profile เอง (ค่าตั้งต้น data/preprocess/<dataset>/<profile>)")
+    s.add_argument("--out", help="โฟลเดอร์ profile เอง (ค่าตั้งต้น data/02_preprocess/<dataset>/<profile>)")
     s.set_defaults(func=cmd_preprocess)
 
     s = sub.add_parser("ocr", help="อ่านข้อความดิบ → raw_data")

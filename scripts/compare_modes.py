@@ -70,7 +70,7 @@ def main() -> None:
                 diffs.append(f"| {short} | `{f}` | {va} | {vb} |")
 
     out = [
-        "# เทียบสองโหมด `extract` บน `data/raw/finance_doc_scan`",
+        "# เทียบสองโหมด `extract` บน `data/01_input/finance_doc_scan`",
         "",
         f"A = `{args.a}` (--mode ocr: Paddle + rules) · B = `{args.b}` (--mode vlm: Typhoon OCR + LLM + rules) · {len(names)} ใบ ไม่มีเฉลย",
         "",

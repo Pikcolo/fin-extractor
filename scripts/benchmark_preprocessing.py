@@ -8,7 +8,7 @@
 ค่าสำคัญ 6 ค่า = เลขผู้เสียภาษี, เลขที่ใบกำกับ, วันที่, รวมเป็นเงิน, VAT, ยอดรวม
 นับว่า "อ่านเจอ" เมื่อข้อความ OCR (ตัดช่องว่างออก) มีค่านั้นอยู่
 
-    .venv/Scripts/python scripts/benchmark_preprocessing.py [--samples data/raw/synthetic] [--skip-ocr] [--out ...]
+    .venv/Scripts/python scripts/benchmark_preprocessing.py [--samples data/01_input/synthetic] [--skip-ocr] [--out ...]
 """
 
 from __future__ import annotations
@@ -140,7 +140,7 @@ def bench_ocr(files: dict, root: Path, cfg: dict) -> list[dict]:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--samples", default="data/raw/synthetic")
+    ap.add_argument("--samples", default="data/01_input/synthetic")
     ap.add_argument("--skip-ocr", action="store_true")
     ap.add_argument("--out", default=str(DataPaths().benchmarks() / "preprocessing_synthetic.json"))
     args = ap.parse_args()

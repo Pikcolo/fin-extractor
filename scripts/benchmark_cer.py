@@ -14,7 +14,7 @@
   จึงรายงานแยกจากใบไม่มีตรา
 - เป็นภาพสังเคราะห์ที่ฟอนต์สะอาด ไม่ใช่ CER ของเอกสารจริง สแกนจริงไม่มีข้อความอ้างอิงจึงวัด CER ไม่ได้
 
-    .venv/Scripts/python scripts/benchmark_cer.py [--samples data/raw/synthetic] [--engines paddle vlm]
+    .venv/Scripts/python scripts/benchmark_cer.py [--samples data/01_input/synthetic] [--engines paddle vlm]
 """
 
 from __future__ import annotations
@@ -114,7 +114,7 @@ def summarize(rows: list[dict]) -> dict:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--samples", default="data/raw/synthetic")
+    ap.add_argument("--samples", default="data/01_input/synthetic")
     ap.add_argument("--engines", nargs="+", default=["paddle"], choices=["paddle", "vlm"])
     ap.add_argument("--out", help="ไฟล์ผล (ค่าตั้งต้น data/etc/benchmarks/cer_synthetic_<engines>.json)")
     args = ap.parse_args()

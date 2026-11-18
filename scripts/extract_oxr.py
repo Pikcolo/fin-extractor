@@ -6,9 +6,9 @@
 
 ห้ามชี้ ``--api`` ไปที่ free API กับสแกนจริง (ข้อมูลออกนอกเครื่อง) สคริปต์จึงปฏิเสธโฮสต์ที่ไม่ใช่ localhost
 
-    .venv/Scripts/python scripts/extract_oxr.py data/raw/finance_doc_scan [--redo]
-    # ผล: result_ocr/oxr/<dataset>/raw_data/<ไฟล์>_p1.md (+ .oxr.json = ผลเต็มของ OXR: บล็อก/bbox/ลำดับ)
-    #     result_ocr/oxr/<dataset>/final/rules/<ไฟล์>_p1.json
+    .venv/Scripts/python scripts/extract_oxr.py data/01_input/finance_doc_scan [--redo]
+    # ผล: 04_ocr/<dataset>/oxr/page/<ไฟล์>_p1.md (+ .oxr.json = ผลเต็มของ OXR: บล็อก/bbox/ลำดับ)
+    #     05_extract/<dataset>/oxr/page/rules/<ไฟล์>_p1.json
     # รันต่อจากที่ค้างได้ (ข้ามหน้าที่มีผลแล้ว) ใส่ --redo เพื่อทำใหม่ทั้งหมด
 """
 

@@ -3,7 +3,7 @@
 1. ``prepared_pages``: หน้าที่ผ่าน preprocess แล้ว เก็บภาพสุดท้ายไว้ที่ ``preprocess/<dataset>/<profile>/final/``
    ทุก engine ใช้ภาพชุดเดียวกัน (ไม่ preprocess ซ้ำ) ถ้าตั้งค่า preprocess เปลี่ยนจากที่เก็บไว้ ต้องใช้ ``--profile`` ใหม่
    หรือ ``--force`` (ล้างโฟลเดอร์ profile นั้นแล้วทำใหม่) กันภาพคนละตั้งค่าปนกันใน profile เดียว
-2. ``save_raw`` / ``load_raw``: ข้อความดิบจาก OCR ที่ ``result_ocr/<engine>/<dataset>/raw_data/<ไฟล์>_p<หน้า>.(txt|md)``
+2. ``save_raw`` / ``load_raw``: ข้อความดิบจาก OCR ที่ ``04_ocr/<dataset>/<engine>/page/<ไฟล์>_p<หน้า>.(txt|md)``
    พร้อม ``.meta.json`` (ความมั่นใจ, ตอบไม่จบหรือไม่, ตั้งค่า profile) ใช้สกัดซ้ำด้วย rules หรือ LLM โดยไม่เรียก OCR อีก
 """
 

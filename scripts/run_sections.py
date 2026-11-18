@@ -1,18 +1,18 @@
 """รัน OCR ทีละภาพย่อย (section) ของทุกไฟล์ที่แบ่งไว้ด้วย notebooks/preprocess_lab แล้วเก็บเป็น raw_data
 
-    python -X utf8 scripts/run_sections.py data/raw/finance_doc_scan                     # --engine openthai --variant luma (ค่าตั้งต้น)
-    python -X utf8 scripts/run_sections.py data/raw/finance_doc_scan --engine oxr
-    python -X utf8 scripts/run_sections.py data/raw/finance_doc_scan --variant flat --only 1307     # อ่านภาพ sections/clean/flat/
-    python -X utf8 scripts/run_sections.py data/raw/finance_doc_scan --variant color               # ตัดจากภาพสีใน memory (ไม่ผ่าน luma/flat)
-    python -X utf8 scripts/run_sections.py data/raw/finance_doc_scan --only 1309 1311 --redo
+    python -X utf8 scripts/run_sections.py data/01_input/finance_doc_scan                     # --engine openthai --variant luma (ค่าตั้งต้น)
+    python -X utf8 scripts/run_sections.py data/01_input/finance_doc_scan --engine oxr
+    python -X utf8 scripts/run_sections.py data/01_input/finance_doc_scan --variant flat --only 1307     # อ่านภาพ 03_sections/…/images/flat/
+    python -X utf8 scripts/run_sections.py data/01_input/finance_doc_scan --variant color               # ตัดจากภาพสีใน memory (ไม่ผ่าน luma/flat)
+    python -X utf8 scripts/run_sections.py data/01_input/finance_doc_scan --only 1309 1311 --redo
 
-อินพุต: ผังแบ่ง ``sections/features/<ไฟล์>.json`` (make_section_layouts.py) + ภาพ ``--variant``
-    luma (ค่าตั้งต้น) / flat / bin (ตัวขาวบนดำ) = ไฟล์ภาพย่อย ``sections/clean/<ไฟล์>/sNN_<แบบ>.png`` (make_clean_sections.py) ตรวจก่อนว่าตรงกับผังปัจจุบัน ไม่งั้นหยุด
+อินพุต: ผังแบ่ง ``03_sections/<dataset>/<profile>/layout/<ไฟล์>.json`` (make_section_layouts.py) + ภาพ ``--variant``
+    luma (ค่าตั้งต้น) / flat / bin (ตัวขาวบนดำ) = ไฟล์ภาพย่อย ``03_sections/…/images/<แบบ>/<ไฟล์>/sNN.png`` (make_clean_sections.py) ตรวจก่อนว่าตรงกับผังปัจจุบัน ไม่งั้นหยุด
     color                    = ตัดจากภาพ final สีในหน่วยความจำตามผัง ไม่มีไฟล์ภาพย่อย ไม่ผ่าน luma/flat
 ตัวอ่าน (เลือกด้วย ``--engine``) ตั้งค่าที่ section ชื่อเดียวกันใน configs/default.yaml
     oxr      ``vlm/oxr_local.py``    (``oxr_local:``) โหลดตรง ไม่ใช้ Docker
     openthai ``vlm/openthai_ocr.py`` (``openthai:``)
-ผล: ``data/result_ocr/<engine>/<dataset>/raw_data[_<แบบ>]/<ไฟล์>/<ไฟล์>_p1.sections.json`` = รายการ section ตามลำดับอ่าน (color = raw_data)
+ผล: ``data/04_ocr/<dataset>/<engine>/<แบบ>/<ไฟล์>/<ไฟล์>_p1.sections.json`` = รายการ section ตามลำดับอ่าน (color = raw_data)
     {id, kind, bbox, text, truncated, seconds} ส่วนที่ lab ตัดทิ้ง (ว่าง) ไม่ถูกอ่าน เก็บเป็น ``skipped``
 นอกจากนี้เขียน ``<ไฟล์>_p1.md`` ไว้ข้างกัน = ข้อความของทุกส่วนต่อกันตามลำดับอ่าน (ป้ายแต่ละส่วนเป็นคอมเมนต์ HTML ซึ่ง rules ตัดทิ้งตอนอ่าน)
 เป็นรูปแบบเดียวกับข้อความดิบของโหมด VLM จึงใช้กับ ``extract --reuse-raw`` ได้ ``--markdown-only`` สร้าง .md จากผลที่มีอยู่โดยไม่โหลดโมเดล (ไม่ใช้ GPU)
@@ -48,9 +48,9 @@ def main() -> None:
     ap.add_argument("--redo", action="store_true", help="ทำใหม่แม้มีผลแล้ว")
     ap.add_argument("--markdown-only", action="store_true", help="สร้าง .md จากผลที่มีอยู่ ไม่โหลดโมเดล ไม่อ่านใหม่ (ไม่ใช้ GPU)")
     ap.add_argument("--config", help="ไฟล์ config ทับ default.yaml (เปลี่ยน paths.data_dir ได้ ใช้ทดลองโดยไม่ทับผลจริง)")
-    ap.add_argument("--engine", choices=ENGINES, default="openthai", help="ตัวอ่านที่ใช้ (ผลลงใต้ result_ocr/<engine>/)")
+    ap.add_argument("--engine", choices=ENGINES, default="openthai", help="ตัวอ่านที่ใช้ (ผลลงใต้ 04_ocr/<dataset>/<engine>/)")
     ap.add_argument("--variant", choices=VARIANTS, default="luma",
-                    help="ภาพที่ส่งเข้าตัวอ่าน: luma (ค่าตั้งต้น) / flat / bin (ตัวขาวบนดำ) = ไฟล์ใน sections/clean/ (สร้างด้วย make_clean_sections.py) · "
+                    help="ภาพที่ส่งเข้าตัวอ่าน: luma (ค่าตั้งต้น) / flat / bin (ตัวขาวบนดำ) = ไฟล์ใน 03_sections/…/images/<วิธี>/ (สร้างด้วย make_clean_sections.py หรือ fin_extractor sections) · "
                          "color = ตัดจากภาพ final สีในหน่วยความจำ (ไม่ผ่านการเตรียมรายส่วน) ผลแต่ละแบบแยกโฟลเดอร์ ไม่ทับกัน")
     args = ap.parse_args()
 

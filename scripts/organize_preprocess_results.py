@@ -62,7 +62,7 @@ def write_image(path: Path, img) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--input", default="data/raw/finance_doc_scan")
+    ap.add_argument("--input", default="data/01_input/finance_doc_scan")
     ap.add_argument("--results", default=str(DataPaths().benchmarks() / "real_scans.json"))
     ap.add_argument("--out", default=str(DataPaths().benchmarks() / "preprocess_experiments"))
     ap.add_argument("--only", help="ชื่อชุดที่ต้องการ คั่นด้วย ,")
@@ -115,7 +115,7 @@ def main() -> None:
 
     n_docs = len(next(iter(results.values())))
     lines = [
-        "# ผลทดลอง preprocessing บนสแกนจริง (`data/raw/finance_doc_scan`)",
+        "# ผลทดลอง preprocessing บนสแกนจริง (`data/01_input/finance_doc_scan`)",
         "",
         f"{n_docs} ไฟล์ · OCR = PaddleOCR (lang=th) · สร้างโดย `scripts/organize_preprocess_results.py` "
         "จากผลของ `scripts/benchmark_real_scans.py`",
