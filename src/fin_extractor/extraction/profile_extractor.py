@@ -181,7 +181,6 @@ def extract_remark(lines: list[str], profile: Profile, data: InvoiceData, chunks
 
 
 UNMAPPED_LABEL = "(ไม่มีช่องรองรับ)"
-UNMAPPED_MAX_CHARS = 200  # ตัดบรรทัดยาวผิดปกติ (ตารางที่ OCR ต่อเป็นบรรทัดเดียว) ไม่ให้ remark บวม
 
 
 def extract_unmapped(lines: list[str], data: InvoiceData, chunks: list[str | None] | None = None) -> list[ExtraField]:
@@ -192,5 +191,5 @@ def extract_unmapped(lines: list[str], data: InvoiceData, chunks: list[str | Non
     for i, line in enumerate(lines):
         tokens = [f"{a:f}" for a in find_amounts(line)] + [t for t in find_tax_ids(line) if is_valid_thai_tax_id(t)]             + [d.isoformat() for d in find_dates(line)]
         if tokens and not any(_same_value(t, filled) for t in tokens):
-            out.append(ExtraField(label=UNMAPPED_LABEL, value=line[:UNMAPPED_MAX_CHARS], kind="unmapped", source_chunk=chunks[i] if chunks else None))
+            out.append(ExtraField(label=UNMAPPED_LABEL, value=line, kind="unmapped", source_chunk=chunks[i] if chunks else None))
     return out
