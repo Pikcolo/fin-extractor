@@ -260,3 +260,23 @@ def test_default_mode_is_rows_with_full_width_bands():
     assert inspect.signature(labkit.layout_sections).parameters["table_mode"].default == "rows"
     secs = [s for s in labkit.layout_sections(_totals_box_page(), max_piece_frac=None) if s["keep"]]
     assert all(s["bbox"][0] == 0 and s["bbox"][2] == 700 for s in secs)  # ทุกส่วนเต็มความกว้าง
+
+
+def test_remark_maps_each_md_chunk_to_its_section_image():
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import run_sections
+
+    doc = {"source": "doc1", "engine": "e", "variant": "luma", "sections": [
+        {"id": "s00", "kind": "text", "bbox": [0, 0, 10, 5], "text": "บริษัท ABC 123\nบรรทัดสอง"},
+        {"id": "s01", "kind": "table", "bbox": [0, 5, 10, 5], "skipped": "blank"},
+        {"id": "s02", "kind": "table", "bbox": [0, 10, 10, 5], "part": 1, "parts": 2, "text": "<table><td>รวม 5.00</td></table>", "truncated": True}]}
+    remark = run_sections.remark_of(doc, lambda s: f"{s['id']}.png")
+    md = run_sections.markdown_of(doc).split("\n")
+    assert [(c["section"], c["md_lines"]) for c in remark["chunks"]] == [("s00", [1, 3]), ("s02", [5, 6])]
+    for c in remark["chunks"]:  # บรรทัดแรกของช่วงคือคอมเมนต์ของส่วนนั้นจริง
+        assert md[c["md_lines"][0] - 1].startswith(f"<!-- {c['section']} ")
+    assert remark["chunks"][0]["image"] == "s00.png" and remark["chunks"][0]["text"] == "บริษัท ABC 123\nบรรทัดสอง" and remark["chunks"][1]["truncated"] and remark["chunks"][1]["part"] == 1
+    assert remark["not_read"] == [{"section": "s01", "kind": "table", "reason": "blank"}]
+    mix = remark["chunks"][0]["script_mix"]
+    assert mix["thai"] > 0 and mix["latin"] == 3 and mix["digit"] == 3  # แท็ก HTML ไม่ถูกนับ
+    assert remark["chunks"][1]["script_mix"]["latin"] == 0  # "table/td" ในแท็กไม่นับเป็นอักษรละติน

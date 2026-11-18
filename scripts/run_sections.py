@@ -81,21 +81,73 @@ def make_reader(engine: str, cfg: dict):
     return OpenThaiOCR(cfg["openthai"])
 
 
-def markdown_of(doc: dict) -> str:
-    """ข้อความของทุกส่วนที่อ่านแล้ว ต่อกันตามลำดับอ่าน คั่นด้วยบรรทัดว่าง มีคอมเมนต์ HTML บอกว่าแต่ละท่อนมาจากส่วนไหน."""
-    parts = []
+def markdown_blocks(doc: dict) -> list[tuple[dict, str]]:
+    """(ส่วน, บล็อกข้อความ) ของทุกส่วนที่อ่านแล้วตามลำดับอ่าน บล็อกขึ้นต้นด้วยคอมเมนต์ HTML บอกว่ามาจากส่วนไหน (rules ตัดคอมเมนต์ทิ้ง)."""
+    blocks = []
     for s in doc["sections"]:
         if not s.get("text"):
             continue
         part = f" {s['part']}/{s['parts']}" if s.get("part") else ""
-        parts.append(f"<!-- {s['id']} {s['kind']}{part} -->\n{s['text'].strip()}")
-    return "\n\n".join(parts) + "\n"
+        blocks.append((s, f"<!-- {s['id']} {s['kind']}{part} -->\n{s['text'].strip()}"))
+    return blocks
 
 
-def write_markdown(sections_json: Path) -> Path:
-    out = sections_json.with_name(sections_json.name.removesuffix(".sections.json") + ".md")
-    out.write_text(markdown_of(json.loads(sections_json.read_text(encoding="utf-8"))), encoding="utf-8")
+def markdown_of(doc: dict) -> str:
+    """ข้อความของทุกส่วนที่อ่านแล้ว ต่อกันตามลำดับอ่าน คั่นด้วยบรรทัดว่าง มีคอมเมนต์ HTML บอกว่าแต่ละท่อนมาจากส่วนไหน."""
+    return "\n\n".join(b for _s, b in markdown_blocks(doc)) + "\n"
+
+
+def script_mix(text: str) -> dict[str, int]:
+    """จำนวนอักขระไทย / ละติน / ตัวเลข ในข้อความที่ **ตัวอ่านตอบมา** (นับจากผล ไม่ใช่สิ่งที่โมเดลเลือก — ดู docs/12 หัวข้อ "เลือกภาษา")
+    ตัดแท็ก HTML ของตารางก่อนนับ."""
+    import re
+    t = re.sub(r"<[^>]+>", " ", text)
+    return {"thai": sum("฀" <= c <= "๿" for c in t),
+            "latin": sum(c.isascii() and c.isalpha() for c in t),
+            "digit": sum(c.isdigit() for c in t)}
+
+
+def remark_of(doc: dict, image_of) -> dict:
+    """หมายเหตุของข้อความดิบ: ท่อนข้อความแต่ละท่อนใน .md มาจากภาพ section ไหน
+    ``image_of(section)`` คืนที่อยู่ภาพที่ส่งเข้าตัวอ่าน (หรือ None) บรรทัดนับจาก 1 ตามไฟล์ .md (รวมบรรทัดคอมเมนต์)."""
+    chunks, line = [], 1
+    for s, block in markdown_blocks(doc):
+        n = block.count("\n") + 1
+        chunks.append({"section": s["id"], "kind": s["kind"], **({"part": s["part"], "parts": s["parts"]} if s.get("part") else {}),
+                       "md_lines": [line, line + n - 1], "page_bbox_xywh": s["bbox"], "image": image_of(s), "text": s["text"].strip(),
+                       "chars": len(s["text"].strip()), "script_mix": script_mix(s["text"]),
+                       **({"truncated": True} if s.get("truncated") else {}), **({"seconds": s["seconds"]} if "seconds" in s else {})})
+        line += n + 1  # + บรรทัดว่างคั่นบล็อก
+    not_read = [{"section": s["id"], "kind": s["kind"], "reason": s.get("skipped") or ("error" if "error" in s else "no text")}
+                for s in doc["sections"] if not s.get("text")]
+    return {"source": doc["source"], "engine": doc.get("engine"), "variant": doc.get("variant"),
+            "note": "text คือข้อความที่ได้จากภาพนั้น (ชุดเดียวกับในท่อนของ .md) · page_bbox_xywh อยู่บนสำเนาด้านยาว 1600 px · md_lines คือบรรทัดของท่อนนั้นใน .md · image คือภาพที่ส่งเข้าตัวอ่าน (variant=color ไม่มีไฟล์ ตัดจาก final ตาม page_bbox_xywh) · "
+                    "script_mix นับจากข้อความที่ตัวอ่านตอบ OpenThai ไม่มีขั้นเลือกภาษา (โมเดลเดียวอ่านทุกภาษา)",
+            "chunks": chunks, "not_read": not_read}
+
+
+def write_markdown(sections_json: Path, image_of=lambda s: None) -> Path:
+    """เขียน .md (ข้อความดิบที่ extract --reuse-raw อ่าน) และ .remark.json (ที่มาของแต่ละท่อน ไม่ถูกอ่านโดย extract)."""
+    stem = sections_json.name.removesuffix(".sections.json")
+    doc = json.loads(sections_json.read_text(encoding="utf-8"))
+    out = sections_json.with_name(stem + ".md")
+    out.write_text(markdown_of(doc), encoding="utf-8")
+    sections_json.with_name(stem + ".remark.json").write_text(json.dumps(remark_of(doc, image_of), ensure_ascii=False, indent=1), encoding="utf-8")
     return out
+
+
+def image_locator(paths: DataPaths, dataset: str, stem: str, variant: str):
+    """ฟังก์ชันที่บอกที่อยู่ภาพของ section (สัมพัทธ์กับ data_dir) ใช้ใน .remark.json."""
+    if variant == "color":
+        return lambda s: None
+    entries = {e["id"]: e for e in json.loads((paths.section_clean(dataset, stem, variant) / "index.json").read_text(encoding="utf-8"))["sections"]}
+    base = paths.section_clean(dataset, stem, variant)
+    data_dir = paths.preprocess_final(dataset).parents[3]  # data/preprocess/<ชุด>/<โปรไฟล์>/final → data/
+
+    def locate(s: dict):
+        f = entries.get(s["id"], {}).get("file")
+        return (base / f).relative_to(data_dir).as_posix() if f else None
+    return locate
 
 
 def gpu_status() -> str:
@@ -139,7 +191,7 @@ def main() -> None:
         for stem in stems:
             src = doc_dir(raw_dir, stem, nest=True) / f"{stem}_p1.sections.json"
             if src.exists():
-                print(f"{stem[-4:]}: {write_markdown(src)}", flush=True)
+                print(f"{stem[-4:]}: {write_markdown(src, image_locator(paths, dataset, stem, args.variant))}", flush=True)
             else:
                 print(f"{stem[-4:]}: ข้าม (ยังไม่มีผล {src.name})", flush=True)
         return
@@ -220,7 +272,7 @@ def main() -> None:
             print(f"    {stem[-4:]} {s['id']} {s['kind']:4s} {img.shape[1]}x{img.shape[0]} {row['seconds']:5.1f}s "
                   f"{'ชนเพดาน token ' if row['truncated'] else ''}| reserved {torch.cuda.memory_reserved() / 2**30:.2f} GiB · GPU {gpu_status()}", flush=True)
         save(True)
-        write_markdown(out)
+        write_markdown(out, image_locator(paths, dataset, stem, args.variant))
         ran = [r for r in rows if "skipped" not in r]
         info = {"file": stem[-4:], "sections": len(rows), "ran": len(ran), "skipped": len(rows) - len(ran),
                 "truncated": sum(bool(r.get("truncated")) for r in ran), "seconds": round(time.perf_counter() - t_file, 1)}
