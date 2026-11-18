@@ -190,3 +190,13 @@ def test_two_inputs_stay_flat_and_steps_are_nested_only_when_many(env):
     run(env, "preprocess", str(env.src), "--steps", "--profile", "s")
     steps = env.data / "02_preprocess" / "scans" / "s" / "steps"
     assert any((steps / "a").iterdir()) and any((steps / "c").iterdir())
+
+
+def test_extract_only_selects_files_by_name_suffix_but_keeps_the_per_file_layout(env):
+    for name in ("b", "c"):
+        save_image(env.src / f"{name}.png", np.full((30, 50, 3), 180, dtype=np.uint8))
+    run(env, "extract", str(env.src), "--only", "b")
+    ex = env.data / "05_extract" / "scans" / "paddle" / "page" / "rules"
+    m = json.loads((ex / "manifest.json").read_text(encoding="utf-8"))
+    assert [f["output"] for f in m["files"]] == ["b/b_p1.json"]  # เลือกไฟล์เดียว แต่โครงโฟลเดอร์ต่อไฟล์ตามอินพุตทั้งหมด (3 ไฟล์)
+    assert not (ex / "a").exists() and not (ex / "c").exists()

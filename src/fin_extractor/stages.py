@@ -47,7 +47,7 @@ def prepared_pages(path: str | Path, cfg: dict[str, Any], profile_dir: Path, *, 
     cached = [final / f"{path.stem}_p{i}.png" for i in range(1, page_count(path) + 1)]
     if stored == wanted and not force and not steps and orientation is None and all(p.exists() for p in cached):
         for i, p in enumerate(cached, start=1):
-            yield i, read_image(p), {"cached": True}
+            yield i, read_image(p), {**read_meta(p), "cached": True}  # meta ของรอบที่ทำจริง (orientation_error ฯลฯ) ไม่หายไปเมื่ออ่านจากที่เก็บไว้
         return
 
     if stored is not None and stored != wanted:
@@ -65,9 +65,20 @@ def prepared_pages(path: str | Path, cfg: dict[str, Any], profile_dir: Path, *, 
     for i, img in enumerate(load_pages(path, cfg["loader"]["pdf_dpi"]), start=1):
         res = preprocess(img, cfg["preprocessing"], keep_steps=steps, orientation=orientation)
         save_image(final / f"{path.stem}_p{i}.png", res.image)
+        meta_path_of(final / f"{path.stem}_p{i}.png").write_text(json.dumps(res.meta, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
         if steps:
             res.save_steps(steps_dir, f"{path.stem}_p{i}")
         yield i, res.image, res.meta
+
+
+def meta_path_of(image_path: Path) -> Path:
+    """ไฟล์ meta ที่เก็บข้างภาพ final (``<ไฟล์>_p1.meta.json``): มุมที่หมุน ``orientation_error`` มุมเอียง ฯลฯ ของรอบที่ preprocess จริง."""
+    return image_path.with_name(image_path.name.removesuffix(".png") + ".meta.json")
+
+
+def read_meta(image_path: Path) -> dict[str, Any]:
+    p = meta_path_of(image_path)
+    return json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
 
 
 def save_raw(raw_dir: Path, stem: str, text: str, ext: str, meta: dict[str, Any]) -> Path:

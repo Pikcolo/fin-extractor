@@ -112,8 +112,9 @@ def cmd_extract(args, cfg) -> None:
         **({"llm_model": cfg["llm_extractor"]["model"]} if pipe.llm else {}),
     }
     with Run("extract", args.input, cfg, final_dir, settings) as run:
-        files = list(iter_input_files(args.input))
-        nest = nest_per_file(len(files))
+        all_files = list(iter_input_files(args.input))
+        nest = nest_per_file(len(all_files))  # นับจากอินพุตทั้งหมด ไม่ใช่เฉพาะที่เลือกด้วย --only (โครงโฟลเดอร์ต่อไฟล์จะได้ตรงกับรอบเต็ม)
+        files = [f for f in all_files if not args.only or any(f.stem.endswith(o) for o in args.only)]
         for f in files:
             t0 = time.perf_counter()
             if args.reuse_raw:
@@ -154,7 +155,7 @@ def cmd_extract(args, cfg) -> None:
 def cmd_sections(args, cfg) -> None:
     """flow หลักห้าขั้นของสแกนจริง: preprocess → layout → images → ocr → extract (ขั้นที่ผลยังใช้ได้ถูกข้าม ดู sections/flow.py)."""
     from .sections.build import build_images, build_layouts
-    from .sections.flow import STAGES, images_are_current, layout_is_current, stems_needing
+    from .sections.flow import STAGES, images_are_current, layout_is_current, orientation_flags, stems_needing
     from .sections.layout import MAX_PIECE_FRAC
     from .sections.read import read_dataset
 
@@ -204,8 +205,14 @@ def cmd_sections(args, cfg) -> None:
             print(f"ข้ามขั้น extract: ยังไม่รองรับ engine {args.engine} (รองรับ openthai)")
             return
         a = parser.parse_args([*common, "extract", args.input, "--mode", "vlm", "--engine", args.engine, "--llm", "off", "--reuse-raw",
-                               "--variant", args.variant, "--profile", args.profile])
+                               "--variant", args.variant, "--profile", args.profile, *(["--only", *args.only] if args.only else [])])
         a.func(a, cfg)
+    flags = orientation_flags(paths, dataset, stems, args.profile)
+    if flags:
+        print(f"\n⚠ ตรวจทิศไม่ได้ {len(flags)}/{len(stems)} ไฟล์ (ภาพอาจตะแคงโดยไม่มีสัญญาณ) ตรวจภาพใน {paths.preprocess_final(dataset, args.profile)} "
+              "แล้วสั่งทิศเองได้: fin_extractor preprocess <ไฟล์> --orientation 90|180|270 (แล้วรัน sections --from layout --only <เลขไฟล์>)")
+        for stem, err in flags:
+            print(f"   {stem[-4:]}: {err}")
     print(f"\nผลอยู่ที่ {paths.raw_data(args.engine, dataset, args.variant)} และ {paths.final(args.engine, dataset, 'rules', args.variant)}")
 
 
@@ -262,6 +269,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--variant", choices=["luma", "flat", "bin", "color"],
                    help="ใช้กับ --reuse-raw: อ่านข้อความดิบจาก raw_data_<แบบ>/ (ผลของ scripts/run_sections.py --variant) แล้วเขียนผลที่ final_<แบบ>/<extractor>/ "
                         "ไม่ใส่ = raw_data/ และ final/ ตามปกติ")
+    s.add_argument("--only", nargs="*", help="สกัดเฉพาะไฟล์ที่ชื่อลงท้ายด้วยเลขเหล่านี้ เช่น 1309 (ไม่ใส่ = ทุกไฟล์ในอินพุต)")
     s.add_argument("--keep-raw", action="store_true", help="เก็บข้อความดิบใน JSON ผลสุดท้ายด้วย")
     s.add_argument("--out", help="โฟลเดอร์ปลายทางเอง (ค่าตั้งต้น data/04_ocr/<dataset>/<engine>/ และ data/05_extract/<dataset>/<engine>/) ผลอยู่ใต้ raw_data/ และ final/<extractor>/")
     s.set_defaults(func=cmd_extract)

@@ -48,6 +48,18 @@ def images_are_current(paths: DataPaths, dataset: str, stem: str, variants: tupl
     return True
 
 
+def orientation_flags(paths: DataPaths, dataset: str, stems: list[str], profile: str = DEFAULT_PROFILE) -> list[tuple[str, str]]:
+    """[(ไฟล์, ข้อผิดพลาด)] ของหน้าที่ตรวจทิศไม่ได้ตอน preprocess (``orientation_error`` ใน ``<ไฟล์>_p1.meta.json``) ภาพอาจตะแคงโดยไม่มีใครรู้
+    ไฟล์ที่ preprocess ไว้ก่อนมี meta.json ไม่มีข้อมูลนี้ (คืนว่าไม่ทราบ ไม่ใช่ว่าปกติ)."""
+    from ..stages import read_meta
+
+    out = []
+    for stem, page in page_images(paths.preprocess_final(dataset, profile)).items():
+        if stem in stems and (err := read_meta(page).get("orientation_error")):
+            out.append((stem, str(err)[:90]))
+    return out
+
+
 def stems_needing(check, stems: list[str]) -> list[str]:
     """ไฟล์ใน ``stems`` ที่ ``check(stem)`` เป็นเท็จ (ต้องทำใหม่)."""
     return [s for s in stems if not check(s)]

@@ -79,3 +79,27 @@ def test_fill_aware_layout_does_not_cut_through_a_coloured_banner(tmp_path):
     assert any(270 < y < 330 for y in plain)  # แบบเดิม: ตัดผ่านกลางแถบสี (ตัวขาวบนเทาดูเป็นพื้นว่าง)
     assert not any(270 < y < 330 for y in aware)  # fill-aware: ไม่ตัดผ่าแถบ
     assert layout_is_current(paths, "ds", "doc1", "rows", 0.3, fill_text=True) and not layout_is_current(paths, "ds", "doc1", "rows", 0.3)
+
+
+def test_preprocess_meta_survives_cached_reads_and_orientation_flags_list_the_bad_pages(tmp_path):
+    import json
+
+    from fin_extractor.config import load_config
+    from fin_extractor.sections.flow import orientation_flags
+    from fin_extractor.stages import meta_path_of, prepared_pages
+
+    paths = DataPaths({"paths": {"data_dir": str(tmp_path)}})
+    src = tmp_path / "01_input" / "ds" / "doc1.png"
+    save_image(src, np.full((300, 200, 3), 255, np.uint8))
+    cfg = load_config()
+    profile = paths.preprocess("ds")
+    first = list(prepared_pages(src, cfg, profile))
+    image = profile / "final" / "doc1_p1.png"
+    assert image.exists() and meta_path_of(image).name == "doc1_p1.meta.json"
+    saved = json.loads(meta_path_of(image).read_text(encoding="utf-8"))
+    assert saved == json.loads(json.dumps(first[0][2], default=str))  # เก็บ meta ของรอบที่ทำจริง
+    again = list(prepared_pages(src, cfg, profile))  # รอบถัดไปอ่านจากที่เก็บไว้ แต่ meta ไม่หาย
+    assert again[0][2]["cached"] is True and {k: v for k, v in again[0][2].items() if k != "cached"} == saved
+    meta_path_of(image).write_text(json.dumps({"orientation": 0, "orientation_error": "OSError: cudnn"}), encoding="utf-8")
+    assert orientation_flags(paths, "ds", ["doc1"]) == [("doc1", "OSError: cudnn")]
+    assert orientation_flags(paths, "ds", ["other"]) == []

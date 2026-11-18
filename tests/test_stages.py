@@ -54,7 +54,7 @@ def test_first_call_writes_final_image_and_settings_second_call_reuses_them(tmp_
     assert [p for p, _, _ in first] == [1] and (pdir / "final" / "a_p1.png").exists() and (pdir / "settings.json").exists()
     assert len(counted) == 1
     again = list(prepared_pages(src, cfg, pdir))
-    assert len(counted) == 1 and again[0][2] == {"cached": True}      # ไม่ preprocess ซ้ำ
+    assert len(counted) == 1 and again[0][2] == {**first[0][2], "cached": True}      # ไม่ preprocess ซ้ำ
     assert np.array_equal(first[0][1], again[0][1])                   # ได้ภาพเดียวกันเป๊ะ (PNG ไม่สูญเสีย)
 
 
@@ -147,7 +147,7 @@ def test_cache_is_found_in_per_file_subfolder_even_when_reader_does_not_nest(tmp
     pdir = tmp_path / "pre"
     list(prepared_pages(img, cfg, pdir, nest=True))
     assert (pdir / "final" / "a" / "a_p1.png").exists() and len(counted) == 1
-    assert next(prepared_pages(img, cfg, pdir))[2] == {"cached": True} and len(counted) == 1   # รันไฟล์เดียวทีหลัง ใช้ภาพเดิมได้
+    assert next(prepared_pages(img, cfg, pdir))[2]["cached"] is True and len(counted) == 1   # รันไฟล์เดียวทีหลัง ใช้ภาพเดิมได้
     assert not (pdir / "final" / "a_p1.png").exists()
 
 
