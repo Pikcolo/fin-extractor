@@ -142,7 +142,7 @@ def image_locator(paths: DataPaths, dataset: str, stem: str, variant: str):
         return lambda s: None
     entries = {e["id"]: e for e in json.loads((paths.section_clean(dataset, stem, variant) / "index.json").read_text(encoding="utf-8"))["sections"]}
     base = paths.section_clean(dataset, stem, variant)
-    data_dir = paths.preprocess_final(dataset).parents[3]  # data/preprocess/<ชุด>/<โปรไฟล์>/final → data/
+    data_dir = paths.root
 
     def locate(s: dict):
         f = entries.get(s["id"], {}).get("file")
@@ -184,9 +184,7 @@ def main() -> None:
         sys.exit(f"ไม่พบผังแบ่งใน {features_dir} — รัน notebook/lab ก่อน")
 
     # color = ที่เดิม (raw_data) · luma/flat = raw_data_<variant> ข้างกัน: เทียบกันได้โดยไม่ทับ และ "มีผลแล้วให้ข้าม" นับแยกตามแบบ
-    raw_dir = paths.raw_data(args.engine, dataset)
-    if args.variant != "color":
-        raw_dir = raw_dir.with_name(f"{raw_dir.name}_{args.variant}")
+    raw_dir = paths.raw_data(args.engine, dataset, None if args.variant == "color" else args.variant)
     if args.markdown_only:
         for stem in stems:
             src = doc_dir(raw_dir, stem, nest=True) / f"{stem}_p1.sections.json"

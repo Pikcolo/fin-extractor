@@ -50,6 +50,17 @@ DEFAULT_FOLDERS = {
 DEFAULT_PROFILE = "default"
 NEST_OVER = 2  # รันที่มีไฟล์อินพุตเกินจำนวนนี้ → โฟลเดอร์ย่อยต่อไฟล์
 
+# ชื่อโฟลเดอร์ย่อยที่เขียนซ้ำหลายที่ — ให้ที่เดียว (โค้ดอื่นห้ามเขียนสตริงเหล่านี้เอง)
+FINAL_DIR = "final"  # ภาพ preprocess สุดท้ายใต้ preprocess/<dataset>/<profile>/
+STEPS_DIR = "steps"  # ภาพ preprocess ทีละขั้น
+RAW_DIR = "raw_data"  # ข้อความดิบจาก OCR ใต้ result_ocr/<engine>/<dataset>/
+RESULT_DIR = "final"  # ผลตาม schema ใต้ result_ocr/<engine>/<dataset>/ (ต่อด้วย <extractor>/)
+
+
+def variant_dir_name(base: str, variant: str | None = None) -> str:
+    """ชื่อโฟลเดอร์ของผลที่แยกตามวิธีเตรียมภาพ (``raw_data_luma``, ``final_bin``) ไม่ใส่วิธี = ชื่อเดิม."""
+    return f"{base}_{variant}" if variant else base
+
 
 def slug(text: str) -> str:
     """ชื่อที่ใช้เป็นโฟลเดอร์ได้ (ตัดตัวคั่นพาธ/อักขระแปลก ๆ ออก)."""
@@ -114,17 +125,17 @@ class DataPaths:
         return self._top("preprocess") / slug(dataset) / slug(profile)
 
     def preprocess_final(self, dataset: str, profile: str = DEFAULT_PROFILE) -> Path:
-        return self.preprocess(dataset, profile) / "final"
+        return self.preprocess(dataset, profile) / FINAL_DIR
 
     # ผลของตัวอ่าน
     def engine(self, engine: str, dataset: str) -> Path:
         return self._top("result_ocr") / slug(engine) / slug(dataset)
 
-    def raw_data(self, engine: str, dataset: str) -> Path:
-        return self.engine(engine, dataset) / "raw_data"
+    def raw_data(self, engine: str, dataset: str, variant: str | None = None) -> Path:
+        return self.engine(engine, dataset) / variant_dir_name(RAW_DIR, variant)
 
-    def final(self, engine: str, dataset: str, extractor: str) -> Path:
-        return self.engine(engine, dataset) / "final" / slug(extractor)
+    def final(self, engine: str, dataset: str, extractor: str, variant: str | None = None) -> Path:
+        return self.engine(engine, dataset) / variant_dir_name(RESULT_DIR, variant) / slug(extractor)
 
     def visualize(self, engine: str, dataset: str) -> Path:
         return self.engine(engine, dataset) / "visualize"

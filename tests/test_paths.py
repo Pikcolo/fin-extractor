@@ -128,3 +128,12 @@ def test_section_and_experiment_paths_follow_the_data_layout(tmp_path):
     assert p.section_ocr("s", "001309") == tmp_path / "preprocess" / "s" / "default" / "sections" / "ocr" / "001309"
     assert p.experiments() == tmp_path / "etc" / "experiments" and p.experiments("openthai_sections") == tmp_path / "etc" / "experiments" / "openthai_sections"
     assert p.sections("../x").parent.parent.parent == tmp_path / "preprocess"  # ชื่อชุดข้อมูลไต่ขึ้นโฟลเดอร์แม่ไม่ได้
+
+
+def test_variant_result_dirs_sit_beside_the_plain_ones(tmp_path):
+    p = DataPaths({"paths": {"data_dir": str(tmp_path)}})
+    base = tmp_path / "result_ocr" / "openthai" / "s"
+    assert p.raw_data("openthai", "s") == base / "raw_data"
+    assert p.raw_data("openthai", "s", "luma") == base / "raw_data_luma"
+    assert p.final("openthai", "s", "rules", "bin") == base / "final_bin" / "rules"
+    assert p.final("openthai", "s", "rules") == base / "final" / "rules"

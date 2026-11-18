@@ -20,7 +20,7 @@ import numpy as np
 
 from .io import load_pages, read_image, save_image
 from .io.loader import page_count
-from .paths import doc_dir, find_dir
+from .paths import FINAL_DIR, STEPS_DIR, doc_dir, find_dir
 from .preprocessing import preprocess
 
 log = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ def prepared_pages(path: str | Path, cfg: dict[str, Any], profile_dir: Path, *, 
     ``nest``: เก็บภาพของไฟล์นี้ในโฟลเดอร์ย่อยชื่อไฟล์ใต้ final/ และ steps/ (รันที่มีไฟล์มาก ดู paths.nest_per_file)
     """
     path = Path(path)
-    final = find_dir(profile_dir / "final", path.stem)  # ที่ที่ภาพเก่า (ถ้ามี) อยู่
+    final = find_dir(profile_dir / FINAL_DIR, path.stem)  # ที่ที่ภาพเก่า (ถ้ามี) อยู่
     wanted = preprocess_settings(cfg)
     settings_path = profile_dir / SETTINGS_FILE
     stored = json.loads(settings_path.read_text(encoding="utf-8")) if settings_path.exists() else None
@@ -55,12 +55,12 @@ def prepared_pages(path: str | Path, cfg: dict[str, Any], profile_dir: Path, *, 
             raise ValueError(f"{profile_dir} ถูกสร้างด้วยตั้งค่า preprocess อื่น — ใช้ --profile ชื่อใหม่ "
                              "หรือ --force เพื่อล้างโฟลเดอร์ profile นี้แล้วทำใหม่")
         log.warning("ล้าง %s แล้วทำ preprocess ใหม่ (ตั้งค่าเปลี่ยน)", profile_dir)
-        shutil.rmtree(profile_dir / "final", ignore_errors=True)
-        shutil.rmtree(profile_dir / "steps", ignore_errors=True)
+        shutil.rmtree(profile_dir / FINAL_DIR, ignore_errors=True)
+        shutil.rmtree(profile_dir / STEPS_DIR, ignore_errors=True)
     profile_dir.mkdir(parents=True, exist_ok=True)
     settings_path.write_text(json.dumps(wanted, ensure_ascii=False, indent=2), encoding="utf-8")
-    final = doc_dir(profile_dir / "final", path.stem, nest)
-    steps_dir = doc_dir(profile_dir / "steps", path.stem, nest)
+    final = doc_dir(profile_dir / FINAL_DIR, path.stem, nest)
+    steps_dir = doc_dir(profile_dir / STEPS_DIR, path.stem, nest)
 
     for i, img in enumerate(load_pages(path, cfg["loader"]["pdf_dpi"]), start=1):
         res = preprocess(img, cfg["preprocessing"], keep_steps=steps, orientation=orientation)

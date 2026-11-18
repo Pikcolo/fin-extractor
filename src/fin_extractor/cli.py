@@ -24,7 +24,8 @@ from pathlib import Path
 from .config import load_config, resolve_path
 from .io import iter_input_files
 from .ocr import ENGINES
-from .paths import DEFAULT_PROFILE, DataPaths, dataset_of, doc_dir, find_dir, nest_per_file
+from .paths import (DEFAULT_PROFILE, FINAL_DIR, RAW_DIR, RESULT_DIR, DataPaths, dataset_of, doc_dir, find_dir, nest_per_file,
+                    variant_dir_name)
 from .runs import Run
 from .stages import load_raw, prepared_pages, raw_pages, save_raw
 from .vlm import VLM_ENGINES, create_reader, vlm_model
@@ -43,7 +44,7 @@ def cmd_preprocess(args, cfg) -> None:
         for f in files:
             for page_no, _img, meta in prepared_pages(f, cfg, pdir, steps=args.steps, force=args.force, nest=nest_per_file(len(files)),
                                                       orientation=args.orientation):
-                out = find_dir(pdir / "final", f.stem) / f"{f.stem}_p{page_no}.png"
+                out = find_dir(pdir / FINAL_DIR, f.stem) / f"{f.stem}_p{page_no}.png"
                 run.add(file=f.name, page=page_no, output=out.relative_to(run.dir).as_posix(), meta=meta)
                 print(f"{out}  {meta}")
                 if meta.get("orientation_error"):
@@ -64,7 +65,7 @@ def cmd_ocr(args, cfg) -> None:
     mode = "vlm" if args.engine in VLM_ENGINES else "ocr"
     label = engine_label(mode, args.engine)
     ext = "md" if mode == "vlm" else "txt"
-    raw_dir = Path(args.out) / "raw_data" if args.out else paths.raw_data(label, dataset)
+    raw_dir = Path(args.out) / RAW_DIR if args.out else paths.raw_data(label, dataset)
     pdir = paths.preprocess(dataset, args.profile)
     settings = {"engine": label, "profile": args.profile, **({"model": vlm_model(args.engine, cfg)} if mode == "vlm" else {})}
     with Run("ocr", args.input, cfg, raw_dir, settings) as run:
@@ -100,10 +101,9 @@ def cmd_extract(args, cfg) -> None:
     ext = "md" if args.mode == "vlm" else "txt"
     if args.variant and not args.reuse_raw:
         sys.exit("--variant ใช้กับ --reuse-raw เท่านั้น (อ่านข้อความดิบของ scripts/run_sections.py --variant ... ที่เก็บไว้ ไม่ใช่การอ่านสด)")
-    sfx = f"_{args.variant}" if args.variant else ""  # raw_data_<แบบ>/ และ final_<แบบ>/ ข้างผลปกติ ไม่ทับกัน
-    base = Path(args.out) if args.out else None
-    raw_dir = base / f"raw_data{sfx}" if base else paths.raw_data(label, dataset).with_name(f"raw_data{sfx}")
-    final_dir = base / f"final{sfx}" / extractor if base else paths.final(label, dataset, extractor).parents[1] / f"final{sfx}" / extractor
+    base = Path(args.out) if args.out else None  # raw_data_<แบบ>/ และ final_<แบบ>/ ข้างผลปกติ ไม่ทับกัน
+    raw_dir = base / variant_dir_name(RAW_DIR, args.variant) if base else paths.raw_data(label, dataset, args.variant)
+    final_dir = base / variant_dir_name(RESULT_DIR, args.variant) / extractor if base else paths.final(label, dataset, extractor, args.variant)
     pdir = paths.preprocess(dataset, args.profile)
     settings = {
         "mode": args.mode, "engine": pipe.engine_name, "profile": args.profile, "reuse_raw": args.reuse_raw,

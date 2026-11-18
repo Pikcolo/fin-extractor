@@ -36,7 +36,7 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from fin_extractor.paths import DataPaths, find_dir, font_path  # noqa: E402
+from fin_extractor.paths import FINAL_DIR, STEPS_DIR, DataPaths, find_dir, font_path  # noqa: E402
 
 P = DataPaths()
 DATASET = "finance_doc_scan"
@@ -81,7 +81,7 @@ def input_page(stem: str, source: str) -> Image.Image:
     if source == "pdf":
         return render_page(stem)
     name = f"{PREFIX}{stem}"
-    return Image.open(find_dir(PRE_DIR / "final", name) / f"{name}_p1.png").convert("RGB")
+    return Image.open(find_dir(PRE_DIR / FINAL_DIR, name) / f"{name}_p1.png").convert("RGB")
 
 
 def render_page(stem: str) -> Image.Image:
@@ -138,7 +138,7 @@ def preprocess_strip(stem: str) -> tuple[Image.Image | None, str]:
     imgs, labels = [], []
     for key, th in names:
         name = f"{PREFIX}{stem}"
-        p = find_dir(PRE_DIR / "steps", name) / f"{name}_p1_{'00_original' if key == 'original' else '01_color' if key == 'color' else '02_deskew'}.png"
+        p = find_dir(PRE_DIR / STEPS_DIR, name) / f"{name}_p1_{'00_original' if key == 'original' else '01_color' if key == 'color' else '02_deskew'}.png"
         if p.exists():
             imgs.append(Image.open(p).convert("RGB"))
             labels.append(key)
