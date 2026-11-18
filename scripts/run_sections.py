@@ -184,7 +184,7 @@ def main() -> None:
         sys.exit(f"ไม่พบผังแบ่งใน {features_dir} — รัน notebook/lab ก่อน")
 
     # color = ที่เดิม (raw_data) · luma/flat = raw_data_<variant> ข้างกัน: เทียบกันได้โดยไม่ทับ และ "มีผลแล้วให้ข้าม" นับแยกตามแบบ
-    raw_dir = paths.raw_data(args.engine, dataset, None if args.variant == "color" else args.variant)
+    raw_dir = paths.raw_data(args.engine, dataset, args.variant)
     if args.markdown_only:
         for stem in stems:
             src = doc_dir(raw_dir, stem, nest=True) / f"{stem}_p1.sections.json"

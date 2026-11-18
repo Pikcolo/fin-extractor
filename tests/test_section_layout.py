@@ -83,11 +83,11 @@ def test_make_section_layouts_script_writes_layout_and_keeps_notebook_keys(tmp_p
     from fin_extractor.io import save_image
 
     (tmp_path / "ds").mkdir()  # dataset_of ใช้ชื่อโฟลเดอร์อินพุต
-    final = tmp_path / "data" / "preprocess" / "ds" / "default" / "final" / "doc1"
+    final = tmp_path / "data" / "02_preprocess" / "ds" / "default" / "final" / "doc1"
     save_image(final / "doc1_p1.png", cv2.cvtColor(_page(), cv2.COLOR_GRAY2BGR))
     cfg = tmp_path / "cfg.yaml"
     cfg.write_text(f"paths:\n  data_dir: {(tmp_path / 'data').as_posix()}\n", encoding="utf-8")
-    out = tmp_path / "data" / "preprocess" / "ds" / "default" / "sections" / "features"
+    out = tmp_path / "data" / "03_sections" / "ds" / "default" / "layout"
     out.mkdir(parents=True)
     (out / "doc1.json").write_text(json.dumps({"verdict": "ok", "layout_sections": [{"old": 1}]}), encoding="utf-8")
 

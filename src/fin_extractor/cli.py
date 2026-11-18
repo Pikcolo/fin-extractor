@@ -1,12 +1,13 @@
 """Command line: ``python -m fin_extractor <command> ...``
 
   preprocess  ปรับภาพแล้วเก็บภาพสุดท้ายไว้ให้ทุก engine ใช้ร่วมกัน (ดูผลทีละขั้นด้วย --steps)
-  ocr         อ่านข้อความดิบด้วย OCR engine หรือ VLM แล้วเก็บเป็น raw_data
+  ocr         อ่านข้อความดิบด้วย OCR engine หรือ VLM แล้วเก็บที่ 04_ocr
   extract     pipeline เต็ม → JSON ตาม schema (--reuse-raw = สกัดซ้ำจากข้อความดิบที่เก็บไว้ ไม่เรียก OCR)
   schema      export JSON Schema
 
 ผลอยู่ใต้ data/ ตามโครงใน fin_extractor/paths.py:
-  preprocess/<dataset>/<profile>/{final,steps}/    result_ocr/<engine>/<dataset>/{raw_data,final/<extractor>}/
+  02_preprocess/<dataset>/<profile>/{final,steps}/   04_ocr/<dataset>/<engine>/<วิธี>/   05_extract/<dataset>/<engine>/<วิธี>/<extractor>/
+  (วิธี = page อ่านทั้งหน้า · luma|flat|bin|color อ่านทีละ section) ขั้น 03_sections ทำด้วย scripts/ (ดู docs/14)
 (รันที่มีไฟล์อินพุตเกิน 2 ไฟล์ ผลแต่ละไฟล์อยู่ในโฟลเดอร์ย่อยชื่อไฟล์ ดู paths.nest_per_file)
 พร้อม manifest.json (รายละเอียดดู fin_extractor/runs.py)
 """
@@ -24,15 +25,14 @@ from pathlib import Path
 from .config import load_config, resolve_path
 from .io import iter_input_files
 from .ocr import ENGINES
-from .paths import (DEFAULT_PROFILE, FINAL_DIR, RAW_DIR, RESULT_DIR, DataPaths, dataset_of, doc_dir, find_dir, nest_per_file,
-                    variant_dir_name)
+from .paths import DEFAULT_PROFILE, FINAL_DIR, DataPaths, dataset_of, doc_dir, find_dir, nest_per_file, variant_of
 from .runs import Run
 from .stages import load_raw, prepared_pages, raw_pages, save_raw
 from .vlm import VLM_ENGINES, create_reader, vlm_model
 
 
 def engine_label(mode: str, engine: str) -> str:
-    """ชื่อโฟลเดอร์ engine ใน result_ocr/ (mode vlm: --engine paddle/vlm = typhoon, openthai = openthai)."""
+    """ชื่อโฟลเดอร์ engine ใน 04_ocr/ และ 05_extract/ (mode vlm: --engine paddle/vlm = typhoon, openthai = openthai)."""
     return VLM_ENGINES.get(engine, "typhoon") if mode == "vlm" else engine
 
 
@@ -65,7 +65,7 @@ def cmd_ocr(args, cfg) -> None:
     mode = "vlm" if args.engine in VLM_ENGINES else "ocr"
     label = engine_label(mode, args.engine)
     ext = "md" if mode == "vlm" else "txt"
-    raw_dir = Path(args.out) / RAW_DIR if args.out else paths.raw_data(label, dataset)
+    raw_dir = Path(args.out) / "04_ocr" / variant_of(None) if args.out else paths.raw_data(label, dataset)
     pdir = paths.preprocess(dataset, args.profile)
     settings = {"engine": label, "profile": args.profile, **({"model": vlm_model(args.engine, cfg)} if mode == "vlm" else {})}
     with Run("ocr", args.input, cfg, raw_dir, settings) as run:
@@ -102,8 +102,8 @@ def cmd_extract(args, cfg) -> None:
     if args.variant and not args.reuse_raw:
         sys.exit("--variant ใช้กับ --reuse-raw เท่านั้น (อ่านข้อความดิบของ scripts/run_sections.py --variant ... ที่เก็บไว้ ไม่ใช่การอ่านสด)")
     base = Path(args.out) if args.out else None  # raw_data_<แบบ>/ และ final_<แบบ>/ ข้างผลปกติ ไม่ทับกัน
-    raw_dir = base / variant_dir_name(RAW_DIR, args.variant) if base else paths.raw_data(label, dataset, args.variant)
-    final_dir = base / variant_dir_name(RESULT_DIR, args.variant) / extractor if base else paths.final(label, dataset, extractor, args.variant)
+    raw_dir = base / "04_ocr" / variant_of(args.variant) if base else paths.raw_data(label, dataset, args.variant)
+    final_dir = base / "05_extract" / variant_of(args.variant) / extractor if base else paths.final(label, dataset, extractor, args.variant)
     pdir = paths.preprocess(dataset, args.profile)
     settings = {
         "mode": args.mode, "engine": pipe.engine_name, "profile": args.profile, "reuse_raw": args.reuse_raw,
@@ -187,7 +187,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("input")
     s.add_argument("--engine", choices=[*ENGINES, *VLM_ENGINES], default="paddle")
     profile_arg(s)
-    s.add_argument("--out", help="โฟลเดอร์ engine เอง (ค่าตั้งต้น data/result_ocr/<engine>/<dataset>) ข้อความดิบอยู่ใต้ raw_data/")
+    s.add_argument("--out", help="โฟลเดอร์ปลายทางเอง (ค่าตั้งต้น data/04_ocr/<dataset>/<engine>/ และ data/05_extract/<dataset>/<engine>/) ข้อความดิบอยู่ใต้ raw_data/")
     s.set_defaults(func=cmd_ocr)
 
     s = sub.add_parser("extract", help="สกัด field → JSON")
@@ -205,7 +205,7 @@ def build_parser() -> argparse.ArgumentParser:
                    help="ใช้กับ --reuse-raw: อ่านข้อความดิบจาก raw_data_<แบบ>/ (ผลของ scripts/run_sections.py --variant) แล้วเขียนผลที่ final_<แบบ>/<extractor>/ "
                         "ไม่ใส่ = raw_data/ และ final/ ตามปกติ")
     s.add_argument("--keep-raw", action="store_true", help="เก็บข้อความดิบใน JSON ผลสุดท้ายด้วย")
-    s.add_argument("--out", help="โฟลเดอร์ engine เอง (ค่าตั้งต้น data/result_ocr/<engine>/<dataset>) ผลอยู่ใต้ raw_data/ และ final/<extractor>/")
+    s.add_argument("--out", help="โฟลเดอร์ปลายทางเอง (ค่าตั้งต้น data/04_ocr/<dataset>/<engine>/ และ data/05_extract/<dataset>/<engine>/) ผลอยู่ใต้ raw_data/ และ final/<extractor>/")
     s.set_defaults(func=cmd_extract)
 
     s = sub.add_parser("schema", help="export JSON Schema")

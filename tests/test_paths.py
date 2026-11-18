@@ -13,12 +13,12 @@ def paths(tmp_path, **folders):
 
 def test_layout_follows_stage_then_engine(tmp_path):
     p = paths(tmp_path)
-    assert p.raw("finance_doc_scan") == tmp_path / "raw" / "finance_doc_scan"
-    assert p.preprocess("scans") == tmp_path / "preprocess" / "scans" / "default"
-    assert p.preprocess_final("scans", "crop") == tmp_path / "preprocess" / "scans" / "crop" / "final"
-    assert p.raw_data("paddle", "scans") == tmp_path / "result_ocr" / "paddle" / "scans" / "raw_data"
-    assert p.final("typhoon", "scans", "llm") == tmp_path / "result_ocr" / "typhoon" / "scans" / "final" / "llm"
-    assert p.visualize("oxr", "scans") == tmp_path / "result_ocr" / "oxr" / "scans" / "visualize"
+    assert p.raw("finance_doc_scan") == tmp_path / "01_input" / "finance_doc_scan"
+    assert p.preprocess("scans") == tmp_path / "02_preprocess" / "scans" / "default"
+    assert p.preprocess_final("scans", "crop") == tmp_path / "02_preprocess" / "scans" / "crop" / "final"
+    assert p.raw_data("paddle", "scans") == tmp_path / "04_ocr" / "scans" / "paddle" / "page"
+    assert p.final("typhoon", "scans", "llm") == tmp_path / "05_extract" / "scans" / "typhoon" / "page" / "llm"
+    assert p.visualize("oxr", "scans") == tmp_path / "04_ocr" / "scans" / "oxr" / "visualize"
     assert p.benchmarks() == tmp_path / "etc" / "benchmarks" and p.compare("1312") == tmp_path / "etc" / "compare" / "1312"
     assert p.reports("oxr_why") == tmp_path / "reports" / "oxr_why" and p.reports() == tmp_path / "reports"
 
@@ -26,8 +26,9 @@ def test_layout_follows_stage_then_engine(tmp_path):
 def test_one_engine_or_extractor_is_one_folder(tmp_path):
     p = paths(tmp_path)
     final = p.final("typhoon", "scans", "rules")
-    assert final.parent.parent == p.engine("typhoon", "scans")  # ลบ engine = ลบโฟลเดอร์ engine/dataset เดียว
-    assert p.final("typhoon", "scans", "llm").parent == final.parent  # rules กับ llm อยู่ใต้ final/ ด้วยกัน แยกกันลบได้
+    assert final.parent.parent == tmp_path / "05_extract" / "scans" / "typhoon"  # ลบ engine = ลบโฟลเดอร์ engine เดียวต่อขั้น
+    assert p.raw_data("typhoon", "scans").parent == p.ocr_engine("typhoon", "scans")
+    assert p.final("typhoon", "scans", "llm").parent == final.parent  # rules กับ llm อยู่ใต้วิธีเดียวกัน แยกกันลบได้
     assert p.raw_data("typhoon", "scans") != final  # ข้อความดิบแยกจากผลสุดท้าย (OCR ครั้งเดียว สกัดได้หลายแบบ)
 
 
@@ -48,21 +49,21 @@ def test_dataset_is_the_input_folder_name(tmp_path):
 
 
 def test_top_level_folder_names_can_be_overridden(tmp_path):
-    p = paths(tmp_path, result_ocr="ocr_results")
-    assert p.engine("paddle", "s") == tmp_path / "ocr_results" / "paddle" / "s"
+    p = paths(tmp_path, ocr="ocr_results")
+    assert p.ocr_engine("paddle", "s") == tmp_path / "ocr_results" / "s" / "paddle"
 
 
 def test_config_defaults_to_data_dir_from_default_yaml():
     from fin_extractor.config import load_config
 
     p = DataPaths(load_config())
-    assert p.root == ROOT / "data" and p.final("paddle", "s", "rules") == ROOT / "data" / "result_ocr" / "paddle" / "s" / "final" / "rules"
+    assert p.root == ROOT / "data" and p.final("paddle", "s", "rules") == ROOT / "data" / "05_extract" / "s" / "paddle" / "page" / "rules"
 
 
 def test_gitignore_blocks_everything_under_data_except_keepfiles():
     rules = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
     assert "data/**" in rules and "!data/**/.gitkeep" in rules  # ข้อมูลจริง (ภาษี/ส่วนบุคคล) ห้ามเข้า git
-    for folder in ("raw", "preprocess", "result_ocr", "etc/benchmarks", "etc/compare", "etc/experiments", "reports"):
+    for folder in ("01_input", "02_preprocess", "03_sections", "04_ocr", "05_extract", "etc/benchmarks", "etc/compare", "etc/experiments", "reports"):
         assert (ROOT / "data" / folder / ".gitkeep").exists(), folder
 
 
@@ -118,22 +119,22 @@ def test_no_machine_specific_absolute_paths_in_code():
 
 def test_section_and_experiment_paths_follow_the_data_layout(tmp_path):
     p = DataPaths({"paths": {"data_dir": str(tmp_path)}})
-    assert p.sections("finance_doc_scan") == tmp_path / "preprocess" / "finance_doc_scan" / "default" / "sections"
-    assert p.sections("s", "alt") == tmp_path / "preprocess" / "s" / "alt" / "sections"
-    assert p.section_features("s") == tmp_path / "preprocess" / "s" / "default" / "sections" / "features"
-    assert p.section_clean("s", "001309") == tmp_path / "preprocess" / "s" / "default" / "sections" / "clean" / "001309"
-    assert p.section_clean("s") == tmp_path / "preprocess" / "s" / "default" / "sections" / "clean"
-    assert p.section_clean("s", "001309", "bin") == tmp_path / "preprocess" / "s" / "default" / "sections" / "clean" / "bin" / "001309"
-    assert p.section_router("s") == tmp_path / "preprocess" / "s" / "default" / "sections" / "router"
-    assert p.section_ocr("s", "001309") == tmp_path / "preprocess" / "s" / "default" / "sections" / "ocr" / "001309"
+    base = tmp_path / "03_sections" / "s" / "default"
+    assert p.sections("finance_doc_scan") == tmp_path / "03_sections" / "finance_doc_scan" / "default"
+    assert p.sections("s", "alt") == tmp_path / "03_sections" / "s" / "alt"
+    assert p.section_layout("s") == base / "layout" and p.section_features("s") == base / "layout"
+    assert p.section_images("s", "001309") == base / "images" / "001309"
+    assert p.section_images("s") == base / "images"
+    assert p.section_images("s", "001309", "bin") == base / "images" / "bin" / "001309" and p.section_clean("s", "001309", "bin") == base / "images" / "bin" / "001309"
+    assert p.section_router("s") == base / "router"
+    assert p.section_ocr("s", "001309") == base / "ocr_images" / "001309"
     assert p.experiments() == tmp_path / "etc" / "experiments" and p.experiments("openthai_sections") == tmp_path / "etc" / "experiments" / "openthai_sections"
-    assert p.sections("../x").parent.parent.parent == tmp_path / "preprocess"  # ชื่อชุดข้อมูลไต่ขึ้นโฟลเดอร์แม่ไม่ได้
+    assert p.sections("../x").parent.parent == tmp_path / "03_sections"  # ชื่อชุดข้อมูลไต่ขึ้นโฟลเดอร์แม่ไม่ได้
 
 
-def test_variant_result_dirs_sit_beside_the_plain_ones(tmp_path):
+def test_variant_is_a_folder_level_under_engine_in_ocr_and_extract(tmp_path):
     p = DataPaths({"paths": {"data_dir": str(tmp_path)}})
-    base = tmp_path / "result_ocr" / "openthai" / "s"
-    assert p.raw_data("openthai", "s") == base / "raw_data"
-    assert p.raw_data("openthai", "s", "luma") == base / "raw_data_luma"
-    assert p.final("openthai", "s", "rules", "bin") == base / "final_bin" / "rules"
-    assert p.final("openthai", "s", "rules") == base / "final" / "rules"
+    assert p.raw_data("openthai", "s") == tmp_path / "04_ocr" / "s" / "openthai" / "page"  # อ่านทั้งหน้า
+    assert p.raw_data("openthai", "s", "luma") == tmp_path / "04_ocr" / "s" / "openthai" / "luma"
+    assert p.final("openthai", "s", "rules", "bin") == tmp_path / "05_extract" / "s" / "openthai" / "bin" / "rules"
+    assert p.final("openthai", "s", "rules") == tmp_path / "05_extract" / "s" / "openthai" / "page" / "rules"

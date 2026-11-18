@@ -1,30 +1,27 @@
 """ตำแหน่งเก็บข้อมูลทั้งหมดของโปรเจกต์ (ที่เดียว) — โค้ดและสคริปต์ต้องถามจากที่นี่ ไม่ฝังพาธเอง.
 
-โครง (ทุกอย่างใต้ ``paths.data_dir`` ใน config ค่าตั้งต้น ``data/`` และ ``.gitignore`` ไม่ให้ commit อะไรใต้นี้เลย เพราะมาจากเอกสารจริง)
+โฟลเดอร์ตั้งชื่อตามลำดับขั้น เปิดดูไล่ตามเลขได้เลย (ทุกอย่างใต้ ``paths.data_dir`` ใน config ค่าตั้งต้น ``data/``
+และ ``.gitignore`` ไม่ให้ commit อะไรใต้นี้ เพราะมาจากเอกสารจริง) ทุกขั้นใช้ชื่อชุดข้อมูล ``<dataset>`` และชื่อไฟล์ ``<ไฟล์>`` เหมือนกัน
+ไฟล์เดียวจึงตามดูข้ามขั้นได้ด้วยชื่อเดียว
 
-    raw/<dataset>/                              ไฟล์อินพุต
-    preprocess/<dataset>/<profile>/             ผลของ preprocess ชุดตั้งค่าหนึ่ง (profile)
+    01_input/<dataset>/                          ไฟล์อินพุต (.pdf .jpg .png)
+    02_preprocess/<dataset>/<profile>/           preprocess ชุดตั้งค่าหนึ่ง (profile)
         steps/        ภาพทีละขั้น (เมื่อใส่ --steps)
-        final/        ภาพสุดท้ายที่ส่งต่อให้ OCR/VLM ทุกตัว
-        sections/     ผลแบ่งหน้าเป็นภาพย่อย (section) จาก final/ (ผลของ pipeline ไม่ใช่การทดลอง)
-            features/<ไฟล์>.json   ลักษณะภาพ, ผลวัด edge/threshold, ผังการแบ่ง section, ผลตัดสินด้วยตา (notebooks/preprocess_lab/)
-            clean/<วิธี>/<ไฟล์>/   ภาพย่อยที่ทำความสะอาดแล้วของ section ที่ keep แยกโฟลเดอร์ตามวิธี (luma | flat | bin): sNN.png + index.json
-            ocr/<ไฟล์>/            ภาพย่อยพร้อม OCR: เฉพาะส่วนที่ router เก็บ (กล่องครอบเหลือแต่ส่วนนอกส่วนย่อย) ไฟล์ละ 2 แบบ + index.json
-            router/                ผล router คัดภาพย่อยก่อน OCR: <ไฟล์>.json (ข้อความคัดกรอง + keep/drop + เหตุผล), <ไฟล์>_overlay.png
-    result_ocr/<engine>/<dataset>/              ผลของตัวอ่านหนึ่งตัว (paddle, typhoon, oxr)
-        raw_data/     ข้อความดิบจาก OCR (.txt/.md) เขียนครั้งเดียวต่อ engine
-        final/<extractor>/   ผลตาม schema (.json) extractor = rules | llm
-        visualize/    ภาพให้ดูว่าอ่านอย่างไร
-    etc/benchmarks/  etc/compare/               งานทดสอบ/เปรียบเทียบที่ข้าม engine/ข้ามไฟล์
-    etc/experiments/<ชื่อ>/                     การทดลองครั้งเดียวที่ไม่ใช่ส่วนของ pipeline (etc ไว้ทดลองนอกรอบเท่านั้น ไม่เก็บผลของ pipeline)
-    reports/                                    รายงานภาพ
+        final/        ภาพสุดท้ายที่ส่งต่อให้ทุกขั้นถัดไป
+    03_sections/<dataset>/<profile>/             แบ่งหน้าเป็นส่วน (section) จาก final/ ไว้ดู/debug
+        layout/<ไฟล์>.json         ผังการแบ่ง (bbox, ชนิด, keep) + ลักษณะภาพ ·  <ไฟล์>_layout.png ภาพตรวจด้วยตา
+        images/<วิธี>/<ไฟล์>/      ภาพส่วนที่เตรียมก่อน OCR: sNN.png + index.json  (วิธี = luma | flat | bin)
+    04_ocr/<dataset>/<engine>/                   ข้อความจาก OCR ของตัวอ่านหนึ่งตัว (paddle, typhoon, openthai, oxr)
+        <วิธี>/<ไฟล์>/   ``page`` = อ่านทั้งหน้า · ``luma|flat|bin|color`` = อ่านทีละ section (มี .sections.json .md .chunks.json)
+        visualize/       ภาพให้ดูว่าอ่านอย่างไร
+    05_extract/<dataset>/<engine>/<วิธี>/<extractor>/<ไฟล์>_p<หน้า>.json   ผลตาม schema extractor = rules | llm | hybrid
+    etc/benchmarks/  etc/compare/                งานทดสอบ/เปรียบเทียบที่ข้าม engine/ข้ามไฟล์
+    etc/experiments/<ชื่อ>/                      การทดลองครั้งเดียวที่ไม่ใช่ส่วนของ pipeline
+    reports/                                     รายงานภาพ
 
-ถ้ารันหนึ่งครั้งมีไฟล์อินพุตมากกว่า ``NEST_OVER`` (2) ไฟล์ ผลของแต่ละไฟล์ (preprocess/final/steps, raw_data, final/<extractor>)
-จะอยู่ในโฟลเดอร์ย่อยชื่อไฟล์ เช่น ``raw_data/001312/001312_p1.txt`` เพื่อดูทีละไฟล์ง่าย ถ้าไม่เกินก็วางตรง ๆ ใต้โฟลเดอร์นั้น
-ผู้เขียนใช้ ``doc_dir`` ผู้อ่านใช้ ``find_dir`` (รับได้ทั้งสองแบบ จึงอ่านผลที่ปนกันได้)
-
-``<dataset>`` คือชื่อโฟลเดอร์อินพุต (ไฟล์เดี่ยวใช้ชื่อโฟลเดอร์ที่ไฟล์อยู่) ชื่อไฟล์ผลใช้ ``<ไฟล์>_p<หน้า>`` เหมือนกันทุกขั้น
-จึงดูไฟล์เดียวข้ามขั้น/ข้าม engine ได้ด้วยชื่อเดียว ลบ engine หรือ extractor ที่ไม่ใช้ = ลบโฟลเดอร์เดียว
+ถ้ารันหนึ่งครั้งมีไฟล์อินพุตมากกว่า ``NEST_OVER`` (2) ไฟล์ ผลของแต่ละไฟล์จะอยู่ในโฟลเดอร์ย่อยชื่อไฟล์ ถ้าไม่เกินก็วางตรง ๆ
+ผู้เขียนใช้ ``doc_dir`` ผู้อ่านใช้ ``find_dir`` (รับได้ทั้งสองแบบ) ชื่อไฟล์ผลใช้ ``<ไฟล์>_p<หน้า>`` เหมือนกันทุกขั้น
+ลบผลของ engine หรือวิธีที่ไม่ใช้ = ลบโฟลเดอร์ ``<engine>``/``<วิธี>`` ใน 04_ocr และ 05_extract
 """
 
 from __future__ import annotations
@@ -39,9 +36,11 @@ FONT_DIR = "assets/fonts"
 MODEL_DIR = "models"
 
 DEFAULT_FOLDERS = {
-    "raw": "raw",
-    "preprocess": "preprocess",
-    "result_ocr": "result_ocr",
+    "raw": "01_input",
+    "preprocess": "02_preprocess",
+    "sections": "03_sections",
+    "ocr": "04_ocr",
+    "extract": "05_extract",
     "benchmarks": "etc/benchmarks",
     "compare": "etc/compare",
     "experiments": "etc/experiments",
@@ -51,15 +50,16 @@ DEFAULT_PROFILE = "default"
 NEST_OVER = 2  # รันที่มีไฟล์อินพุตเกินจำนวนนี้ → โฟลเดอร์ย่อยต่อไฟล์
 
 # ชื่อโฟลเดอร์ย่อยที่เขียนซ้ำหลายที่ — ให้ที่เดียว (โค้ดอื่นห้ามเขียนสตริงเหล่านี้เอง)
-FINAL_DIR = "final"  # ภาพ preprocess สุดท้ายใต้ preprocess/<dataset>/<profile>/
+FINAL_DIR = "final"  # ภาพ preprocess สุดท้ายใต้ 02_preprocess/<dataset>/<profile>/
 STEPS_DIR = "steps"  # ภาพ preprocess ทีละขั้น
-RAW_DIR = "raw_data"  # ข้อความดิบจาก OCR ใต้ result_ocr/<engine>/<dataset>/
-RESULT_DIR = "final"  # ผลตาม schema ใต้ result_ocr/<engine>/<dataset>/ (ต่อด้วย <extractor>/)
+LAYOUT_DIR = "layout"  # ผังแบ่ง section ใต้ 03_sections/<dataset>/<profile>/
+IMAGES_DIR = "images"  # ภาพส่วนที่เตรียมก่อน OCR (images/<วิธี>/<ไฟล์>/)
+PAGE = "page"  # "วิธี" ของผลที่อ่านทั้งหน้า (ไม่แบ่ง section) ใต้ 04_ocr/…/<engine>/ และ 05_extract/…/<engine>/
 
 
-def variant_dir_name(base: str, variant: str | None = None) -> str:
-    """ชื่อโฟลเดอร์ของผลที่แยกตามวิธีเตรียมภาพ (``raw_data_luma``, ``final_bin``) ไม่ใส่วิธี = ชื่อเดิม."""
-    return f"{base}_{variant}" if variant else base
+def variant_of(variant: str | None) -> str:
+    """ชื่อโฟลเดอร์ระดับ <วิธี>: อ่านทั้งหน้า = ``page`` นอกนั้นคือวิธีเตรียมภาพของ section (luma | flat | bin | color)."""
+    return variant or PAGE
 
 
 def slug(text: str) -> str:
@@ -127,18 +127,20 @@ class DataPaths:
     def preprocess_final(self, dataset: str, profile: str = DEFAULT_PROFILE) -> Path:
         return self.preprocess(dataset, profile) / FINAL_DIR
 
-    # ผลของตัวอ่าน
-    def engine(self, engine: str, dataset: str) -> Path:
-        return self._top("result_ocr") / slug(engine) / slug(dataset)
+    # ผลของตัวอ่าน (04_ocr) และผลสกัด (05_extract) — โครงเดียวกัน <dataset>/<engine>/<วิธี>/
+    def ocr_engine(self, engine: str, dataset: str) -> Path:
+        return self._top("ocr") / slug(dataset) / slug(engine)
 
     def raw_data(self, engine: str, dataset: str, variant: str | None = None) -> Path:
-        return self.engine(engine, dataset) / variant_dir_name(RAW_DIR, variant)
+        """ข้อความดิบจาก OCR: ``04_ocr/<dataset>/<engine>/<วิธี>/`` (วิธี = page เมื่ออ่านทั้งหน้า)."""
+        return self.ocr_engine(engine, dataset) / variant_of(variant)
 
     def final(self, engine: str, dataset: str, extractor: str, variant: str | None = None) -> Path:
-        return self.engine(engine, dataset) / variant_dir_name(RESULT_DIR, variant) / slug(extractor)
+        """ผลตาม schema: ``05_extract/<dataset>/<engine>/<วิธี>/<extractor>/``."""
+        return self._top("extract") / slug(dataset) / slug(engine) / variant_of(variant) / slug(extractor)
 
     def visualize(self, engine: str, dataset: str) -> Path:
-        return self.engine(engine, dataset) / "visualize"
+        return self.ocr_engine(engine, dataset) / "visualize"
 
     # ข้ามengine / ข้ามไฟล์
     def benchmarks(self) -> Path:
@@ -147,13 +149,24 @@ class DataPaths:
     def compare(self, name: str | None = None) -> Path:
         return self._top("compare") / slug(name) if name else self._top("compare")
 
-    # ผลขั้นแบ่ง section (อยู่ใต้ preprocess/<dataset>/<profile>/sections/ เพราะตัดจากภาพ final/ ของ profile นั้น)
+    # ผลขั้นแบ่ง section: 03_sections/<dataset>/<profile>/ (ตัดจากภาพ final/ ของ profile นั้น)
     def sections(self, dataset: str, profile: str = DEFAULT_PROFILE) -> Path:
-        return self.preprocess(dataset, profile) / "sections"
+        return self._top("sections") / slug(dataset) / slug(profile)
 
-    def section_features(self, dataset: str, profile: str = DEFAULT_PROFILE) -> Path:
-        """ผลของ notebook เช็ค preprocess: ``<ไฟล์>.json`` (ลักษณะภาพ + ผังแบ่ง section)"""
-        return self.sections(dataset, profile) / "features"
+    def section_layout(self, dataset: str, profile: str = DEFAULT_PROFILE) -> Path:
+        """ผังแบ่ง section: ``<ไฟล์>.json`` (ลักษณะภาพ + ``layout_sections``) และ ``<ไฟล์>_layout.png`` ภาพตรวจด้วยตา"""
+        return self.sections(dataset, profile) / LAYOUT_DIR
+
+    def section_images(self, dataset: str, stem: str | None = None, variant: str | None = None, profile: str = DEFAULT_PROFILE) -> Path:
+        """ภาพส่วนที่เตรียมก่อน OCR ``images/<วิธี>/<ไฟล์>/`` (สร้างด้วย scripts/make_clean_sections.py) วิธี = luma | flat | bin"""
+        base = self.sections(dataset, profile) / IMAGES_DIR
+        if variant:
+            base = base / variant
+        return base / slug(stem) if stem else base
+
+    # ชื่อเดิม (ใช้ในสคริปต์/notebook ที่ยังไม่ย้าย)
+    section_features = section_layout
+    section_clean = section_images
 
     def section_router(self, dataset: str, profile: str = DEFAULT_PROFILE) -> Path:
         """ผลของ router คัดภาพย่อยก่อน OCR: ``<ไฟล์>.json`` (ข้อความคัดกรอง + การตัดสินใจ) และ ``<ไฟล์>_overlay.png``"""
@@ -161,14 +174,7 @@ class DataPaths:
 
     def section_ocr(self, dataset: str, stem: str | None = None, profile: str = DEFAULT_PROFILE) -> Path:
         """ภาพย่อยพร้อม OCR: เฉพาะส่วนที่ router เก็บ (กล่องครอบถูกลบส่วนย่อยออกเหลือส่วนที่เหลือ) สร้างด้วย scripts/make_ocr_sections.py"""
-        base = self.sections(dataset, profile) / "ocr"
-        return base / slug(stem) if stem else base
-
-    def section_clean(self, dataset: str, stem: str | None = None, variant: str | None = None, profile: str = DEFAULT_PROFILE) -> Path:
-        """ภาพย่อยที่ทำความสะอาดแล้ว ``clean/<วิธี>/<ไฟล์>/`` (สร้างด้วย scripts/make_clean_sections.py) วิธี = luma | flat | bin"""
-        base = self.sections(dataset, profile) / "clean"
-        if variant:
-            base = base / variant
+        base = self.sections(dataset, profile) / "ocr_images"
         return base / slug(stem) if stem else base
 
     def experiments(self, name: str | None = None) -> Path:

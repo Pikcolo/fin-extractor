@@ -8,7 +8,7 @@ CFG = {"preprocessing": {"deskew": True}}
 
 
 def test_manifest_records_run_into_the_given_folder(tmp_path):
-    out = tmp_path / "result_ocr" / "typhoon" / "scans" / "final" / "llm"
+    out = tmp_path / "05_extract" / "scans" / "typhoon" / "page" / "llm"
     with Run("extract", tmp_path, CFG, out, settings={"mode": "vlm"}) as run:
         run.sub("extra")
         run.add(file="a.pdf", page=1, status="needs_review", output="a_p1.json")
