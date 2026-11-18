@@ -103,3 +103,33 @@ def test_preprocess_meta_survives_cached_reads_and_orientation_flags_list_the_ba
     meta_path_of(image).write_text(json.dumps({"orientation": 0, "orientation_error": "OSError: cudnn"}), encoding="utf-8")
     assert orientation_flags(paths, "ds", ["doc1"]) == [("doc1", "OSError: cudnn")]
     assert orientation_flags(paths, "ds", ["other"]) == []
+
+
+def test_compare_flags_rows_that_are_not_comparable_and_totals_skip_them(tmp_path):
+    import json
+    import os
+
+    from fin_extractor.sections.compare import compare_variants, to_markdown
+
+    paths = DataPaths({"paths": {"data_dir": str(tmp_path)}})
+    layout = paths.section_layout("ds")
+    layout.mkdir(parents=True)
+    (layout / "a.json").write_text("{}", encoding="utf-8")
+    (layout / "b.json").write_text("{}", encoding="utf-8")
+    fp = {"a": [["s00", [0, 0, 1, 1]]], "b": [["s00", [0, 0, 1, 1]]]}
+    for v, a_missing, b_layout in (("luma", ["x"], fp["b"]), ("bin", [], [["s00", [0, 9, 1, 1]]])):  # bin ใช้ผังของ b ต่างจาก luma
+        out = paths.final("openthai", "ds", "rules", v)
+        out.mkdir(parents=True)
+        files = [{"file": f"{s}.pdf", "status": "needs_review", "missing_fields": a_missing if s == "a" else [], "checks_failed": 0} for s in ("a", "b")]
+        (out / "manifest.json").write_text(json.dumps({"files": files}), encoding="utf-8")
+        raw = paths.raw_data("openthai", "ds", v)
+        for s in ("a", "b"):
+            d = raw / s
+            d.mkdir(parents=True)
+            (d / f"{s}_p1.sections.json").write_text(json.dumps({"layout": fp["a"] if s == "a" else b_layout}), encoding="utf-8")
+            os.utime(d / f"{s}_p1.sections.json", (9e9, 9e9))  # ใหม่กว่าผังเสมอ
+    result = compare_variants(paths, "ds", "openthai", ("luma", "bin"))
+    by = {r["file"]: r["flags"] for r in result["rows"]}
+    assert by["a"] == [] and by["b"] == ["ผังต่างกัน"]
+    assert result["comparable"] == 1 and result["totals"]["luma"]["missing"] == 1 and result["totals"]["bin"]["missing"] == 0
+    assert "ผังต่างกัน" in to_markdown(result)

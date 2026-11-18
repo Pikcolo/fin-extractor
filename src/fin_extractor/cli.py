@@ -216,6 +216,18 @@ def cmd_sections(args, cfg) -> None:
     print(f"\nผลอยู่ที่ {paths.raw_data(args.engine, dataset, args.variant)} และ {paths.final(args.engine, dataset, 'rules', args.variant)}")
 
 
+def cmd_compare(args, cfg) -> None:
+    """เทียบผลสกัดข้ามวิธี (luma/flat/bin) แถวที่เทียบไม่แฟร์ถูกติดธงและไม่นับในยอดรวม (ดู sections/compare.py)."""
+    from .sections.compare import compare_variants, to_markdown
+
+    paths, dataset = DataPaths(cfg), dataset_of(args.input)
+    result = compare_variants(paths, dataset, args.engine, tuple(args.variants))
+    text = to_markdown(result)
+    print(text)
+    if args.out:
+        Path(args.out).write_text(text + "\n", encoding="utf-8")
+
+
 def cmd_schema(args, cfg) -> None:
     from .schema import ExtractionResult
 
@@ -292,6 +304,13 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--drop-empty-rows", action="store_true", help="แบบ bin เท่านั้น: ลบแถวตารางที่ช่องตัวเลขว่าง (ดู docs/14)")
     profile_arg(s)
     s.set_defaults(func=cmd_sections)
+
+    s = sub.add_parser("compare", help="เทียบผลสกัดข้ามวิธี luma/flat/bin (ติดธงแถวที่เทียบไม่แฟร์)")
+    s.add_argument("input", help="โฟลเดอร์อินพุต (ใช้เอาชื่อชุดข้อมูล)")
+    s.add_argument("--engine", default="openthai")
+    s.add_argument("--variants", nargs="+", default=["luma", "flat", "bin"], choices=["luma", "flat", "bin", "color"])
+    s.add_argument("--out", help="เขียนตารางเป็นไฟล์ .md ด้วย")
+    s.set_defaults(func=cmd_compare)
 
     s = sub.add_parser("schema", help="export JSON Schema")
     s.add_argument("--out")
