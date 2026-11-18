@@ -151,6 +151,64 @@ def cmd_extract(args, cfg) -> None:
     print(f"manifest: {run.dir / 'manifest.json'}")
 
 
+def cmd_sections(args, cfg) -> None:
+    """flow หลักห้าขั้นของสแกนจริง: preprocess → layout → images → ocr → extract (ขั้นที่ผลยังใช้ได้ถูกข้าม ดู sections/flow.py)."""
+    from .sections.build import build_images, build_layouts
+    from .sections.flow import STAGES, images_are_current, layout_is_current, stems_needing
+    from .sections.layout import MAX_PIECE_FRAC
+    from .sections.read import read_dataset
+
+    paths, dataset = DataPaths(cfg), dataset_of(args.input)
+    if args.max_piece_frac is None:
+        args.max_piece_frac = MAX_PIECE_FRAC
+    first, last = STAGES.index(args.start), STAGES.index(args.stop)
+    if first > last:
+        sys.exit(f"--from {args.start} มาหลัง --to {args.stop}")
+    todo = STAGES[first:last + 1]
+    parser = build_parser()
+    common = ["--config", args.config] if args.config else []
+
+    def banner(stage: str) -> None:
+        print(f"\n=== [{STAGES.index(stage) + 1}/{len(STAGES)}] {stage} ===", flush=True)
+
+    only = args.only or None
+    if "preprocess" in todo:
+        banner("preprocess")
+        a = parser.parse_args([*common, "preprocess", args.input, "--profile", args.profile])
+        a.func(a, cfg)
+    from .sections.flow import final_stems
+
+    stems = final_stems(paths, dataset, only, args.profile)
+    if not stems and set(todo) - {"preprocess"}:
+        sys.exit(f"ไม่พบภาพ final ใน {paths.preprocess_final(dataset, args.profile)} — เริ่มจาก --from preprocess")
+    if "layout" in todo:
+        banner("layout")
+        stale = stems_needing(lambda s: not args.redo and layout_is_current(paths, dataset, s, args.table_mode, args.max_piece_frac, args.profile), stems)
+        print(f"ผังใช้ได้อยู่แล้ว {len(stems) - len(stale)} ไฟล์ · ทำใหม่ {len(stale)}", flush=True)
+        if stale:
+            build_layouts(paths, dataset, args.profile, stale, args.table_mode, args.max_piece_frac)
+    variants = () if args.variant == "color" else (args.variant,)  # ค่าตั้งต้นเขียนเฉพาะวิธีที่ใช้ (flat/bin ทดลองผ่าน scripts/make_clean_sections.py)
+    if "images" in todo and variants:
+        banner("images")
+        stale = stems_needing(lambda s: not args.redo and not args.drop_empty_rows and images_are_current(paths, dataset, s, variants, args.profile), stems)
+        print(f"ภาพรายส่วน ({args.variant}) ใช้ได้อยู่แล้ว {len(stems) - len(stale)} ไฟล์ · ทำใหม่ {len(stale)}", flush=True)
+        if stale:
+            build_images(paths, dataset, stale, args.drop_empty_rows, variants)
+    if "ocr" in todo:
+        banner("ocr")
+        summary = read_dataset(paths, cfg, dataset, stems, args.engine, args.variant, redo=args.redo)
+        print(f"รันรอบนี้ {len(summary)} ไฟล์ (ที่เหลือมีผลแล้ว ข้าม)")
+    if "extract" in todo:
+        banner("extract")
+        if args.engine != "openthai":
+            print(f"ข้ามขั้น extract: ยังไม่รองรับ engine {args.engine} (รองรับ openthai)")
+            return
+        a = parser.parse_args([*common, "extract", args.input, "--mode", "vlm", "--engine", args.engine, "--llm", "off", "--reuse-raw",
+                               "--variant", args.variant, "--profile", args.profile])
+        a.func(a, cfg)
+    print(f"\nผลอยู่ที่ {paths.raw_data(args.engine, dataset, args.variant)} และ {paths.final(args.engine, dataset, 'rules', args.variant)}")
+
+
 def cmd_schema(args, cfg) -> None:
     from .schema import ExtractionResult
 
@@ -207,6 +265,23 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--keep-raw", action="store_true", help="เก็บข้อความดิบใน JSON ผลสุดท้ายด้วย")
     s.add_argument("--out", help="โฟลเดอร์ปลายทางเอง (ค่าตั้งต้น data/04_ocr/<dataset>/<engine>/ และ data/05_extract/<dataset>/<engine>/) ผลอยู่ใต้ raw_data/ และ final/<extractor>/")
     s.set_defaults(func=cmd_extract)
+
+    s = sub.add_parser("sections", help="flow หลักของสแกนจริง: preprocess → แบ่ง section → ภาพรายส่วน → OCR → สกัด (ข้ามขั้นที่ผลยังใช้ได้)")
+    s.add_argument("input", help="ไฟล์หรือโฟลเดอร์อินพุต (ชื่อโฟลเดอร์ = ชื่อชุดข้อมูล)")
+    s.add_argument("--variant", choices=["luma", "flat", "bin", "color"], default="luma",
+                   help="ภาพรายส่วนที่ส่งเข้า OCR (ค่าตั้งต้น luma วัดแล้วดีสุดบน 18 ใบ ดู docs/14) color = ตัดจากภาพ final สี ไม่มีขั้น images")
+    s.add_argument("--engine", choices=["openthai", "oxr"], default="openthai", help="ตัวอ่านรายส่วน (ขั้น extract รองรับ openthai)")
+    s.add_argument("--from", dest="start", choices=["preprocess", "layout", "images", "ocr", "extract"], default="preprocess",
+                   help="เริ่มที่ขั้นนี้ (ขั้นก่อนหน้าไม่รัน ใช้ผลที่มี)")
+    s.add_argument("--to", dest="stop", choices=["preprocess", "layout", "images", "ocr", "extract"], default="extract", help="จบที่ขั้นนี้")
+    s.add_argument("--only", nargs="*", help="เลขท้ายชื่อไฟล์ เช่น 1309")
+    s.add_argument("--redo", action="store_true", help="ทำใหม่ทุกขั้นที่รัน แม้ผลเดิมยังใช้ได้")
+    s.add_argument("--table-mode", choices=["whole", "cells", "bands", "rows"], default="rows", help="วิธีแบ่งตาราง (ดู docs/14)")
+    s.add_argument("--max-piece-frac", type=float, default=None,
+                   help="ส่วนที่สูงกว่านี้ (สัดส่วนความสูงหน้า) ถูกตัดเป็นท่อน 0 = ไม่ตัด (ไม่ใส่ = ค่าใน sections/layout.py)")
+    s.add_argument("--drop-empty-rows", action="store_true", help="แบบ bin เท่านั้น: ลบแถวตารางที่ช่องตัวเลขว่าง (ดู docs/14)")
+    profile_arg(s)
+    s.set_defaults(func=cmd_sections)
 
     s = sub.add_parser("schema", help="export JSON Schema")
     s.add_argument("--out")

@@ -18,28 +18,15 @@
 from __future__ import annotations
 
 import argparse
-import json
-import shutil
 import sys
 from pathlib import Path
-
-import cv2
-import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from fin_extractor import sections as S  # noqa: E402
 from fin_extractor.config import load_config  # noqa: E402
 from fin_extractor.paths import DataPaths, dataset_of  # noqa: E402
-from fin_extractor.preprocessing import enhance  # noqa: E402
-
-
-def write_png(path: Path, img: np.ndarray) -> None:
-    ok, buf = cv2.imencode(".png", img)
-    if not ok:
-        raise ValueError(f"encode ภาพไม่ได้: {path}")
-    buf.tofile(str(path))
+from fin_extractor.sections.build import build_images  # noqa: E402
 
 
 def main() -> None:
@@ -50,48 +37,7 @@ def main() -> None:
                     help="แบบ bin: ลบแถวตารางที่ช่องตัวเลขว่าง (ฟอร์มพิมพ์รายการล่วงหน้า เช่น 50 ทวิ) ใช้คู่ --only ไม่ควรใช้กับใบกำกับที่ทุกแถวมีค่าอยู่แล้ว")
     ap.add_argument("--config", help="ไฟล์ config ทับ default.yaml (เปลี่ยน paths.data_dir ได้ ใช้ทดลองโดยไม่ทับผลจริง)")
     args = ap.parse_args()
-    paths = DataPaths(load_config(args.config))
-    dataset = dataset_of(args.input)
-    stems = sorted(p.stem for p in paths.section_layout(dataset).glob("*.json"))
-    if args.only:
-        stems = [s for s in stems if any(s.endswith(o) for o in args.only)]
-    total = 0
-    clean_root = paths.section_images(dataset)
-    for stem in stems:
-        old = clean_root / stem  # โครงเก่า clean/<ไฟล์>/sNN_<วิธี>.png
-        if old.is_dir():
-            shutil.rmtree(old)
-        crops = [(sec, crop) for sec, crop in S.iter_section_crops(paths, stem, dataset) if crop.size]
-        bins = [(sec, S.binarize_inverted(crop)) for sec, crop in crops]
-        if args.drop_empty_rows:
-            dropped = S.drop_empty_rows_by_table(bins)
-            infos = [info for _img, info in dropped]
-            bins = [(sec, img) for (sec, _), (img, _info) in zip(bins, dropped)]
-        else:
-            infos = [{} for _ in bins]
-        images = {"luma": [enhance.to_gray(c) for _, c in crops],
-                  "flat": [S.flatten_background(S.gray_value_channel(c)) for _, c in crops],
-                  "bin": [img for _, img in bins]}
-        mb = 0.0
-        for variant, imgs in images.items():
-            out = paths.section_images(dataset, stem, variant)
-            if out.exists():
-                shutil.rmtree(out)
-            out.mkdir(parents=True)
-            index = []
-            for (sec, crop), img, info in zip(crops, imgs, infos):
-                blank = variant == "bin" and info.get("blank")  # ทาดำหมดทั้งส่วน = ไม่มีไฟล์ ตัวอ่านข้าม (ยังอยู่ใน index ให้ตรงกับผัง)
-                if not blank:
-                    write_png(out / f"{sec['id']}.png", img)
-                index.append({"id": sec["id"], "kind": sec["kind"], "bbox": sec["bbox"], "table": sec["table"],
-                              **({"part": sec["part"], "parts": sec["parts"]} if sec.get("part") else {}),
-                              "size": [int(crop.shape[1]), int(crop.shape[0])], "file": None if blank else f"{sec['id']}.png",
-                              **({"rows": info} if variant == "bin" and info.get("applied") else {})})
-            (out / "index.json").write_text(json.dumps({"source": stem, "page": 1, "variant": variant, "sections": index}, ensure_ascii=False, indent=1), encoding="utf-8")
-            mb += sum(f.stat().st_size for f in out.glob("*.png")) / 1e6
-        total += len(crops)
-        print(f"{stem[-4:]}: {len(crops)} section × 3 วิธี · {mb:.1f} MB → {clean_root}/<วิธี>/{stem}", flush=True)
-    print(f"รวม {total} section  จาก {len(stems)} ไฟล์")
+    build_images(DataPaths(load_config(args.config)), dataset_of(args.input), args.only, args.drop_empty_rows)
 
 
 if __name__ == "__main__":
