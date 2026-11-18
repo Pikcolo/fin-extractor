@@ -67,7 +67,7 @@ def clean_index(clean_dir: Path, layout: list[dict], stem: str) -> dict[str, dic
 
 
 def read_clean_image(clean_dir: Path, entry: dict, variant: str) -> np.ndarray:
-    """ภาพเทาช่องเดียวจากไฟล์ → BGR (ตัวอ่านรับภาพ BGR เหมือน route_sections.py)."""
+    """ภาพเทาช่องเดียวจากไฟล์ → BGR."""
     gray = cv2.imdecode(np.fromfile(str(clean_dir / entry["file"]), dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
     return cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
 

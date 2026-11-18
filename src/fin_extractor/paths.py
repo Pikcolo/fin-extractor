@@ -168,15 +168,6 @@ class DataPaths:
     section_features = section_layout
     section_clean = section_images
 
-    def section_router(self, dataset: str, profile: str = DEFAULT_PROFILE) -> Path:
-        """ผลของ router คัดภาพย่อยก่อน OCR: ``<ไฟล์>.json`` (ข้อความคัดกรอง + การตัดสินใจ) และ ``<ไฟล์>_overlay.png``"""
-        return self.sections(dataset, profile) / "router"
-
-    def section_ocr(self, dataset: str, stem: str | None = None, profile: str = DEFAULT_PROFILE) -> Path:
-        """ภาพย่อยพร้อม OCR: เฉพาะส่วนที่ router เก็บ (กล่องครอบถูกลบส่วนย่อยออกเหลือส่วนที่เหลือ) สร้างด้วย scripts/make_ocr_sections.py"""
-        base = self.sections(dataset, profile) / "ocr_images"
-        return base / slug(stem) if stem else base
-
     def experiments(self, name: str | None = None) -> Path:
         return self._top("experiments") / slug(name) if name else self._top("experiments")
 

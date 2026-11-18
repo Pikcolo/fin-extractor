@@ -120,7 +120,6 @@ fin_extractor/
 │   │   └── pipeline.py         รวมขั้นตอนตาม config
 │   ├── ocr/                    base.py (interface กลาง) + paddle_engine.py
 │   ├── vlm/                    client.py (Ollama/OpenAI-compatible), typhoon_ocr.py, openthai_ocr.py, oxr_local.py, prompts.py
-│   ├── routing/                relevance.py (คัดภาพย่อยด้วยป้าย/ค่า ยังไม่อยู่ในสายงานล่าสุด)
 │   ├── extraction/             patterns.py (regex), rule_extractor.py, llm_extractor.py, hybrid.py
 │   └── validation/             tax_id.py, checks.py, scoring.py, evidence.py
 └── tests/

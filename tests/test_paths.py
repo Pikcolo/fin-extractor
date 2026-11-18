@@ -126,8 +126,6 @@ def test_section_and_experiment_paths_follow_the_data_layout(tmp_path):
     assert p.section_images("s", "001309") == base / "images" / "001309"
     assert p.section_images("s") == base / "images"
     assert p.section_images("s", "001309", "bin") == base / "images" / "bin" / "001309" and p.section_clean("s", "001309", "bin") == base / "images" / "bin" / "001309"
-    assert p.section_router("s") == base / "router"
-    assert p.section_ocr("s", "001309") == base / "ocr_images" / "001309"
     assert p.experiments() == tmp_path / "etc" / "experiments" and p.experiments("openthai_sections") == tmp_path / "etc" / "experiments" / "openthai_sections"
     assert p.sections("../x").parent.parent == tmp_path / "03_sections"  # ชื่อชุดข้อมูลไต่ขึ้นโฟลเดอร์แม่ไม่ได้
 
