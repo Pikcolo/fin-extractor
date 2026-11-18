@@ -3,7 +3,7 @@
 ไฟล์ที่เขียนต่อหนึ่งเอกสาร (ชื่อ <ไฟล์>_p1.* เหมือนกันทุกขั้น)
     .sections.json  ผลดิบรายส่วน (ข้อความ เวลา ธง truncated ลายนิ้วมือของผัง ใช้ตัดสินว่าข้าม/ต่อ/ทำใหม่)
     .md             ข้อความทุกส่วนต่อกันตามลำดับอ่าน <!-- sNN kind --> นำหน้าแต่ละท่อน — ไฟล์นี้เท่านั้นที่ extract --reuse-raw อ่าน
-    .remark.json    ที่มาของแต่ละท่อน: ภาพ section ที่ส่งเข้า OCR + ข้อความที่ได้ + ช่วงบรรทัดใน .md (ย้ายมาจาก scripts/run_sections.py)
+    .chunks.json    ที่มาของแต่ละท่อน: ภาพ section ที่ส่งเข้า OCR + ข้อความที่ได้ + ช่วงบรรทัดใน .md (ย้ายมาจาก scripts/run_sections.py)
 GPU ใช้เฉพาะ read_dataset
 """
 
@@ -86,7 +86,7 @@ def script_mix(text: str) -> dict[str, int]:
             "digit": sum(c.isdigit() for c in t)}
 
 
-def remark_of(doc: dict, image_of) -> dict:
+def chunks_of(doc: dict, image_of) -> dict:
     """หมายเหตุของข้อความดิบ: ท่อนข้อความแต่ละท่อนใน .md มาจากภาพ section ไหน
     ``image_of(section)`` คืนที่อยู่ภาพที่ส่งเข้าตัวอ่าน (หรือ None) บรรทัดนับจาก 1 ตามไฟล์ .md (รวมบรรทัดคอมเมนต์)."""
     chunks, line = [], 1
@@ -106,17 +106,17 @@ def remark_of(doc: dict, image_of) -> dict:
 
 
 def write_markdown(sections_json: Path, image_of=lambda s: None) -> Path:
-    """เขียน .md (ข้อความดิบที่ extract --reuse-raw อ่าน) และ .remark.json (ที่มาของแต่ละท่อน ไม่ถูกอ่านโดย extract)."""
+    """เขียน .md (ข้อความดิบที่ extract --reuse-raw อ่าน) และ .chunks.json (ที่มาของแต่ละท่อน ไม่ถูกอ่านโดย extract)."""
     stem = sections_json.name.removesuffix(".sections.json")
     doc = json.loads(sections_json.read_text(encoding="utf-8"))
     out = sections_json.with_name(stem + ".md")
     out.write_text(markdown_of(doc), encoding="utf-8")
-    sections_json.with_name(stem + ".remark.json").write_text(json.dumps(remark_of(doc, image_of), ensure_ascii=False, indent=1), encoding="utf-8")
+    sections_json.with_name(stem + ".chunks.json").write_text(json.dumps(chunks_of(doc, image_of), ensure_ascii=False, indent=1), encoding="utf-8")
     return out
 
 
 def image_locator(paths: DataPaths, dataset: str, stem: str, variant: str):
-    """ฟังก์ชันที่บอกที่อยู่ภาพของ section (สัมพัทธ์กับ data_dir) ใช้ใน .remark.json."""
+    """ฟังก์ชันที่บอกที่อยู่ภาพของ section (สัมพัทธ์กับ data_dir) ใช้ใน .chunks.json."""
     if variant == "color":
         return lambda s: None
     entries = {e["id"]: e for e in json.loads((paths.section_images(dataset, stem, variant) / "index.json").read_text(encoding="utf-8"))["sections"]}
@@ -149,8 +149,8 @@ def _is_done(sections_json: Path, layout_json: Path) -> bool:
 
 def read_dataset(paths: DataPaths, cfg: dict, dataset: str, stems: list[str], engine: str, variant: str,
                  redo: bool = False, markdown_only: bool = False) -> list[dict]:
-    """ขั้น 4: OCR ทีละภาพ section ของ ``stems`` เก็บข้อความ + ที่มา (``.sections.json`` ``.md`` ``.remark.json``) ที่ 04_ocr/<dataset>/<engine>/<วิธี>/<ไฟล์>/
-    คืนสรุปต่อไฟล์ที่รันรอบนี้ ใช้ GPU เฉพาะส่วนนี้ (``markdown_only`` = สร้าง .md/.remark.json จากผลที่มี ไม่โหลดโมเดล)."""
+    """ขั้น 4: OCR ทีละภาพ section ของ ``stems`` เก็บข้อความ + ที่มา (``.sections.json`` ``.md`` ``.chunks.json``) ที่ 04_ocr/<dataset>/<engine>/<วิธี>/<ไฟล์>/
+    คืนสรุปต่อไฟล์ที่รันรอบนี้ ใช้ GPU เฉพาะส่วนนี้ (``markdown_only`` = สร้าง .md/.chunks.json จากผลที่มี ไม่โหลดโมเดล)."""
     layout_dir = paths.section_layout(dataset)
     raw_dir = paths.raw_data(engine, dataset, variant)  # variant: luma | flat | bin = ไฟล์ใน images/<วิธี>/ · color = ตัดจากภาพ final สีในหน่วยความจำ
     if markdown_only:

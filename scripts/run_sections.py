@@ -35,7 +35,7 @@ from fin_extractor import sections as S  # noqa: E402
 from fin_extractor.config import load_config  # noqa: E402
 from fin_extractor.paths import DataPaths, dataset_of  # noqa: E402
 from fin_extractor.sections.read import (  # noqa: E402,F401  (tests และสคริปต์อื่นเรียกผ่านชื่อนี้)
-    ENGINES, clean_index, fingerprint, image_locator, kept_layout, markdown_blocks, markdown_of, read_clean_image, read_dataset, remark_of,
+    ENGINES, clean_index, fingerprint, image_locator, kept_layout, markdown_blocks, markdown_of, read_clean_image, read_dataset, chunks_of,
     script_mix, write_markdown)
 
 VARIANTS = ("color", *S.VARIANTS)  # color = ตัดจากภาพ final ในหน่วยความจำ ที่เหลือคือภาพที่ make_clean_sections เขียนไว้
