@@ -28,11 +28,11 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-sys.path.insert(0, str(ROOT / "notebooks" / "preprocess_lab"))
 
-import labkit as L  # noqa: E402
+from fin_extractor import sections as S  # noqa: E402
 from fin_extractor.config import load_config  # noqa: E402
 from fin_extractor.paths import DataPaths, dataset_of  # noqa: E402
+from fin_extractor.preprocessing import enhance  # noqa: E402
 
 
 def write_png(path: Path, img: np.ndarray) -> None:
@@ -50,32 +50,31 @@ def main() -> None:
                     help="แบบ bin: ลบแถวตารางที่ช่องตัวเลขว่าง (ฟอร์มพิมพ์รายการล่วงหน้า เช่น 50 ทวิ) ใช้คู่ --only ไม่ควรใช้กับใบกำกับที่ทุกแถวมีค่าอยู่แล้ว")
     ap.add_argument("--config", help="ไฟล์ config ทับ default.yaml (เปลี่ยน paths.data_dir ได้ ใช้ทดลองโดยไม่ทับผลจริง)")
     args = ap.parse_args()
-    if args.config:
-        L.PATHS = DataPaths(load_config(args.config))  # labkit ถามพาธจากตัวแปรนี้ตอนเรียก
+    paths = DataPaths(load_config(args.config))
     dataset = dataset_of(args.input)
-    stems = sorted(p.stem for p in L.PATHS.section_features(dataset).glob("*.json"))
+    stems = sorted(p.stem for p in paths.section_layout(dataset).glob("*.json"))
     if args.only:
         stems = [s for s in stems if any(s.endswith(o) for o in args.only)]
     total = 0
-    clean_root = L.PATHS.section_clean(dataset)
+    clean_root = paths.section_images(dataset)
     for stem in stems:
         old = clean_root / stem  # โครงเก่า clean/<ไฟล์>/sNN_<วิธี>.png
         if old.is_dir():
             shutil.rmtree(old)
-        crops = [(sec, crop) for sec, crop in L.iter_section_crops(stem, dataset) if crop.size]
-        bins = [(sec, L.binarize_inverted(crop)) for sec, crop in crops]
+        crops = [(sec, crop) for sec, crop in S.iter_section_crops(paths, stem, dataset) if crop.size]
+        bins = [(sec, S.binarize_inverted(crop)) for sec, crop in crops]
         if args.drop_empty_rows:
-            dropped = L.drop_empty_rows_by_table(bins)
+            dropped = S.drop_empty_rows_by_table(bins)
             infos = [info for _img, info in dropped]
             bins = [(sec, img) for (sec, _), (img, _info) in zip(bins, dropped)]
         else:
             infos = [{} for _ in bins]
-        images = {"luma": [L.enhance.to_gray(c) for _, c in crops],
-                  "flat": [L.flatten_background(L.gray_value_channel(c)) for _, c in crops],
+        images = {"luma": [enhance.to_gray(c) for _, c in crops],
+                  "flat": [S.flatten_background(S.gray_value_channel(c)) for _, c in crops],
                   "bin": [img for _, img in bins]}
         mb = 0.0
         for variant, imgs in images.items():
-            out = L.PATHS.section_clean(dataset, stem, variant)
+            out = paths.section_images(dataset, stem, variant)
             if out.exists():
                 shutil.rmtree(out)
             out.mkdir(parents=True)

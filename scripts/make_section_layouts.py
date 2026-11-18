@@ -26,13 +26,13 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-sys.path.insert(0, str(ROOT / "notebooks" / "preprocess_lab"))
 
-import labkit as L  # noqa: E402
 from fin_extractor.config import load_config  # noqa: E402
 from fin_extractor.io import read_image  # noqa: E402
 from fin_extractor.paths import DEFAULT_PROFILE, DataPaths, dataset_of  # noqa: E402
 from fin_extractor.preprocessing import binarize as bin_ops  # noqa: E402
+from fin_extractor.preprocessing import enhance  # noqa: E402
+from fin_extractor.sections import layout as L  # noqa: E402
 
 
 def write_png(path: Path, img: np.ndarray) -> None:
@@ -71,13 +71,13 @@ def main() -> None:
     if not stems:
         sys.exit(f"ไม่มีไฟล์ที่ลงท้ายด้วย {args.only} ใน {final_dir}")
 
-    out_dir = paths.section_features(dataset, args.profile)
+    out_dir = paths.section_layout(dataset, args.profile)
     out_dir.mkdir(parents=True, exist_ok=True)
     totals = {"files": 0, "sections": 0, "kept": 0, "blank": 0}
     for stem in stems:
         full = read_image(pages[stem])
-        work, _ = L._resize_to_work(full)
-        bw = bin_ops.otsu(L.enhance.to_gray(work))
+        work, _ = L.resize_to_work(full)
+        bw = bin_ops.otsu(enhance.to_gray(work))
         secs = L.layout_sections(bw, table_mode=args.table_mode, max_piece_frac=args.max_piece_frac or None)
         kept = [s for s in secs if s["keep"]]
         by_kind = {k: sum(1 for s in secs if s["kind"] == k) for k in ("cell", "text", "table")}
@@ -86,7 +86,7 @@ def main() -> None:
 
         path = out_dir / f"{stem}.json"
         doc = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-        doc.update(layout=summary, layout_sections=L.section_manifest(secs),
+        doc.update(layout=summary, layout_sections=[dict(s) for s in secs],
                    layout_params={"table_mode": args.table_mode, "max_piece_frac": args.max_piece_frac, "work_long_side": L.WORK,
                                   "page_size": [int(full.shape[1]), int(full.shape[0])],
                                   "work_size": [int(work.shape[1]), int(work.shape[0])]})

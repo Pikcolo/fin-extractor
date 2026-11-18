@@ -36,14 +36,12 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from fin_extractor import sections as S  # noqa: E402  (ตัดภาพย่อยจากภาพทั้งหน้าตามผังสำหรับ --variant color)
 from fin_extractor.config import load_config  # noqa: E402
 from fin_extractor.paths import DataPaths, dataset_of, doc_dir  # noqa: E402
 
-sys.path.insert(0, str(ROOT / "notebooks" / "preprocess_lab"))
-import labkit as L  # noqa: E402  (ตัดภาพย่อยจากภาพทั้งหน้าตามผัง ไม่มีไฟล์ภาพย่อยแล้ว)
-
 ENGINES = ("oxr", "openthai")
-VARIANTS = ("color", "luma", "flat", "bin")
+VARIANTS = ("color", *S.VARIANTS)  # color = ตัดจากภาพ final ในหน่วยความจำ ที่เหลือคือภาพที่ make_clean_sections เขียนไว้
 
 
 def kept_layout(layout: list[dict]) -> list[tuple[str, list[int]]]:
@@ -174,7 +172,6 @@ def main() -> None:
 
     cfg = load_config(args.config)
     paths = DataPaths(cfg)
-    L.PATHS = paths  # labkit (ตัดภาพ final ตามผัง) ถามพาธจากตัวแปรนี้
     dataset = dataset_of(args.input)
     features_dir = paths.section_features(dataset)
     stems = sorted(p.stem for p in features_dir.glob("*.json"))
@@ -197,7 +194,7 @@ def main() -> None:
     for stem in stems:
         lay = json.loads((features_dir / f"{stem}.json").read_text(encoding="utf-8"))["layout_sections"]
         if args.variant == "color":
-            if L.load_cached_preprocessed(stem, dataset=dataset) is None:
+            if S.load_final_image(paths, dataset, stem) is None:
                 sys.exit(f"{stem[-4:]}: ไม่พบภาพ preprocess (final) — รัน fin_extractor preprocess ก่อน")
         else:
             clean_index(paths.section_clean(dataset, stem, args.variant), lay, stem)
@@ -226,8 +223,8 @@ def main() -> None:
                 done = {r["id"]: r for r in prev["sections"] if "error" not in r}
                 print(f"[{n}/{len(stems)}] {stem[-4:]} ต่อจากที่ค้าง ({len(done)} ส่วนเสร็จแล้ว)", flush=True)
         if args.variant == "color":
-            full = L.load_cached_preprocessed(stem, dataset=dataset)
-            work, _ = L._resize_to_work(full)
+            full = S.load_final_image(paths, dataset, stem)
+            work, _ = S.resize_to_work(full)
         else:
             clean_dir = paths.section_clean(dataset, stem, args.variant)
             entries = clean_index(clean_dir, layout, stem)
@@ -251,7 +248,7 @@ def main() -> None:
             if args.variant != "color" and not entries[s["id"]].get("file"):  # เช่น bin ที่ทาดำหมดส่วน (--drop-empty-rows)
                 rows.append({**row, "skipped": "blank"})
                 continue
-            img = L.crop_full(full, work, s) if args.variant == "color" else read_clean_image(clean_dir, entries[s["id"]], args.variant)
+            img = S.crop_full(full, work, s) if args.variant == "color" else read_clean_image(clean_dir, entries[s["id"]], args.variant)
             t = time.perf_counter()
             try:
                 res = reader.recognize(img)

@@ -280,3 +280,12 @@ def test_remark_maps_each_md_chunk_to_its_section_image():
     mix = remark["chunks"][0]["script_mix"]
     assert mix["thai"] > 0 and mix["latin"] == 3 and mix["digit"] == 3  # แท็ก HTML ไม่ถูกนับ
     assert remark["chunks"][1]["script_mix"]["latin"] == 0  # "table/td" ในแท็กไม่นับเป็นอักษรละติน
+
+
+def test_labkit_is_a_thin_forward_to_the_sections_package():
+    from fin_extractor import sections
+
+    assert labkit.layout_sections is sections.layout_sections
+    assert labkit.binarize_inverted is sections.binarize_inverted
+    assert labkit.drop_empty_rows_by_table is sections.drop_empty_rows_by_table
+    assert sections.VARIANTS == ("luma", "flat", "bin")
