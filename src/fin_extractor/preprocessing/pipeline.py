@@ -34,7 +34,11 @@ class PreprocessResult:
         return paths
 
 
-def preprocess(img: np.ndarray, cfg: dict[str, Any], keep_steps: bool = False) -> PreprocessResult:
+def preprocess(img: np.ndarray, cfg: dict[str, Any], keep_steps: bool = False, orientation: int | None = None) -> PreprocessResult:
+    """``orientation`` = มุมที่สั่งเอง (0/90/180/270 ตามเข็ม) ใช้แทนตัวตรวจอัตโนมัติ ``meta["orientation_source"] = "manual"``
+    ตัวตรวจอัตโนมัติล้ม → ``meta["orientation_error"]`` (มุมที่ใช้คือ 0 จึงอาจตะแคงอยู่ ตรวจ manifest)"""
+    if orientation not in (None, 0, 90, 180, 270):
+        raise ValueError(f"orientation ต้องเป็น 0/90/180/270: {orientation}")
     steps: dict[str, np.ndarray] = {}
     meta: dict[str, Any] = {}
 
@@ -51,8 +55,13 @@ def preprocess(img: np.ndarray, cfg: dict[str, Any], keep_steps: bool = False) -
     if meta["scale"] != 1.0:
         record("upscale", out)
 
-    if cfg.get("fix_orientation"):
-        meta["orientation"] = geometry.detect_orientation(out)
+    if orientation is not None:
+        meta["orientation"], meta["orientation_source"] = orientation, "manual"
+    elif cfg.get("fix_orientation"):
+        meta["orientation"], err = geometry.detect_orientation_checked(out)
+        if err:
+            meta["orientation_error"] = err
+    if orientation is not None or cfg.get("fix_orientation"):
         if meta["orientation"]:
             out = record("orientation", geometry.rotate_orthogonal(out, meta["orientation"]))
 

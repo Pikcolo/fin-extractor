@@ -6,11 +6,17 @@
     preprocess/<dataset>/<profile>/             ผลของ preprocess ชุดตั้งค่าหนึ่ง (profile)
         steps/        ภาพทีละขั้น (เมื่อใส่ --steps)
         final/        ภาพสุดท้ายที่ส่งต่อให้ OCR/VLM ทุกตัว
+        sections/     ผลแบ่งหน้าเป็นภาพย่อย (section) จาก final/ (ผลของ pipeline ไม่ใช่การทดลอง)
+            features/<ไฟล์>.json   ลักษณะภาพ, ผลวัด edge/threshold, ผังการแบ่ง section, ผลตัดสินด้วยตา (notebooks/preprocess_lab/)
+            clean/<วิธี>/<ไฟล์>/   ภาพย่อยที่ทำความสะอาดแล้วของ section ที่ keep แยกโฟลเดอร์ตามวิธี (luma | flat | bin): sNN.png + index.json
+            ocr/<ไฟล์>/            ภาพย่อยพร้อม OCR: เฉพาะส่วนที่ router เก็บ (กล่องครอบเหลือแต่ส่วนนอกส่วนย่อย) ไฟล์ละ 2 แบบ + index.json
+            router/                ผล router คัดภาพย่อยก่อน OCR: <ไฟล์>.json (ข้อความคัดกรอง + keep/drop + เหตุผล), <ไฟล์>_overlay.png
     result_ocr/<engine>/<dataset>/              ผลของตัวอ่านหนึ่งตัว (paddle, typhoon, oxr)
         raw_data/     ข้อความดิบจาก OCR (.txt/.md) เขียนครั้งเดียวต่อ engine
         final/<extractor>/   ผลตาม schema (.json) extractor = rules | llm
         visualize/    ภาพให้ดูว่าอ่านอย่างไร
     etc/benchmarks/  etc/compare/               งานทดสอบ/เปรียบเทียบที่ข้าม engine/ข้ามไฟล์
+    etc/experiments/<ชื่อ>/                     การทดลองครั้งเดียวที่ไม่ใช่ส่วนของ pipeline (etc ไว้ทดลองนอกรอบเท่านั้น ไม่เก็บผลของ pipeline)
     reports/                                    รายงานภาพ
 
 ถ้ารันหนึ่งครั้งมีไฟล์อินพุตมากกว่า ``NEST_OVER`` (2) ไฟล์ ผลของแต่ละไฟล์ (preprocess/final/steps, raw_data, final/<extractor>)
@@ -38,6 +44,7 @@ DEFAULT_FOLDERS = {
     "result_ocr": "result_ocr",
     "benchmarks": "etc/benchmarks",
     "compare": "etc/compare",
+    "experiments": "etc/experiments",
     "reports": "reports",
 }
 DEFAULT_PROFILE = "default"
@@ -128,6 +135,33 @@ class DataPaths:
 
     def compare(self, name: str | None = None) -> Path:
         return self._top("compare") / slug(name) if name else self._top("compare")
+
+    # ผลขั้นแบ่ง section (อยู่ใต้ preprocess/<dataset>/<profile>/sections/ เพราะตัดจากภาพ final/ ของ profile นั้น)
+    def sections(self, dataset: str, profile: str = DEFAULT_PROFILE) -> Path:
+        return self.preprocess(dataset, profile) / "sections"
+
+    def section_features(self, dataset: str, profile: str = DEFAULT_PROFILE) -> Path:
+        """ผลของ notebook เช็ค preprocess: ``<ไฟล์>.json`` (ลักษณะภาพ + ผังแบ่ง section)"""
+        return self.sections(dataset, profile) / "features"
+
+    def section_router(self, dataset: str, profile: str = DEFAULT_PROFILE) -> Path:
+        """ผลของ router คัดภาพย่อยก่อน OCR: ``<ไฟล์>.json`` (ข้อความคัดกรอง + การตัดสินใจ) และ ``<ไฟล์>_overlay.png``"""
+        return self.sections(dataset, profile) / "router"
+
+    def section_ocr(self, dataset: str, stem: str | None = None, profile: str = DEFAULT_PROFILE) -> Path:
+        """ภาพย่อยพร้อม OCR: เฉพาะส่วนที่ router เก็บ (กล่องครอบถูกลบส่วนย่อยออกเหลือส่วนที่เหลือ) สร้างด้วย scripts/make_ocr_sections.py"""
+        base = self.sections(dataset, profile) / "ocr"
+        return base / slug(stem) if stem else base
+
+    def section_clean(self, dataset: str, stem: str | None = None, variant: str | None = None, profile: str = DEFAULT_PROFILE) -> Path:
+        """ภาพย่อยที่ทำความสะอาดแล้ว ``clean/<วิธี>/<ไฟล์>/`` (สร้างด้วย scripts/make_clean_sections.py) วิธี = luma | flat | bin"""
+        base = self.sections(dataset, profile) / "clean"
+        if variant:
+            base = base / variant
+        return base / slug(stem) if stem else base
+
+    def experiments(self, name: str | None = None) -> Path:
+        return self._top("experiments") / slug(name) if name else self._top("experiments")
 
     def reports(self, name: str | None = None) -> Path:
         return self._top("reports") / slug(name) if name else self._top("reports")

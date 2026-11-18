@@ -28,9 +28,9 @@ def counted(monkeypatch):
     calls = []
     real = stages.preprocess
 
-    def spy(img, cfg, keep_steps=False):
+    def spy(img, cfg, keep_steps=False, **kw):
         calls.append(1)
-        return real(img, cfg, keep_steps=keep_steps)
+        return real(img, cfg, keep_steps=keep_steps, **kw)
 
     monkeypatch.setattr(stages, "preprocess", spy)
     return calls
@@ -149,3 +149,14 @@ def test_cache_is_found_in_per_file_subfolder_even_when_reader_does_not_nest(tmp
     assert (pdir / "final" / "a" / "a_p1.png").exists() and len(counted) == 1
     assert next(prepared_pages(img, cfg, pdir))[2] == {"cached": True} and len(counted) == 1   # รันไฟล์เดียวทีหลัง ใช้ภาพเดิมได้
     assert not (pdir / "final" / "a_p1.png").exists()
+
+
+def test_manual_orientation_redoes_that_file_without_touching_profile_settings(tmp_path, cfg, counted):
+    src = tmp_path / "a.png"
+    make_image(src)
+    pdir = tmp_path / "p"
+    list(prepared_pages(src, cfg, pdir))
+    stored = (pdir / "settings.json").read_text(encoding="utf-8")
+    out = list(prepared_pages(src, cfg, pdir, orientation=90))  # มีภาพเก็บไว้แล้ว แต่สั่งทิศเอง = ทำใหม่
+    assert len(counted) == 2 and out[0][2]["orientation"] == 90 and out[0][2]["orientation_source"] == "manual"
+    assert (pdir / "settings.json").read_text(encoding="utf-8") == stored  # ไม่ใช่ส่วนของ settings (กัน --force ล้างทั้งโปรไฟล์)

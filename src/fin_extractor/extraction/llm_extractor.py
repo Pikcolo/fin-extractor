@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Collection
 from typing import Any
 
 from pydantic import ValidationError
@@ -34,7 +35,7 @@ def _parse_json(text: str) -> dict[str, Any]:
         return json.loads(m.group())
 
 
-def profile_schema(profile: Profile) -> dict[str, Any]:
+def profile_schema(profile: Profile, only: Collection[str] | None = None) -> dict[str, Any]:
     """JSON schema ที่ส่งให้ LLM: แกนกลางของ InvoiceData + ``document_fields`` ตามฟิลด์ของโปรไฟล์ (generic = ไม่มีช่องนี้)
 
     schema เล็กลงตามชนิดเอกสาร ซึ่งสำคัญกับ LLM เล็กที่ context จำกัด และ LLM เห็นเฉพาะคีย์ที่ชนิดนั้นมีจริง
@@ -53,6 +54,8 @@ def profile_schema(profile: Profile) -> dict[str, Any]:
         }
     else:
         props.pop("document_fields", None)
+    if only is not None:  # โหมด hybrid: ถามเฉพาะ property ที่ยังไม่เสร็จ (schema เล็กลง LLM เล็กสลับช่องยากขึ้น)
+        props = {k: v for k, v in props.items() if k in only}
     return {**schema, "properties": props}
 
 
@@ -132,13 +135,19 @@ class LLMExtractor:
     def name(self) -> str:
         return f"llm:{self.cfg['model']}"
 
-    def extract(self, document_text: str, profile: Profile | None = None) -> InvoiceData:
+    def extract(self, document_text: str, profile: Profile | None = None,
+                only: Collection[str] | None = None, known: dict[str, str] | None = None,
+                focus: Collection[str] | None = None) -> InvoiceData:
+        """``only`` = ถามเฉพาะ property เหล่านี้ (ไม่ส่ง = ทั้ง schema), ``known`` = ค่าที่ rules ได้แล้ว ส่งเป็นบริบท,
+        ``focus`` = คีย์ของช่องที่ยังหาไม่เจอ/ไม่สอดคล้อง ระบุเป็นคำถามตรง ๆ (LLM เล็กมักข้ามช่องที่ไม่ได้ถูกเอ่ยถึง)."""
         profile = profile or GENERIC_PROFILE
-        schema_json = json.dumps(profile_schema(profile), ensure_ascii=False)
+        schema_json = json.dumps(profile_schema(profile, only), ensure_ascii=False)
+        known_json = json.dumps(known, ensure_ascii=False) if known else ""
         resp = self.client.chat(
             [
                 {"role": "system", "content": EXTRACTION_SYSTEM_PROMPT},
-                {"role": "user", "content": extraction_user_prompt(document_text, schema_json, profile.title)},
+                {"role": "user", "content": extraction_user_prompt(document_text, schema_json, profile.title, known_json,
+                                       "\n".join(f"- {k}" for k in focus or ()))},
             ],
             json_mode=True,
         )

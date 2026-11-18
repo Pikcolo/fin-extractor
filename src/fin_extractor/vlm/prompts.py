@@ -39,12 +39,18 @@ EXTRACTION_SYSTEM_PROMPT = """คุณคือระบบสกัดข้�
   ใส่เป็น {"label": ป้ายตามที่พิมพ์, "value": ค่าตามที่พิมพ์} ห้ามใส่ข้อมูลที่มีช่องอยู่แล้ว (รวมถึง document_fields) ถ้าไม่มีให้เป็น []"""
 
 
-def extraction_user_prompt(document_text: str, json_schema: str, document_kind: str = "") -> str:
+def extraction_user_prompt(document_text: str, json_schema: str, document_kind: str = "", known: str = "",
+                           focus: str = "") -> str:
     kind = f"ชนิดเอกสาร: {document_kind}\n\n" if document_kind else ""
+    context = (f"ค่าที่ระบบอ่านได้แล้วและตรวจแล้วว่าสอดคล้องกัน (ใช้เป็นบริบท ไม่ต้องตอบซ้ำ):\n{known}\n\n"
+               "ตอบเฉพาะคีย์ที่อยู่ใน schema ด้านบนเท่านั้น\n\n" if known else "")
+    if focus:
+        context += ("ช่องที่ระบบหาไม่เจอหรือตรวจแล้วไม่สอดคล้อง ให้หาค่าจากเอกสารให้ครบทุกช่องนี้ "
+                    f"(ถ้าไม่มีในเอกสารจริงให้ใส่ null ห้ามเดา):\n{focus}\n\n")
     return f"""{kind}JSON schema:
 {json_schema}
 
-เนื้อหาเอกสาร (จาก OCR อาจมีตัวอักษรผิดบ้าง):
+{context}เนื้อหาเอกสาร (จาก OCR อาจมีตัวอักษรผิดบ้าง):
 <document>
 {document_text}
 </document>

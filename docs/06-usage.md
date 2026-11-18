@@ -38,6 +38,7 @@ pytest                                                                     # ต
 |---|---|---|
 | Ollama + Typhoon OCR | `--mode vlm` | `ollama pull scb10x/typhoon-ocr1.5-3b` |
 | Ollama + LLM | การสกัดด้วย LLM (`--mode vlm`, `--llm on`) | `ollama pull qwen2.5:3b` (เปลี่ยนรุ่นที่ `llm_extractor.model`) |
+| OpenThai 2.0 OCR (iApp, 0.63B) | `ocr --engine openthai`, `extract --mode vlm --engine openthai` | `pip install torch==2.11.0 torchvision==0.26.0 --index-url https://download.pytorch.org/whl/cu128` แล้ว `pip install -e ".[openthai]"` และ `hf download iapp/OpenThai2.0-OCR-Markdown --local-dir models/OpenThai2.0-OCR-Markdown` (index cu128 มี torch สูงสุด 2.11; ถ้าลง torch จาก PyPI เฉย ๆ บน Windows จะได้รุ่น CPU) ทดสอบบน RTX 4050 6GB: VRAM สูงสุด ~1.9GB, 1 หน้า ~20 วินาที (รวมโหลดโมเดล) |
 | ฟอนต์ | `scripts/make_synthetic_samples.py`, `scripts/visualize_oxr.py` | **มากับโปรเจกต์แล้ว** ที่ `assets/fonts/` (Sarabun, SIL OFL) ไม่ใช้ฟอนต์ของเครื่อง ไม่ต้องติดตั้ง |
 
 **อะไรอยู่ในโปรเจกต์ อะไรอยู่นอก:**
@@ -107,6 +108,8 @@ data/
 | `ocr` | `data/result_ocr/<engine>/<dataset>/raw_data/` | `<ไฟล์>_p<หน้า>.txt` (vlm เป็น `.md`) + `.meta.json` + `manifest.json` |
 | `extract` | `data/result_ocr/<engine>/<dataset>/` | `raw_data/` (ข้อความดิบ) และ `final/<rules\|llm>/<ไฟล์>_p<หน้า>.json` ตาม `schemas/invoice.schema.json` + `manifest.json` |
 | script วัดผล | `data/etc/benchmarks/` | ไฟล์ผลของแต่ละ script (ดูตารางข้างล่าง) |
+| notebook เช็ค preprocess | `data/preprocess/<dataset>/<profile>/sections/` | `features/<ไฟล์>.json` และ `clean/<luma|flat|bin>/<ไฟล์>/` ภาพย่อยแยกโฟลเดอร์ตามวิธี (สร้างด้วย `make_preprocess_notebooks.py` notebook อยู่ `notebooks/preprocess_lab/<dataset>/` ไม่ commit เพราะมีภาพเอกสารจริง) |
+| การทดลอง | `data/etc/experiments/<ชื่อ>/` | เช่น `openthai_sections/` จาก `experiment_sections.py` |
 
 - **engine** ในชื่อโฟลเดอร์: `--mode ocr` = `paddle`, `--mode vlm` = `typhoon` ส่วน **extractor**: `llm` เมื่อใช้ LLM สกัด ไม่งั้น `rules`
 - **OCR ครั้งเดียว สกัดได้หลายแบบ:** `extract` เก็บข้อความดิบไว้ที่ `raw_data/` แล้ว `extract ... --reuse-raw` สกัดซ้ำจากข้อความนั้น (เปลี่ยน rules ↔ LLM, แก้ขั้นสกัดแล้วลองใหม่) **โดยไม่โหลด/เรียก OCR หรือ VLM และไม่ใช้ GPU**
@@ -118,9 +121,9 @@ data/
 
 | คำสั่ง | ขั้นที่ทำ | ผลลัพธ์ |
 |---|---|---|
-| `python -m fin_extractor preprocess <input> [--profile P] [--steps] [--force]` | 1 → 2 | `data/preprocess/<dataset>/<profile>/` |
+| `python -m fin_extractor preprocess <input> [--profile P] [--steps] [--force] [--orientation 90/180/270]` | 1 → 2 | `data/preprocess/<dataset>/<profile>/` |
 | `python -m fin_extractor ocr <input> --engine paddle\|vlm` | 1 → 3 | `data/result_ocr/<engine>/<dataset>/raw_data/` |
-| `python -m fin_extractor extract <input> --mode ocr\|vlm [--reuse-raw]` | 1 → 7 | `data/result_ocr/<engine>/<dataset>/{raw_data,final/<extractor>}/` |
+| `python -m fin_extractor extract <input> --mode ocr\|vlm [--reuse-raw [--variant luma]]` | 1 → 7 | `data/result_ocr/<engine>/<dataset>/{raw_data,final/<extractor>}/` |
 | `python -m fin_extractor schema` | — | `schemas/invoice.schema.json` (generate จาก `schema.py` ห้ามแก้ไฟล์ตรง ๆ) |
 | `pytest` | รันเทสต์ | |
 
@@ -150,6 +153,10 @@ data/
 | `benchmark_real_scans.py` | เทียบ preprocessing 13 ชุดบนสแกนจริง ไม่ใช้เฉลย (~10 นาที) | สแกนใน `data/raw/finance_doc_scan/` | `real_scans.json` |
 | `organize_preprocess_results.py` | จัดผลข้างบนเป็นโฟลเดอร์ต่อชุด | `benchmark_real_scans.py` | `preprocess_experiments/` |
 | `compare_modes.py` | เทียบผล `extract` ของ `paddle/rules` กับ `typhoon/llm` รายใบ | `extract data/raw/finance_doc_scan` ทั้ง `--mode ocr` และ `--mode vlm` (อ่าน `final/` ของสองชุดนั้น) | `compare_modes.md` |
+| `make_clean_sections.py` · `route_sections.py` · `make_ocr_sections.py` | สายงาน preprocess router: ภาพย่อยทั้งหมด → อ่านคัดกรอง+ตัดสิน (+ความเห็นที่สองจาก OXR) → ภาพพร้อม OCR เฉพาะส่วนที่เก็บ ดู [13](13-preprocess-router.md) | ผังแบ่งจาก notebook | `data/preprocess/<dataset>/<profile>/sections/{clean,router,ocr}/` |
+| `make_section_layouts.py` → `make_clean_sections.py` → `run_sections.py [--engine openthai] [--variant luma]` | สายงานแบ่ง section ปัจจุบัน (ไม่ใช้ OCR คัดส่วน): ผังแบ่ง (ตารางก้อนเดียว ตัดท่อนสูง) → ภาพ luma/flat/bin (ตัวขาวบนดำ; ค่าตั้งต้น luma วัดแล้วดีสุด) → อ่านทีละส่วน ดู [14](14-section-preprocess.md) ทุกตัวรับ `--config` ทดลองโดยไม่ทับผลจริง | ภาพ `final/` (ผ่าน `preprocess`) | `sections/features/`, `sections/clean/<วิธี>/<ไฟล์>/`, `raw_data_<วิธี>/<ไฟล์>/*.sections.json` + `.md` |
+| `make_preprocess_notebooks.py <โฟลเดอร์ภาพ>` | สร้าง notebook เช็ค preprocess ไฟล์ละเล่ม (edge, threshold, แบ่ง section ตามตาราง) เครื่องมืออยู่ `notebooks/preprocess_lab/labkit.py` | สแกนใน `data/raw/<dataset>/` และ `preprocess` (ภาพที่ตรงแล้ว) | `notebooks/preprocess_lab/<dataset>/*.ipynb` |
+| `experiment_sections.py [เลขไฟล์ ...]` | ทดลองแบ่งหน้าเป็นท่อนก่อนส่ง OpenThai เทียบกับส่งทั้งแผ่น (ใช้ GPU) | `ocr --engine openthai` ของชุดเดียวกัน | `data/etc/experiments/openthai_sections/` |
 | `compare_file.py <เลขไฟล์>` | เทียบผลสกัดของไฟล์เดียวรายฟิลด์ ข้าม engine/extractor (ไม่ใช้ GPU) มีคอลัมน์อ้างอิงถ้าใส่ `reference.json` | ผล `extract` ของแต่ละ engine | `data/etc/compare/<ไฟล์>/` |
 | `extract_oxr.py <input>` | OXR เป็นตัวอ่าน (ต้องเปิด container OXR ในเครื่อง ใช้ RAM/VRAM มาก) ต่อจากที่ค้างได้ | `preprocess` + container `oxr` | `data/result_ocr/oxr/<dataset>/` |
 | `visualize_bbox.py <เลขไฟล์ ...>` · `--cached` | วาดกรอบ (bbox) ที่ Paddle ตรวจเจอลงบนภาพหลัง preprocess เป็นภาพ `words.jpg` (กรอบทุกคำ สีตามความมั่นใจ) และ `lines.jpg` (บรรทัดพร้อมเลขลำดับ) ไม่ทำ HTML Paddle ไม่เก็บกรอบไว้ในผล extract จึงต้องอ่านภาพใหม่เฉพาะไฟล์ที่ระบุ (หนัก ทำทีละไฟล์) แล้วเก็บ `ocr_words.json` ไว้วาดซ้ำ Typhoon ไม่มีกรอบ | `preprocess` (ภาพ final) | `data/result_ocr/paddle/<dataset>/visualize/<ไฟล์>/` |

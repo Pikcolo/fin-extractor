@@ -27,11 +27,12 @@ from .ocr import ENGINES
 from .paths import DEFAULT_PROFILE, DataPaths, dataset_of, doc_dir, find_dir, nest_per_file
 from .runs import Run
 from .stages import load_raw, prepared_pages, raw_pages, save_raw
+from .vlm import VLM_ENGINES, create_reader, vlm_model
 
 
 def engine_label(mode: str, engine: str) -> str:
-    """ชื่อโฟลเดอร์ engine ใน result_ocr/ (mode vlm = typhoon)."""
-    return "typhoon" if mode == "vlm" else engine
+    """ชื่อโฟลเดอร์ engine ใน result_ocr/ (mode vlm: --engine paddle/vlm = typhoon, openthai = openthai)."""
+    return VLM_ENGINES.get(engine, "typhoon") if mode == "vlm" else engine
 
 
 def cmd_preprocess(args, cfg) -> None:
@@ -40,30 +41,32 @@ def cmd_preprocess(args, cfg) -> None:
     with Run("preprocess", args.input, cfg, pdir, {"profile": args.profile, "steps": args.steps, "force": args.force}) as run:
         files = list(iter_input_files(args.input))
         for f in files:
-            for page_no, _img, meta in prepared_pages(f, cfg, pdir, steps=args.steps, force=args.force, nest=nest_per_file(len(files))):
+            for page_no, _img, meta in prepared_pages(f, cfg, pdir, steps=args.steps, force=args.force, nest=nest_per_file(len(files)),
+                                                      orientation=args.orientation):
                 out = find_dir(pdir / "final", f.stem) / f"{f.stem}_p{page_no}.png"
                 run.add(file=f.name, page=page_no, output=out.relative_to(run.dir).as_posix(), meta=meta)
                 print(f"{out}  {meta}")
+                if meta.get("orientation_error"):
+                    print(f"คำเตือน: {f.name} หน้า {page_no} ตรวจทิศไม่ได้ ({meta['orientation_error'][:90]}) จึงใช้ 0° ภาพอาจตะแคงอยู่ "
+                          "ตรวจภาพ final แล้วสั่งทิศเองได้ด้วย --orientation 90|180|270 --force (ไฟล์เดียว)")
     print(f"manifest: {run.dir / 'manifest.json'}")
 
 
 def cmd_ocr(args, cfg) -> None:
     paths, dataset = DataPaths(cfg), dataset_of(args.input)
-    if args.engine == "vlm":
-        from .vlm import TyphoonOCR
-
-        reader = TyphoonOCR(cfg["vlm"])
+    if args.engine in VLM_ENGINES:
+        reader = create_reader(args.engine, cfg)
     else:
         from .ocr import create_engine
 
         reader = create_engine(args.engine, cfg)
 
-    mode = "vlm" if args.engine == "vlm" else "ocr"
+    mode = "vlm" if args.engine in VLM_ENGINES else "ocr"
     label = engine_label(mode, args.engine)
     ext = "md" if mode == "vlm" else "txt"
     raw_dir = Path(args.out) / "raw_data" if args.out else paths.raw_data(label, dataset)
     pdir = paths.preprocess(dataset, args.profile)
-    settings = {"engine": label, "profile": args.profile, **({"model": cfg["vlm"]["model"]} if mode == "vlm" else {})}
+    settings = {"engine": label, "profile": args.profile, **({"model": vlm_model(args.engine, cfg)} if mode == "vlm" else {})}
     with Run("ocr", args.input, cfg, raw_dir, settings) as run:
         files = list(iter_input_files(args.input))
         nest = nest_per_file(len(files))
@@ -89,18 +92,23 @@ def cmd_extract(args, cfg) -> None:
     from .pipeline import FinanceOCRPipeline
 
     paths, dataset = DataPaths(cfg), dataset_of(args.input)
-    use_llm = {"on": True, "off": False, "auto": None}[args.llm]
-    pipe = FinanceOCRPipeline(cfg, mode=args.mode, engine=args.engine, use_llm=use_llm, with_reader=not args.reuse_raw)
-    label, extractor = engine_label(args.mode, args.engine), "llm" if pipe.llm else "rules"
+    use_llm = {"on": True, "off": False, "auto": None, "hybrid": True}[args.llm]
+    pipe = FinanceOCRPipeline(cfg, mode=args.mode, engine=args.engine, use_llm=use_llm, with_reader=not args.reuse_raw,
+                              strategy="hybrid" if args.llm == "hybrid" else None)
+    label = engine_label(args.mode, args.engine)
+    extractor = ("hybrid" if pipe.strategy == "hybrid" else "llm") if pipe.llm else "rules"
     ext = "md" if args.mode == "vlm" else "txt"
+    if args.variant and not args.reuse_raw:
+        sys.exit("--variant ใช้กับ --reuse-raw เท่านั้น (อ่านข้อความดิบของ scripts/run_sections.py --variant ... ที่เก็บไว้ ไม่ใช่การอ่านสด)")
+    sfx = f"_{args.variant}" if args.variant else ""  # raw_data_<แบบ>/ และ final_<แบบ>/ ข้างผลปกติ ไม่ทับกัน
     base = Path(args.out) if args.out else None
-    raw_dir = base / "raw_data" if base else paths.raw_data(label, dataset)
-    final_dir = base / "final" / extractor if base else paths.final(label, dataset, extractor)
+    raw_dir = base / f"raw_data{sfx}" if base else paths.raw_data(label, dataset).with_name(f"raw_data{sfx}")
+    final_dir = base / f"final{sfx}" / extractor if base else paths.final(label, dataset, extractor).parents[1] / f"final{sfx}" / extractor
     pdir = paths.preprocess(dataset, args.profile)
     settings = {
         "mode": args.mode, "engine": pipe.engine_name, "profile": args.profile, "reuse_raw": args.reuse_raw,
         "keep_raw": args.keep_raw, "raw_data": Path(os.path.relpath(raw_dir, final_dir)).as_posix(),
-        **({"vlm_model": cfg["vlm"]["model"]} if args.mode == "vlm" else {}),
+        **({"vlm_model": vlm_model(args.engine, cfg)} if args.mode == "vlm" else {}),
         **({"llm_model": cfg["llm_extractor"]["model"]} if pipe.llm else {}),
     }
     with Run("extract", args.input, cfg, final_dir, settings) as run:
@@ -137,6 +145,8 @@ def cmd_extract(args, cfg) -> None:
                 for c in r.checks:
                     mark = {True: "✓", False: "✗", None: "·"}[c.passed]
                     print(f"   {mark} {c.name}: {c.detail}")
+                for key, why in (pipe.last_rejected if pipe.strategy == "hybrid" else []):
+                    print(f"   ⊘ LLM เสนอ {key} แต่ไม่รับ: {why}")
                 t0 = time.perf_counter()
     print(f"manifest: {run.dir / 'manifest.json'}")
 
@@ -166,13 +176,16 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("input", help="ไฟล์หรือโฟลเดอร์")
     profile_arg(s)
     s.add_argument("--steps", action="store_true", help="บันทึกภาพทุกขั้นตอนใน steps/ (ทำใหม่แม้มีผลเก็บไว้)")
+    s.add_argument("--orientation", type=int, choices=[0, 90, 180, 270],
+                   help="สั่งมุมหมุน (องศาตามเข็ม) เองแทนตัวตรวจทิศอัตโนมัติ ใช้เมื่อตัวตรวจล้ม (ดูคำเตือน/ meta.orientation_error ใน manifest) "
+                        "ทำใหม่ไฟล์นั้นทันที ไม่เก็บลง settings.json เหมาะกับสั่งทีละไฟล์")
     s.add_argument("--force", action="store_true", help="ทำใหม่ทับ ถ้าตั้งค่าเปลี่ยนจากที่เก็บไว้ = ล้างโฟลเดอร์ profile นั้นก่อน")
     s.add_argument("--out", help="โฟลเดอร์ profile เอง (ค่าตั้งต้น data/preprocess/<dataset>/<profile>)")
     s.set_defaults(func=cmd_preprocess)
 
     s = sub.add_parser("ocr", help="อ่านข้อความดิบ → raw_data")
     s.add_argument("input")
-    s.add_argument("--engine", choices=[*ENGINES, "vlm"], default="paddle")
+    s.add_argument("--engine", choices=[*ENGINES, *VLM_ENGINES], default="paddle")
     profile_arg(s)
     s.add_argument("--out", help="โฟลเดอร์ engine เอง (ค่าตั้งต้น data/result_ocr/<engine>/<dataset>) ข้อความดิบอยู่ใต้ raw_data/")
     s.set_defaults(func=cmd_ocr)
@@ -180,12 +193,17 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("extract", help="สกัด field → JSON")
     s.add_argument("input")
     s.add_argument("--mode", choices=["ocr", "vlm"], default="ocr")
-    s.add_argument("--engine", choices=ENGINES, default="paddle", help="ใช้เมื่อ --mode ocr (ค่าตั้งต้น paddle)")
-    s.add_argument("--llm", choices=["auto", "on", "off"], default="auto",
-                   help="auto = ใช้ LLM เฉพาะ mode vlm")
+    s.add_argument("--engine", choices=[*ENGINES, "openthai"], default="paddle",
+                   help="--mode ocr: paddle | --mode vlm: ค่าตั้งต้น (paddle) = Typhoon, openthai = OpenThai 2.0 OCR")
+    s.add_argument("--llm", choices=["auto", "on", "off", "hybrid"], default="auto",
+                   help="auto = ใช้ LLM เฉพาะ mode vlm | on = rules และ LLM สกัดแยก เลือกชุดที่ check ดีกว่า | "
+                        "hybrid = rules นำ LLM เติมเฉพาะช่องที่ยังไม่เสร็จ ค่าต้องผ่านด่านก่อนรับ (ผลลง final/hybrid/)")
     profile_arg(s)
     s.add_argument("--reuse-raw", action="store_true",
                    help="สกัดซ้ำจากข้อความดิบที่เก็บไว้ใน raw_data (ไม่โหลด/เรียก OCR หรือ VLM ใช้ลองเปลี่ยน rules/LLM)")
+    s.add_argument("--variant", choices=["luma", "flat", "bin", "color"],
+                   help="ใช้กับ --reuse-raw: อ่านข้อความดิบจาก raw_data_<แบบ>/ (ผลของ scripts/run_sections.py --variant) แล้วเขียนผลที่ final_<แบบ>/<extractor>/ "
+                        "ไม่ใส่ = raw_data/ และ final/ ตามปกติ")
     s.add_argument("--keep-raw", action="store_true", help="เก็บข้อความดิบใน JSON ผลสุดท้ายด้วย")
     s.add_argument("--out", help="โฟลเดอร์ engine เอง (ค่าตั้งต้น data/result_ocr/<engine>/<dataset>) ผลอยู่ใต้ raw_data/ และ final/<extractor>/")
     s.set_defaults(func=cmd_extract)

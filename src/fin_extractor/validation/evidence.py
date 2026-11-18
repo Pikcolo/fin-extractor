@@ -110,6 +110,16 @@ def _show(v: Any) -> str:
     return v.isoformat() if isinstance(v, date) else str(v)
 
 
+def field_grounding(data: InvoiceData, text: str, profile: Profile | None = None) -> dict[str, bool | None]:
+    """ค่าแต่ละช่องปรากฏในข้อความหรือไม่ (กฎเดียวกับ ``grounded`` ใน evidence) ไว้ใช้คัดค่าที่ LLM เสนอก่อนรับเข้า."""
+    kinds = {DOC_PREFIX + f.key: f.type for f in profile.fields} if profile else {}
+    squashed = _squash(text)
+    numbers, percents = find_numbers(text), find_percents(text)
+    dates, tax_ids = find_dates(text), set(find_tax_ids(text))
+    return {key: _is_grounded(key, value, text, squashed, numbers, percents, dates, tax_ids, kinds)
+            for key, value in flatten(data).items()}
+
+
 def build_field_evidence(
     data: InvoiceData,
     checks: list[ValidationCheck],

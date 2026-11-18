@@ -62,7 +62,7 @@ def test_config_defaults_to_data_dir_from_default_yaml():
 def test_gitignore_blocks_everything_under_data_except_keepfiles():
     rules = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
     assert "data/**" in rules and "!data/**/.gitkeep" in rules  # ข้อมูลจริง (ภาษี/ส่วนบุคคล) ห้ามเข้า git
-    for folder in ("raw", "preprocess", "result_ocr", "etc/benchmarks", "etc/compare", "reports"):
+    for folder in ("raw", "preprocess", "result_ocr", "etc/benchmarks", "etc/compare", "etc/experiments", "reports"):
         assert (ROOT / "data" / folder / ".gitkeep").exists(), folder
 
 
@@ -114,3 +114,17 @@ def test_no_machine_specific_absolute_paths_in_code():
     for folder in ("src", "scripts"):
         for p in (ROOT / folder).rglob("*.py"):
             assert not bad.search(p.read_text(encoding="utf-8")), p
+
+
+def test_section_and_experiment_paths_follow_the_data_layout(tmp_path):
+    p = DataPaths({"paths": {"data_dir": str(tmp_path)}})
+    assert p.sections("finance_doc_scan") == tmp_path / "preprocess" / "finance_doc_scan" / "default" / "sections"
+    assert p.sections("s", "alt") == tmp_path / "preprocess" / "s" / "alt" / "sections"
+    assert p.section_features("s") == tmp_path / "preprocess" / "s" / "default" / "sections" / "features"
+    assert p.section_clean("s", "001309") == tmp_path / "preprocess" / "s" / "default" / "sections" / "clean" / "001309"
+    assert p.section_clean("s") == tmp_path / "preprocess" / "s" / "default" / "sections" / "clean"
+    assert p.section_clean("s", "001309", "bin") == tmp_path / "preprocess" / "s" / "default" / "sections" / "clean" / "bin" / "001309"
+    assert p.section_router("s") == tmp_path / "preprocess" / "s" / "default" / "sections" / "router"
+    assert p.section_ocr("s", "001309") == tmp_path / "preprocess" / "s" / "default" / "sections" / "ocr" / "001309"
+    assert p.experiments() == tmp_path / "etc" / "experiments" and p.experiments("openthai_sections") == tmp_path / "etc" / "experiments" / "openthai_sections"
+    assert p.sections("../x").parent.parent.parent == tmp_path / "preprocess"  # ชื่อชุดข้อมูลไต่ขึ้นโฟลเดอร์แม่ไม่ได้

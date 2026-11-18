@@ -46,6 +46,24 @@ vlm:
   timeout: 300
   max_image_side: 1800           # ย่อภาพก่อนส่ง VLM เพื่อลด token/เวลา
 
+# OpenThai 2.0 OCR Markdown (iApp, Nemotron-Parse 0.63B) — ใช้ด้วย --engine openthai
+# ดาวน์โหลดโมเดล: hf download iapp/OpenThai2.0-OCR-Markdown --local-dir models/OpenThai2.0-OCR-Markdown
+openthai:
+  backend: transformers          # transformers = โหลดในเครื่อง | vllm = เรียก server ที่ base_url
+  model_dir: models/OpenThai2.0-OCR-Markdown
+  device: null                   # null = cuda ถ้ามี ไม่งั้น cpu (โมเดลการ์ดแนะนำ GPU; CPU ช้ากว่ามาก)
+  base_url: http://localhost:8000/v1   # ใช้เฉพาะ backend vllm
+  repetition_penalty: 1.1        # ค่าตามตัวอย่างของผู้ทำโมเดล
+  max_tokens: 8744
+  parse_mode: single             # single = อ่านหน้าเดียวรอบเดียว | double = อ่านซ้ำเฉพาะตาราง/chart แบบ crop (ช้ากว่า แต่ลดตารางตก)
+
+# OXR-1.0 (SoMarkAI) โหลดตรงด้วย Transformers ไม่ใช้ Docker — อ่านภาพย่อย (section) เฉพาะส่วนที่เป็นตัวเลข/อังกฤษ (ไม่รู้ภาษาไทย ดู docs/10-oxr.md)
+# ดาวน์โหลด weights ~3GB เก็บนอก repo ได้: hf download SoMarkAI/OXR-1.0 --local-dir <model_dir>
+oxr_local:
+  model_dir: D:/PIK/models/OXR-1.0   # ที่เก็บ weights บนเครื่องนี้ (นอก repo) เครื่องอื่นเปลี่ยนด้วย --config
+  device: null                       # null = cuda ถ้ามี ไม่งั้น cpu (ช้ามาก)
+  max_new_tokens: 1024               # ภาพย่อยสั้นกว่าหน้า (container เดิมใช้ 3072) ข้อความวนซ้ำจะถูกตัดที่ค่านี้ (ยังไม่ได้วัดว่าพอ)
+
 llm_extractor:
   # LLM ที่แปลง text/markdown → JSON ตาม schema (ใช้ใน mode=vlm หรือ --llm on)
   provider: ollama

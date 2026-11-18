@@ -137,3 +137,16 @@ def test_handwritten_field_needs_corroboration_to_auto_approve():
     # ยอดรวมจากลายมือแต่ผลรวมไม่ลงตัว → ต้องคนตรวจ
     d.total_amount += 1
     assert decide_status(d, run_checks(d), ["total_amount"])[1] == "needs_review"
+
+
+def test_markdown_to_lines_joins_decimals_split_by_a_space():
+    """ฟอร์ม 50 ทวิแบ่งช่องบาท/สตางค์ OpenThai จึงพิมพ์ "2,000 .00" ตัวจับยอดเงินต้องเห็นเป็น 2,000.00 (เคยเป็นกฎที่ไม่ทำงานเพราะมีอักขระ backspace ติดอยู่ใน regex)"""
+    md = '<td>รวมเงินที่จ่ายและภาษีที่หักนำส่ง</td><td colspan="1" rowspan="1">2,000 .00</td><td>60 .00</td></tr>'
+    assert markdown_to_lines(md) == ["รวมเงินที่จ่ายและภาษีที่หักนำส่ง | 2,000.00 | 60.00"]
+    assert markdown_to_lines("106,250  \u00a0.00") == ["106,250.00"]  # ช่องว่างหลายตัว / nbsp ในบรรทัดเดียวกันก็นับ
+    assert markdown_to_lines("1 .25\n.50") == ["1.25", ".50"]  # "1 .25" รวมเป็น 1.25 แต่ ".50" ของบรรทัดถัดไปต้องไม่ถูกดึงมาต่อ (เดิม \s+ ข้ามบรรทัดจนได้ 1.25.50)
+
+
+def test_markdown_to_lines_leaves_other_dots_alone():
+    assert markdown_to_lines("ข้อ 5 .500 กรัม") == ["ข้อ 5 .500 กรัม"]  # ไม่ใช่ทศนิยมสองหลัก
+    assert markdown_to_lines("มาตรา 40 (4)(ข) ... .00") == ["มาตรา 40 (4)(ข) ... .00"]  # ไม่มีตัวเลขนำหน้าจุด

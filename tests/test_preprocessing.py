@@ -49,3 +49,34 @@ def test_detect_orientation_returns_zero_when_model_fails(monkeypatch):
 
     monkeypatch.setattr(geometry, "_load_orientation_model", boom)
     assert geometry.detect_orientation(_fake_document()) == 0
+
+
+def test_detect_orientation_checked_reports_the_failure_instead_of_a_silent_zero(monkeypatch):
+    def boom():
+        raise OSError("cudnn_cnn64_9.dll")
+
+    monkeypatch.setattr(geometry, "_load_orientation_model", boom)
+    angle, err = geometry.detect_orientation_checked(_fake_document())
+    assert angle == 0 and "OSError" in err and "cudnn" in err
+    monkeypatch.setattr(geometry, "_load_orientation_model", lambda: _FakeOrientationModel("0"))
+    assert geometry.detect_orientation_checked(_fake_document()) == (0, None)  # 0 ที่ตรวจได้จริงไม่มีข้อผิดพลาด
+
+
+def test_preprocess_records_orientation_error_in_meta(monkeypatch):
+    from fin_extractor.preprocessing import preprocess
+
+    monkeypatch.setattr(geometry, "_load_orientation_model", lambda: (_ for _ in ()).throw(RuntimeError("no model")))
+    res = preprocess(_fake_document(), {"fix_orientation": True, "keep_color": True, "min_long_side": 0})
+    assert res.meta["orientation"] == 0 and "RuntimeError" in res.meta["orientation_error"]
+
+
+def test_preprocess_manual_orientation_rotates_without_loading_the_model(monkeypatch):
+    from fin_extractor.preprocessing import preprocess
+
+    monkeypatch.setattr(geometry, "_load_orientation_model", lambda: (_ for _ in ()).throw(AssertionError("ต้องไม่โหลดโมเดล")))
+    img = _fake_document()
+    res = preprocess(img, {"fix_orientation": True, "keep_color": True, "min_long_side": 0}, orientation=90)
+    assert res.image.shape[:2] == img.shape[:2][::-1]  # หมุน 90° สลับกว้าง/สูง
+    assert res.meta["orientation"] == 90 and res.meta["orientation_source"] == "manual" and "orientation_error" not in res.meta
+    with pytest.raises(ValueError):
+        preprocess(img, {"keep_color": True, "min_long_side": 0}, orientation=45)

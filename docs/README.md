@@ -16,6 +16,9 @@
 | — | Decision model (concept: Jev / Laya) | | [09-decision-model.md](09-decision-model.md) |
 | — | แผน decision engine กับ confidence รายฟิลด์ (ความเห็น ข้อแย้ง ตัวชี้วัด แผนเป็นขั้น) | | [11-decision-engine-confidence-plan.md](11-decision-engine-confidence-plan.md) |
 | — | OXR: ตัวอ่านเอกสารที่ลองแล้ว (หลักการ ข้อดีข้อเสีย ผลวัดภาษาไทย) | `scripts/benchmark_oxr.py`, `scripts/extract_oxr.py` | [10-oxr.md](10-oxr.md) |
+| — | Preprocess router: คัดภาพย่อย (section) ก่อนเข้า OCR ด้วยป้ายและค่า (กฎ ผลวัด สิ่งที่ผิดระหว่างทาง ข้อจำกัด) | `routing/`, `scripts/route_sections.py` | [13-preprocess-router.md](13-preprocess-router.md) |
+| — | แบ่งหน้าเป็น section ก่อน OCR (สายงานปัจจุบัน: ตารางก้อนเดียว, ท่อนสูงสุด 0.3 ของหน้า, luma, อ่านทีละส่วนด้วย OpenThai; ผลวัด 9 ใบและข้อจำกัด) | `notebooks/preprocess_lab/labkit.py`, `scripts/make_section_layouts.py`, `scripts/run_sections.py` | [14-section-preprocess.md](14-section-preprocess.md) |
+| — | OpenThai 2.0 OCR: ตัวอ่าน VLM ภาษาไทยที่ต่อเข้าแล้ว (หลักการ การต่อเข้าโปรเจกต์ ผลวัด 18 ใบ) | `vlm/openthai_ocr.py` | [12-openthai-ocr.md](12-openthai-ocr.md) |
 
 ## Workflow
 

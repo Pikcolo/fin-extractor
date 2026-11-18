@@ -18,8 +18,8 @@ class FakePipe:
 
     log: list = []
 
-    def __init__(self, cfg, mode="ocr", engine="paddle", use_llm=None, with_reader=True):
-        self.mode, self.with_reader = mode, with_reader
+    def __init__(self, cfg, mode="ocr", engine="paddle", use_llm=None, with_reader=True, strategy=None):
+        self.mode, self.with_reader, self.strategy = mode, with_reader, strategy or "winner"
         self.llm = object() if (use_llm if use_llm is not None else mode == "vlm") else None
         self.engine_name = f"{engine if mode == 'ocr' else 'vlm:fake'}+{'llm' if self.llm else 'rules'}"
         FakePipe.log.append(("init", with_reader))
@@ -93,6 +93,22 @@ def test_vlm_mode_goes_to_typhoon_folder_with_markdown_raw_data(env, capsys):
     base = env.data / "result_ocr" / "typhoon" / "scans"
     assert (base / "raw_data" / "a_p1.md").exists() and (base / "final" / "rules" / "a_p1.json").exists()
     capsys.readouterr()
+
+
+def test_variant_reuses_raw_data_variant_and_writes_final_variant_only(env, capsys):
+    base = env.data / "result_ocr" / "typhoon" / "scans"
+    (base / "raw_data_luma").mkdir(parents=True)
+    (base / "raw_data_luma" / "a_p1.md").write_text("ข้อความจาก section", encoding="utf-8")
+    run(env, "extract", str(env.src), "--mode", "vlm", "--llm", "off", "--reuse-raw", "--variant", "luma")
+    assert FakePipe.log[0] == ("init", False) and FakePipe.log[-1][:3] == ("raw", 1, "ข้อความจาก section")
+    assert (base / "final_luma" / "rules" / "a_p1.json").exists()
+    assert not (base / "final").exists() and not (base / "raw_data").exists()  # ผลปกติไม่ถูกแตะ/สร้าง
+    capsys.readouterr()
+
+
+def test_variant_without_reuse_raw_is_refused(env):
+    with pytest.raises(SystemExit, match="--reuse-raw"):
+        run(env, "extract", str(env.src), "--mode", "vlm", "--llm", "off", "--variant", "luma")
 
 
 def test_keep_raw_keeps_text_in_the_final_json_too(env, capsys):

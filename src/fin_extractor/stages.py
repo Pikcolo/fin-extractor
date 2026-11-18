@@ -33,7 +33,7 @@ def preprocess_settings(cfg: dict[str, Any]) -> dict[str, Any]:
 
 
 def prepared_pages(path: str | Path, cfg: dict[str, Any], profile_dir: Path, *, steps: bool = False,
-                   force: bool = False, nest: bool = False) -> Iterator[tuple[int, np.ndarray, dict[str, Any]]]:
+                   force: bool = False, nest: bool = False, orientation: int | None = None) -> Iterator[tuple[int, np.ndarray, dict[str, Any]]]:
     """(เลขหน้า, ภาพที่ผ่าน preprocess, meta) ของไฟล์ — ใช้ภาพที่เก็บไว้ถ้าตั้งค่าตรงกันและครบทุกหน้า.
 
     ``nest``: เก็บภาพของไฟล์นี้ในโฟลเดอร์ย่อยชื่อไฟล์ใต้ final/ และ steps/ (รันที่มีไฟล์มาก ดู paths.nest_per_file)
@@ -45,7 +45,7 @@ def prepared_pages(path: str | Path, cfg: dict[str, Any], profile_dir: Path, *, 
     stored = json.loads(settings_path.read_text(encoding="utf-8")) if settings_path.exists() else None
 
     cached = [final / f"{path.stem}_p{i}.png" for i in range(1, page_count(path) + 1)]
-    if stored == wanted and not force and not steps and all(p.exists() for p in cached):
+    if stored == wanted and not force and not steps and orientation is None and all(p.exists() for p in cached):
         for i, p in enumerate(cached, start=1):
             yield i, read_image(p), {"cached": True}
         return
@@ -63,7 +63,7 @@ def prepared_pages(path: str | Path, cfg: dict[str, Any], profile_dir: Path, *, 
     steps_dir = doc_dir(profile_dir / "steps", path.stem, nest)
 
     for i, img in enumerate(load_pages(path, cfg["loader"]["pdf_dpi"]), start=1):
-        res = preprocess(img, cfg["preprocessing"], keep_steps=steps)
+        res = preprocess(img, cfg["preprocessing"], keep_steps=steps, orientation=orientation)
         save_image(final / f"{path.stem}_p{i}.png", res.image)
         if steps:
             res.save_steps(steps_dir, f"{path.stem}_p{i}")

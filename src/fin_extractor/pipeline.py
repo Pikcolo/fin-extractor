@@ -15,9 +15,12 @@ from typing import Any, Literal
 from .doctypes import (
     GENERIC_PROFILE, Profile, classify, core_labels_for, legacy_not_applicable, load_core_labels, load_profiles, squash)
 from .extraction.core_labels import extract_buyer_name
+from .extraction.hybrid import known_context, merge_llm, top_level, unresolved_keys
 from .extraction import extract_fields, markdown_to_lines
+from .extraction.llm_extractor import profile_schema
 from .extraction.profile_extractor import dedupe_remark, extract_document_fields, extract_remark
 from .io import load_pages
+from .ocr.base import normalize_thai
 from .ocr import create_engine
 from .preprocessing import preprocess
 from .schema import ExtractionResult, InvoiceData, ValidationCheck
@@ -47,6 +50,9 @@ def fill_missing(primary: InvoiceData, secondary: InvoiceData) -> InvoiceData:
 
 
 class FinanceOCRPipeline:
+    strategy: str = "winner"  # ค่าตั้งต้นระดับ class (พฤติกรรมเดิม) ``__init__`` ตั้งทับตาม config / --llm hybrid
+    last_rejected: list = []
+
     def __init__(
         self,
         cfg: dict[str, Any],
@@ -54,22 +60,30 @@ class FinanceOCRPipeline:
         engine: str = "paddle",
         use_llm: bool | None = None,
         with_reader: bool = True,
+        strategy: Literal["winner", "hybrid"] | None = None,
     ):
         """``with_reader=False``: ไม่โหลดตัวอ่าน (OCR/VLM) ใช้สกัดซ้ำจากข้อความดิบที่เก็บไว้ (process_raw) โดยไม่แตะ GPU."""
         self.cfg = cfg
         self.mode = mode
         self.use_llm = (mode == "vlm") if use_llm is None else use_llm
+        # winner = rules กับ LLM สกัดแยกกัน แล้วเลือกชุดที่ check ดีกว่า | hybrid = rules นำ LLM เติมเฉพาะช่องที่ยังไม่เสร็จ (extraction/hybrid.py)
+        self.strategy = strategy or cfg.get("extraction", {}).get("strategy", "winner")
+        if self.strategy not in ("winner", "hybrid"):
+            raise ValueError(f"unknown extraction strategy: {self.strategy}")
+        self.last_rejected: list[tuple[str, str]] = []  # ค่าที่ LLM เสนอแต่ด่านของ hybrid ปัดตก (คีย์, เหตุผล) ของหน้าล่าสุด
 
         if mode not in ("ocr", "vlm"):
             raise ValueError(f"unknown mode: {mode}")
         if not with_reader:  # ใช้แค่ชื่อให้ engine_name ตรงกับตอนอ่านจริง
-            self.reader = SimpleNamespace(name=engine if mode == "ocr" else f"vlm:{cfg['vlm']['model']}")
+            from .vlm import vlm_model
+
+            self.reader = SimpleNamespace(name=engine if mode == "ocr" else f"vlm:{vlm_model(engine, cfg)}")
         elif mode == "ocr":
             self.reader = create_engine(engine, cfg)
         else:
-            from .vlm import TyphoonOCR
+            from .vlm import create_reader
 
-            self.reader = TyphoonOCR(cfg["vlm"])
+            self.reader = create_reader(engine, cfg)
         self.profile = cfg["preprocessing"]
         self.doc_table = cfg.get("document_types") or {}
         self.profiles = load_profiles(self.doc_table)
@@ -83,6 +97,8 @@ class FinanceOCRPipeline:
 
     @property
     def engine_name(self) -> str:
+        if self.llm and self.strategy == "hybrid":
+            return f"{self.reader.name}+rules+{self.llm.name}"
         return self.reader.name + ("+" + self.llm.name if self.llm else "+rules")
 
     def read_prepared(self, img):
@@ -140,6 +156,8 @@ class FinanceOCRPipeline:
         rules.remark = extract_remark(lines, profile, rules)
         if not self.llm:
             return rules, dict.fromkeys(flatten(rules), "rules"), {}
+        if self.strategy == "hybrid":
+            return self._extract_hybrid(rules, profile, lines, raw_text)
         try:
             llm = self.llm.extract(raw_text, profile)
         except Exception as e:  # noqa: BLE001 — LLM ล่ม/ตอบผิด schema → ใช้ rules
@@ -168,6 +186,36 @@ class FinanceOCRPipeline:
             sources[key] = best_name if (getattr(best, list_name) if is_list else key in flat_best) else other_name
             if not is_list and key in flat_best and key in flat_other:
                 agree[key] = comparable(flat_best[key]) == comparable(flat_other[key])
+        return merged, sources, agree
+
+    def _score(self, d: InvoiceData, profile: Profile) -> float:
+        checks = run_checks(d, self.cfg["validation"]["amount_tolerance"],
+                            self.cfg["validation"]["default_vat_rate"], applicable=profile.checks)
+        return sum(c.passed is True for c in checks) - sum(c.passed is False for c in checks)
+
+    def _extract_hybrid(self, rules: InvoiceData, profile: Profile, lines: list[str], raw_text: str):
+        """rules นำ → หาช่องที่ยังไม่เสร็จ → ถาม LLM เฉพาะช่องนั้น → รับค่าที่ผ่านด่าน (ดู extraction/hybrid.py)."""
+        self.last_rejected = []
+        sources = dict.fromkeys(flatten(rules), "rules")
+        na = set(profile.not_applicable) | legacy_not_applicable(self.doc_table, rules.document_type)
+        checks = run_checks(rules, self.cfg["validation"]["amount_tolerance"],
+                            self.cfg["validation"]["default_vat_rate"], applicable=profile.checks)
+        unresolved = unresolved_keys(rules, checks, profile.required, na, profile.primary_amount)
+        asked = {top_level(k) for k in unresolved}
+        if not profile_schema(profile, asked)["properties"]:  # ไม่มีช่องไหนที่ LLM ตอบได้ (เช่น ชนิดนี้ไม่มีช่องนั้น)
+            return rules, sources, {}
+        try:
+            llm = self.llm.extract(normalize_thai(raw_text), profile, only=asked, known=known_context(rules, unresolved),
+                                    focus=unresolved)
+        except Exception as e:  # noqa: BLE001 — LLM ล่ม/ตอบผิด schema → ใช้ rules
+            log.warning("LLM extraction failed, falling back to rules: %s", e)
+            return rules, sources, {}
+        merged, accepted, self.last_rejected, agree = merge_llm(
+            rules, llm, asked, unresolved, "\n".join(lines), profile, lambda d: self._score(d, profile))
+        merged.document_profile = profile.name
+        merged.remark = dedupe_remark(merged.remark, merged, profile)
+        for key in flatten(merged):
+            sources[key] = "llm" if key in accepted else sources.get(key, "rules")
         return merged, sources, agree
 
     def build_result(self, source_file: str, page: int, lines: list[str], raw_text: str,
