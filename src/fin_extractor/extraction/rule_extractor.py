@@ -61,6 +61,23 @@ def markdown_to_lines(markdown: str) -> list[str]:
     return [ln for ln in lines if ln]
 
 
+_CHUNK_RE = re.compile(r"<!--\s*(s\d+)(?=\s)[^>]*-->")
+
+
+def lines_with_chunks(markdown: str) -> list[tuple[str, str | None]]:
+    """``markdown_to_lines`` + รหัส section (``sNN``) ของแต่ละบรรทัด จากคอมเมนต์ ``<!-- sNN kind -->`` ที่ขั้น OCR รายส่วนใส่นำหน้าแต่ละท่อน
+    บรรทัดก่อนคอมเมนต์แรก (หรือข้อความที่ไม่มีคอมเมนต์ เช่นอ่านทั้งหน้า) ได้ None ลำดับและเนื้อหาบรรทัดเท่ากับ ``markdown_to_lines`` ทุกประการ."""
+    out: list[tuple[str, str | None]] = []
+    chunk: str | None = None
+    pos = 0
+    for m in [*_CHUNK_RE.finditer(markdown), None]:
+        end = m.start() if m else len(markdown)
+        out.extend((ln, chunk) for ln in markdown_to_lines(markdown[pos:end]))
+        if m:
+            chunk, pos = m.group(1), m.end()
+    return out
+
+
 AMOUNT_ONLY_RE = re.compile(r"^[\s|฿]*-?[\d,]+\.\d{2}[\s|บาทTHB]*$")
 MAX_SUBTOTAL_LABEL = 30  # "Total" เป็นคำทั่วไป เช่น "Total THB withdrawal fee ..." ในรายการ
 # ป้ายที่บอกชัดว่าเป็นยอดย่อย — ต่างจาก "Total" / "รวม" เปล่า ๆ ที่เป็นได้ทั้งยอดย่อยและยอดรวม

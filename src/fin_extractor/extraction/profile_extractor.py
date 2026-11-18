@@ -15,7 +15,8 @@ from typing import Any
 
 from ..doctypes import FieldSpec, Profile, alias_regex, squash
 from ..schema import ExtraField, InvoiceData
-from .patterns import AMOUNT_RE, PERCENT_RE, find_tax_ids, normalize_tax_id, parse_amount, parse_date
+from ..validation.tax_id import is_valid_thai_tax_id
+from .patterns import AMOUNT_RE, PERCENT_RE, find_amounts, find_dates, find_tax_ids, normalize_tax_id, parse_amount, parse_date
 from .rule_extractor import AMOUNT_FIELDS, AMOUNT_ONLY_RE, BUYER_RE, COMPANY_RE, DATE_LABEL_RE, INVOICE_NO_RE
 
 _LEAD = re.compile(r"^[\s:：.\-/|]+")
@@ -163,10 +164,11 @@ def dedupe_remark(remark: list[ExtraField], data: InvoiceData, profile: Profile)
     return out
 
 
-def extract_remark(lines: list[str], profile: Profile, data: InvoiceData) -> list[ExtraField]:
-    """บรรทัดรูป "ป้าย: ค่า" ที่ไม่มีช่องรองรับ (rules) — LLM เติมหมายเหตุได้ละเอียดกว่า ใช้เป็นแหล่งสำรองเมื่อไม่มี LLM."""
+def extract_remark(lines: list[str], profile: Profile, data: InvoiceData, chunks: list[str | None] | None = None) -> list[ExtraField]:
+    """บรรทัดรูป "ป้าย: ค่า" ที่ไม่มีช่องรองรับ (rules) — LLM เติมหมายเหตุได้ละเอียดกว่า ใช้เป็นแหล่งสำรองเมื่อไม่มี LLM.
+    ``chunks`` = รหัส section ของแต่ละบรรทัด (ขนานกับ ``lines``) ใส่ลง ``source_chunk``."""
     pairs = []
-    for line in lines:
+    for i, line in enumerate(lines):
         m = _KV.match(line)
         if not m or not re.search(r"[^\W\d_]", m.group(1)):
             continue
@@ -174,5 +176,21 @@ def extract_remark(lines: list[str], profile: Profile, data: InvoiceData) -> lis
         # บรรทัดที่ค่ามีโคลอนอีกตัว หรือพูดถึงป้ายของช่องอื่น คือหลายคอลัมน์ที่ OCR ต่อเป็นบรรทัดเดียว แยกคู่ไม่ได้ ไม่เดา
         if re.search(r"[:：]", value) or _mentions_known_label(value, profile):
             continue
-        pairs.append(ExtraField(label=label, value=value))
+        pairs.append(ExtraField(label=label, value=value, source_chunk=chunks[i] if chunks else None))
     return dedupe_remark(pairs, data, profile)
+
+
+UNMAPPED_LABEL = "(ไม่มีช่องรองรับ)"
+UNMAPPED_MAX_CHARS = 200  # ตัดบรรทัดยาวผิดปกติ (ตารางที่ OCR ต่อเป็นบรรทัดเดียว) ไม่ให้ remark บวม
+
+
+def extract_unmapped(lines: list[str], data: InvoiceData, chunks: list[str | None] | None = None) -> list[ExtraField]:
+    """บรรทัดที่ **มีข้อมูลสำคัญแต่ไม่มีช่องรับ** เก็บลง remark แทนการทิ้ง: บรรทัดที่มียอดเงิน / วันที่ / เลขภาษีที่ checksum ผ่าน
+    โดยไม่มีค่าใดเลยตรงกับค่าที่สกัดไว้แล้วในช่องใด (ใช้ตัวจับชุดเดียวกับตัวสกัด ไม่มีเกณฑ์ที่ตั้งเอง) บรรทัดที่ไม่มีสัญญาณเหล่านี้ไม่นับ
+    เลข 13 หลักที่ checksum ไม่ผ่าน (เช่นรหัสสินค้า) ไม่ถือเป็นเลขภาษี."""
+    filled, out = _filled_values(data), []
+    for i, line in enumerate(lines):
+        tokens = [f"{a:f}" for a in find_amounts(line)] + [t for t in find_tax_ids(line) if is_valid_thai_tax_id(t)]             + [d.isoformat() for d in find_dates(line)]
+        if tokens and not any(_same_value(t, filled) for t in tokens):
+            out.append(ExtraField(label=UNMAPPED_LABEL, value=line[:UNMAPPED_MAX_CHARS], kind="unmapped", source_chunk=chunks[i] if chunks else None))
+    return out

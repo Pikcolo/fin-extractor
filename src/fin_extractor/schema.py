@@ -48,6 +48,16 @@ class ExtraField(BaseModel):
 
     label: str = Field(description="ป้ายตามที่เอกสารพิมพ์ ใช้ภาษาเดิมของเอกสาร")
     value: str = Field(description="ค่าตามที่เอกสารพิมพ์ เป็นสตริงตามเดิม ไม่แปลงชนิด")
+    kind: Literal["pair", "unmapped"] = Field(
+        "pair", description="pair = บรรทัดรูป ป้าย: ค่า ที่ไม่มีช่องรองรับ · unmapped = บรรทัดที่มียอดเงิน/วันที่/เลขภาษี แต่ไม่มีช่องรับค่านั้น (ป้าย = (ไม่มีช่องรองรับ) ค่า = ทั้งบรรทัด)")
+    source_chunk: str | None = Field(None, description="รหัส section ที่บรรทัดนี้มาจาก (sNN ใน .md ของขั้น OCR รายส่วน) None = ไม่ทราบ (อ่านทั้งหน้า)")
+
+
+class RejectedValue(BaseModel):
+    """ค่าที่ LLM เสนอแต่ด่านของ hybrid ปัดตก เก็บไว้ให้คน debug ได้ว่าทำไมช่องนั้นว่าง."""
+
+    key: str = Field(description="คีย์ฟิลด์ เช่น vendor.tax_id")
+    reason: str
 
 
 class InvoiceData(BaseModel):
@@ -145,3 +155,4 @@ class ExtractionResult(BaseModel):
     )
     status: Literal["auto_approved", "needs_review", "failed"]
     raw_text: str | None = Field(None, description="ข้อความดิบจาก OCR/VLM ไว้ debug")
+    rejected: list[RejectedValue] = Field(default_factory=list, description="ค่าที่ LLM เสนอแต่ไม่ถูกรับ (โหมด hybrid) พร้อมเหตุผล")

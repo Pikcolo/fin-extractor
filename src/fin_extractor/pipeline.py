@@ -16,14 +16,14 @@ from .doctypes import (
     GENERIC_PROFILE, Profile, classify, core_labels_for, legacy_not_applicable, load_core_labels, load_profiles, squash)
 from .extraction.core_labels import extract_buyer_name
 from .extraction.hybrid import known_context, merge_llm, top_level, unresolved_keys
-from .extraction import extract_fields, markdown_to_lines
+from .extraction import extract_fields, lines_with_chunks, markdown_to_lines
 from .extraction.llm_extractor import profile_schema
-from .extraction.profile_extractor import dedupe_remark, extract_document_fields, extract_remark
+from .extraction.profile_extractor import dedupe_remark, extract_document_fields, extract_remark, extract_unmapped
 from .io import load_pages
 from .ocr.base import normalize_thai
 from .ocr import create_engine
 from .preprocessing import preprocess
-from .schema import ExtractionResult, InvoiceData, ValidationCheck
+from .schema import ExtractionResult, InvoiceData, RejectedValue, ValidationCheck
 from .validation import decide_status, run_checks
 from .validation.evidence import build_field_evidence, comparable, flatten
 
@@ -116,6 +116,15 @@ class FinanceOCRPipeline:
     def _incomplete_check() -> ValidationCheck:
         return ValidationCheck(name="vlm_complete", passed=False, detail="VLM ตอบไม่จบ (max_tokens) — ข้อมูลอาจขาด")
 
+    @staticmethod
+    def _chunks_of(lines: list[str], raw_text: str) -> list[str | None] | None:
+        """รหัส section ของแต่ละบรรทัด (ขนานกับ ``lines``) จากคอมเมนต์ ``<!-- sNN -->`` ใน Markdown ของขั้น OCR รายส่วน
+        None ถ้าอ่านทั้งหน้า/ไม่มีคอมเมนต์ หรือบรรทัดไม่ตรงกับ ``lines`` (ไม่เดา)."""
+        if "<!-- s" not in raw_text:
+            return None
+        pairs = lines_with_chunks(raw_text)
+        return [c for _ln, c in pairs] if [ln for ln, _c in pairs] == lines else None
+
     def lines_from_raw(self, raw_text: str) -> list[str]:
         """ข้อความดิบที่เก็บไว้ → บรรทัดสำหรับขั้นสกัด (แบบเดียวกับตอนอ่านสด)."""
         if self.mode == "vlm":
@@ -153,7 +162,8 @@ class FinanceOCRPipeline:
         if name and not rules.buyer.name:
             rules.buyer.name = name
             rules.buyer.branch = rules.buyer.branch or branch
-        rules.remark = extract_remark(lines, profile, rules)
+        chunks = self._chunks_of(lines, raw_text)
+        rules.remark = [*extract_remark(lines, profile, rules, chunks), *extract_unmapped(lines, rules, chunks)]
         if not self.llm:
             return rules, dict.fromkeys(flatten(rules), "rules"), {}
         if self.strategy == "hybrid":
@@ -235,6 +245,7 @@ class FinanceOCRPipeline:
             source_file=source_file, page=page, engine=self.engine_name, data=data,
             checks=checks, field_evidence=evidence, ocr_confidence=round(ocr_conf, 4) if ocr_conf is not None else None,
             missing_fields=missing, status=status, raw_text=raw_text,
+            rejected=[RejectedValue(key=k, reason=why) for k, why in (self.last_rejected if self.strategy == "hybrid" else [])],
         )
 
     def process_page(self, source_file: str, page_no: int, img) -> ExtractionResult:

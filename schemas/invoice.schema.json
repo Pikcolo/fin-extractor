@@ -12,6 +12,29 @@
           "description": "ค่าตามที่เอกสารพิมพ์ เป็นสตริงตามเดิม ไม่แปลงชนิด",
           "title": "Value",
           "type": "string"
+        },
+        "kind": {
+          "default": "pair",
+          "description": "pair = บรรทัดรูป ป้าย: ค่า ที่ไม่มีช่องรองรับ · unmapped = บรรทัดที่มียอดเงิน/วันที่/เลขภาษี แต่ไม่มีช่องรับค่านั้น (ป้าย = (ไม่มีช่องรองรับ) ค่า = ทั้งบรรทัด)",
+          "enum": [
+            "pair",
+            "unmapped"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "source_chunk": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "รหัส section ที่บรรทัดนี้มาจาก (sNN ใน .md ของขั้น OCR รายส่วน) None = ไม่ทราบ (อ่านทั้งหน้า)",
+          "title": "Source Chunk"
         }
       },
       "required": [
@@ -465,6 +488,26 @@
       "title": "Party",
       "type": "object"
     },
+    "RejectedValue": {
+      "description": "ค่าที่ LLM เสนอแต่ด่านของ hybrid ปัดตก เก็บไว้ให้คน debug ได้ว่าทำไมช่องนั้นว่าง.",
+      "properties": {
+        "key": {
+          "description": "คีย์ฟิลด์ เช่น vendor.tax_id",
+          "title": "Key",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "reason"
+      ],
+      "title": "RejectedValue",
+      "type": "object"
+    },
     "ValidationCheck": {
       "properties": {
         "name": {
@@ -595,6 +638,14 @@
       "default": null,
       "description": "ข้อความดิบจาก OCR/VLM ไว้ debug",
       "title": "Raw Text"
+    },
+    "rejected": {
+      "description": "ค่าที่ LLM เสนอแต่ไม่ถูกรับ (โหมด hybrid) พร้อมเหตุผล",
+      "items": {
+        "$ref": "#/$defs/RejectedValue"
+      },
+      "title": "Rejected",
+      "type": "array"
     }
   },
   "required": [
