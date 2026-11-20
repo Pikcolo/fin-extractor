@@ -16,6 +16,7 @@
 | 5 | สกัด field: 5A rules · 5B LLM · 5C เลือกผล · 5D hybrid | `extraction/`, `pipeline.py` | [05-extraction.md](05-extraction.md) |
 | 5 | 5E validation · 5F สถานะ · 5G บันทึก JSON | `validation/`, `cli.py` | [05-validation-output.md](05-validation-output.md) |
 | — | หลักการระบบ, data contract (schema), best solution และ roadmap | `schema.py` | [06-design-and-roadmap.md](06-design-and-roadmap.md) |
+| — | สถานะเทียบขอบเขตงาน 5 เฟส, ความเห็นต่อไอเดีย pipeline และแผนต่อ (เน้น preprocess → OCR → post-process) | | [10-project-status-and-plan.md](10-project-status-and-plan.md) |
 
 **draft** (แผน/concept ยังไม่มีโค้ด)
 
