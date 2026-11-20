@@ -23,27 +23,13 @@ regions:
     box: [0.00, 0.240, 1.00, 0.290]
     hint: pnd_form (checked box)
 
-  # Income table: one crop per column, so numbers are not mixed with the long Thai descriptions
-  - name: income_desc
-    box: [0.00, 0.285, 0.565, 0.765]
-    tile: false        # keep each column whole so rows stay aligned across columns
-    trim: false        # ... and untrimmed, so all four columns keep the same top edge
-    hint: income type rows 1-6
-  - name: income_date
-    box: [0.555, 0.285, 0.705, 0.765]
-    tile: false        # keep each column whole so rows stay aligned across columns
-    trim: false        # ... and untrimmed, so all four columns keep the same top edge
-    hint: pay_date per row
-  - name: income_amount
-    box: [0.690, 0.285, 0.850, 0.765]
-    tile: false        # keep each column whole so rows stay aligned across columns
-    trim: false        # ... and untrimmed, so all four columns keep the same top edge
-    hint: amount_paid per row + total
-  - name: income_tax
-    box: [0.835, 0.285, 1.00, 0.765]
-    tile: false        # keep each column whole so rows stay aligned across columns
-    trim: false        # ... and untrimmed, so all four columns keep the same top edge
-    hint: tax_withheld per row + total
+  # ตารางรายได้เป็น region เดียวทั้งแถว (ป้าย | วันที่ | จำนวนเงิน | ภาษี อยู่ภาพเดียวกัน)
+  # เดิม preprocess_finance แยก 4 คอลัมน์ (income_desc/date/amount/tax) วัดกับ OpenThai แล้วแย่ลง: ภาพคอลัมน์ตัวเลขไม่มีป้าย
+  # โมเดลตอบเป็นตารางว่างยาว และ rules หายอดรวมไม่เจอ (docs/03-regions.md) — กรอบนี้คือขอบเขตรวมของ 4 คอลัมน์เดิม
+  # สูงเกิน max_piece_frac จึงถูกตัดเป็นท่อนที่แถวว่าง (ตัดตามแถว ไม่ตัดตามคอลัมน์)
+  - name: income_table
+    box: [0.00, 0.285, 1.00, 0.765]
+    hint: income type rows 1-6 + pay_date + amount_paid + tax_withheld (+ total row)
 
   - name: total_text          # รวมเงินภาษีที่หักนำส่ง (ตัวอักษร)
     box: [0.00, 0.760, 1.00, 0.795]
