@@ -27,9 +27,8 @@ from ...config import PROJECT_ROOT
 from ...preprocessing import clean as clean_ops
 from ...preprocessing import enhance
 from .. import images as I
-from ..layout import split_rows
-from . import codes, doc_types, draw, geometry, lines, split, tables
-from .masks import ink_mask, text_mask
+from . import codes, doc_types, draw, geometry, lines, pieces, split, tables
+from .masks import ink_mask, line_masks, text_mask
 
 CONFIG_DIR = PROJECT_ROOT / "configs" / "regions"
 STAGES = ("normalize", "mask", "clean", "regions", "tables", "export")
@@ -186,18 +185,22 @@ def run_page(full: np.ndarray, stem: str, src_dpi: float, rc: RegionConfig, page
         return first
 
     max_h = ex.get("max_piece_frac") or 0
+    # หมึกที่ใช้หาบรรทัดตอนหด/ตัดท่อน: Otsu ∪ ระยะสีจากพื้น (sections.images.binarize_inverted) ลบเส้นตารางแล้ว
+    # Otsu อย่างเดียวมองไม่เห็นตัวพิมพ์สีอ่อน (1317–1319: รายการสินค้าทั้งแถวถูกหดทิ้ง) หดขอบด้วยหมึกที่มองไม่เห็นข้อความ = ข้อมูลหาย
+    colour = I.binarize_inverted(img)
+    cut_ink = cv2.bitwise_or(text, cv2.subtract(colour, cv2.bitwise_or(*line_masks(colour, min_frac=0.1))))
     for i, r in enumerate(regs):
         box = trim(r["box"]) if r.get("trim", True) else r["box"]
         if box is None or float((ink_mask(geometry.crop(img, box)) > 0).mean()) < ex["min_ink_frac"]:
             skipped.append({"region": r["name"]})  # ไม่เหลืออะไร (เช่น แถบที่มีแต่ QR ที่ระบายแล้ว)
             continue
-        x0, y0, x1, y1 = box
-        pieces = [(y0, y1)]
-        if max_h and r.get("tile", True):
-            pieces = [(py, py + ph) for _x, py, _w, ph in split_rows(text, (x0, y0, x1 - x0, y1 - y0), max_h * img.shape[0])]
-        for j, (a, b) in enumerate(pieces):
-            name = f"{i:02d}_{r['name']}" + (f"_t{j:02d}" if len(pieces) > 1 else "")
-            write(name, (x0, a, x1, b), {"region": r["name"], "tile": j}, ex["variants"])
+        x0, _y0, x1, _y1 = box
+        cut = {"pieces": [(box[1], box[3])], "method": "off"}
+        if r.get("tile", True):  # หดขอบตามบรรทัดจริง + ตัดท่อนไม่ผ่ากลางรายการ (pieces.py)
+            cut = pieces.cut_region(cut_ink, box, vlines, max_h * img.shape[0], cfg["tables"]["min_row_h"], ex["trim_pad_px"])
+        for j, (a, b) in enumerate(cut["pieces"]):
+            name = f"{i:02d}_{r['name']}" + (f"_t{j:02d}" if len(cut["pieces"]) > 1 else "")
+            write(name, (x0, a, x1, b), {"region": r["name"], "tile": j, "cut": cut["method"]}, ex["variants"])
 
     # ช่องตาราง + คู่ key/value (เก็บพาธ ข้อความมาหลัง OCR)
     kv = []

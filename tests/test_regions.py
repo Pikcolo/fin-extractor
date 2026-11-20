@@ -147,3 +147,43 @@ def test_run_page_writes_a_layout_the_section_reader_accepts(tmp_path):
     assert [i for i, _b in kept_layout(layout)] == list(entries)
     assert all((page_dir / "crops" / e["file"]).exists() and e["file"].endswith("__luma.png") for e in entries.values())
     assert not any("tables/" in e["file"] for e in entries.values())  # อ่านเฉพาะ region ไม่อ่านช่องตารางซ้ำ
+
+
+def _text_page(rows, w=600, h=1000):
+    """หน้ากากข้อความจำลอง: rows = [(y, สูง, x0, x1)] แต่ละแถวเป็นแท่งหมึก (ตัวอักษร)."""
+    t = np.zeros((h, w), np.uint8)
+    for y, hh, x0, x1 in rows:
+        t[y:y + hh, x0:x1] = 255
+    return t
+
+
+def test_cut_region_trims_to_ink_and_keeps_short_tables_whole():
+    from fin_extractor.sections.regions import pieces
+
+    t = _text_page([(100, 20, 50, 400), (140, 20, 50, 300), (998, 1, 0, 600)])  # 1 px เศษเส้นล่าง = ไม่ใช่หมึก
+    cut = pieces.cut_region(t, (0, 0, 600, 1000), [], max_h=300, min_line_h=12, pad=6)
+    assert cut["method"] == "whole" and cut["pieces"] == [(94, 166)]
+
+
+def test_cut_region_cuts_at_the_widest_gap_not_inside_an_item():
+    from fin_extractor.sections.regions import pieces
+
+    # สองย่อหน้า บรรทัดห่าง 10 px ภายในย่อหน้า ระหว่างย่อหน้าห่าง 70 px (420–490) — จุดแบ่งเท่า ๆ กัน (~480) ตกใกล้ย่อหน้าที่สอง
+    rows = [(y, 20, 50, 400) for y in range(100, 401, 30)] + [(y, 20, 50, 400) for y in range(490, 851, 30)]
+    cut = pieces.cut_region(_text_page(rows), (0, 0, 600, 1000), [], max_h=500, min_line_h=12, pad=6)
+    assert cut["method"] == "gaps" and len(cut["pieces"]) == 2
+    assert cut["pieces"][0][1] <= 426 + 6 and cut["pieces"][1][0] >= 490 - 6  # ตัดในช่องว่างระหว่างย่อหน้า แต่ละท่อนหดตามบรรทัดของตัวเอง
+
+
+def test_cut_region_uses_item_numbers_in_the_first_column():
+    from fin_extractor.sections.regions import pieces
+
+    vl = [{"x": 100, "y0": 0, "y1": 1000}]  # เส้นตั้งคั่นคอลัมน์ "ลำดับ" กับ "รายการ"
+    rows = []
+    for k, y in enumerate((100, 400, 700)):  # 3 รายการ แต่ละรายการมีเลขข้อ + คำอธิบาย 6 บรรทัดห่างกัน 30 px
+        rows.append((y, 20, 30, 70))
+        rows += [(y + 40 * i, 20, 130, 500) for i in range(6)]
+    rows.append((340, 20, 130, 500))  # บรรทัดคำอธิบายที่ห่างจากบรรทัดก่อนหน้ามาก (ช่องว่างกว้างแต่อยู่กลางรายการ 1)
+    cut = pieces.cut_region(_text_page(rows), (0, 0, 600, 1000), vl, max_h=500, min_line_h=12, pad=6)
+    assert cut["method"] == "items"
+    assert [p[0] for p in cut["pieces"][1:]] and all(p[0] in range(360, 400) or p[0] in range(660, 700) for p in cut["pieces"][1:])
