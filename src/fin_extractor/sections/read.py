@@ -2,7 +2,7 @@
 
 ไฟล์ที่เขียนต่อหนึ่งเอกสาร (ชื่อ <ไฟล์>_p1.* เหมือนกันทุกขั้น)
     .sections.json  ผลดิบรายส่วน (ข้อความ เวลา ธง truncated ลายนิ้วมือของผัง ใช้ตัดสินว่าข้าม/ต่อ/ทำใหม่)
-    .md             ข้อความทุกส่วนต่อกันตามลำดับอ่าน <!-- sNN kind --> นำหน้าแต่ละท่อน — ไฟล์นี้เท่านั้นที่ extract --reuse-raw อ่าน
+    .md             ข้อความทุกส่วนต่อกันตามลำดับอ่าน <!-- sNN kind --> นำหน้าแต่ละท่อน — ไฟล์นี้เท่านั้นที่ extract อ่าน
     .chunks.json    ที่มาของแต่ละท่อน: ภาพ section ที่ส่งเข้า OCR + ข้อความที่ได้ + ช่วงบรรทัดใน .md (ย้ายมาจาก scripts/sections/run_sections.py)
 GPU ใช้เฉพาะ read_dataset
 """
@@ -22,7 +22,8 @@ from ..paths import DataPaths, doc_dir
 from .crops import load_final_image
 from .layout import crop_full, resize_to_work
 
-ENGINES = ("oxr", "openthai")
+ENGINES = ("openthai", "typhoon", "paddle", "oxr")  # ทุก engine อ่านทีละ section เท่านั้น (ไม่มีทางอ่านทั้งหน้าใน CLI)
+TORCH_ENGINES = ("openthai", "oxr")  # ตัวที่ใช้ torch ในเครื่อง (typhoon เรียก Ollama, paddle ห้ามอยู่ร่วม process กับ torch)
 
 
 def kept_layout(layout: list[dict]) -> list[tuple[str, list[int]]]:
@@ -51,11 +52,38 @@ def read_clean_image(clean_dir: Path, entry: dict, variant: str) -> np.ndarray:
     return cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
 
 
+class PaddleSectionReader:
+    """PaddleOCR ในรูปเดียวกับตัวอ่าน VLM: ข้อความของภาพ section เป็นบรรทัด (ไม่มีตาราง Markdown) ``finish_reason`` เป็น None เสมอ."""
+
+    name = "paddle"
+
+    def __init__(self, cfg: dict):
+        self.cfg = cfg
+        self.engine = None
+
+    def _load(self):
+        if self.engine is None:
+            from ..ocr import create_engine
+
+            self.engine = create_engine("paddle", self.cfg)
+        return self.engine
+
+    def recognize(self, img: np.ndarray):
+        from ..vlm.base import VLMResult
+
+        return VLMResult(self.name, self._load().recognize(img).text)
+
+
 def make_reader(engine: str, cfg: dict):
     """ตัวอ่านของ engine นั้น (import ตอนใช้ ไม่โหลด torch/โมเดลของตัวที่ไม่ได้เลือก)."""
     if engine == "oxr":
         from ..vlm.oxr_local import OXRLocal
         return OXRLocal(cfg["oxr_local"])
+    if engine == "typhoon":
+        from ..vlm.typhoon_ocr import TyphoonOCR
+        return TyphoonOCR(cfg["vlm"])
+    if engine == "paddle":
+        return PaddleSectionReader(cfg)
     from ..vlm.openthai_ocr import OpenThaiOCR
     return OpenThaiOCR(cfg["openthai"])
 
@@ -106,7 +134,7 @@ def chunks_of(doc: dict, image_of) -> dict:
 
 
 def write_markdown(sections_json: Path, image_of=lambda s: None) -> Path:
-    """เขียน .md (ข้อความดิบที่ extract --reuse-raw อ่าน) และ .chunks.json (ที่มาของแต่ละท่อน ไม่ถูกอ่านโดย extract)."""
+    """เขียน .md (ข้อความดิบที่ extract อ่าน) และ .chunks.json (ที่มาของแต่ละท่อน ไม่ถูกอ่านโดย extract)."""
     stem = sections_json.name.removesuffix(".sections.json")
     doc = json.loads(sections_json.read_text(encoding="utf-8"))
     out = sections_json.with_name(stem + ".md")
@@ -175,12 +203,15 @@ def read_dataset(paths: DataPaths, cfg: dict, dataset: str, stems: list[str], en
     reader = make_reader(engine, cfg)
     print(f"{len(stems)} ไฟล์ → {raw_dir}", flush=True)
     t0 = time.perf_counter()
-    reader._load()
+    if hasattr(reader, "_load"):  # typhoon เรียก Ollama ไม่มีโมเดลให้โหลดในเครื่อง
+        reader._load()
     print(f"โหลดโมเดล {time.perf_counter() - t0:.1f}s · GPU {gpu_status()}", flush=True)
 
     summary = []
     t_start = time.perf_counter()
-    import torch
+    torch = None
+    if engine in TORCH_ENGINES:
+        import torch
 
     for n, stem in enumerate(stems, start=1):
         out = doc_dir(raw_dir, stem, nest=True) / f"{stem}_p1.sections.json"
@@ -237,9 +268,12 @@ def read_dataset(paths: DataPaths, cfg: dict, dataset: str, stems: list[str], en
             row["seconds"] = round(time.perf_counter() - t, 2)
             rows.append(row)
             save(False)  # บันทึกทีละภาพ ล้มกลางทางไม่เสียงานที่ทำไป
-            torch.cuda.empty_cache()  # ปล่อยหน่วยความจำที่ PyTorch เก็บสะสมไว้ ไม่ให้ cuDNN ขอเพิ่มไม่ได้ในภาพถัดไป
+            reserved = ""
+            if torch is not None:
+                torch.cuda.empty_cache()  # ปล่อยหน่วยความจำที่ PyTorch เก็บสะสมไว้ ไม่ให้ cuDNN ขอเพิ่มไม่ได้ในภาพถัดไป
+                reserved = f"reserved {torch.cuda.memory_reserved() / 2**30:.2f} GiB · "
             print(f"    {stem[-4:]} {s['id']} {s['kind']:4s} {img.shape[1]}x{img.shape[0]} {row['seconds']:5.1f}s "
-                  f"{'ชนเพดาน token ' if row['truncated'] else ''}| reserved {torch.cuda.memory_reserved() / 2**30:.2f} GiB · GPU {gpu_status()}", flush=True)
+                  f"{'ชนเพดาน token ' if row['truncated'] else ''}| {reserved}GPU {gpu_status()}", flush=True)
         save(True)
         write_markdown(out, image_locator(paths, dataset, stem, variant))
         ran = [r for r in rows if "skipped" not in r]

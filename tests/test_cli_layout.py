@@ -1,4 +1,4 @@
-"""คำสั่ง preprocess / ocr / extract เขียนผลตามโครงใน paths.py (ตัวอ่านและ pipeline เป็นของปลอม ไม่เรียก OCR/GPU)."""
+"""คำสั่ง preprocess / extract เขียนผลตามโครงใน paths.py และการอ่านทั้งหน้าถูกห้าม (pipeline เป็นของปลอม ไม่เรียก OCR/GPU)."""
 
 import copy
 import json
@@ -20,6 +20,7 @@ class FakePipe:
 
     def __init__(self, cfg, mode="ocr", engine="paddle", use_llm=None, with_reader=True, strategy=None):
         self.mode, self.with_reader, self.strategy = mode, with_reader, strategy or "winner"
+        self.reader = SimpleNamespace(name=engine)
         self.llm = object() if (use_llm if use_llm is not None else mode == "vlm") else None
         self.engine_name = f"{engine if mode == 'ocr' else 'vlm:fake'}+{'llm' if self.llm else 'rules'}"
         FakePipe.log.append(("init", with_reader))
@@ -27,10 +28,6 @@ class FakePipe:
     def _result(self, source, page, raw):
         return ExtractionResult(source_file=source, page=page, engine=self.engine_name, data=InvoiceData(),
                                 status="needs_review", raw_text=raw, ocr_confidence=0.5)
-
-    def process_page(self, source, page, img):
-        FakePipe.log.append(("page", page))
-        return self._result(source, page, f"อ่านสด หน้า {page}")
 
     def process_raw(self, source, page, raw, meta=None):
         FakePipe.log.append(("raw", page, raw, dict(meta or {})))
@@ -54,103 +51,80 @@ def run(env, *argv):
     args.func(args, env.cfg)
 
 
-def test_extract_writes_preprocess_raw_data_and_final_in_their_own_folders(env, capsys):
-    run(env, "extract", str(env.src), "--llm", "off")
-    d = env.data
-    assert (d / "02_preprocess" / "scans" / "default" / "final" / "a_p1.png").exists()
-    raw = d / "04_ocr" / "scans" / "paddle" / "page"
-    final = d / "05_extract" / "scans" / "paddle" / "page" / "rules"
-    assert (raw / "a_p1.txt").read_text(encoding="utf-8") == "อ่านสด หน้า 1"
-    meta = json.loads((raw / "a_p1.meta.json").read_text(encoding="utf-8"))
-    assert meta["profile"] == "default" and meta["ocr_confidence"] == 0.5 and meta["truncated"] is False
+def put_raw(env, engine="openthai", variant="luma", stems=("a",), text="ข้อความจาก section"):
+    """ข้อความดิบแบบที่ขั้น ocr ของ sections เขียน: 04_ocr/<ชุด>/<engine>/<วิธี>/<ไฟล์>/<ไฟล์>_p1.md"""
+    for stem in stems:
+        d = env.data / "04_ocr" / "scans" / engine / variant / stem
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"{stem}_p1.md").write_text(f"<!-- s00 text -->\n{text} {stem}", encoding="utf-8")
+
+
+def test_extract_reads_section_text_without_loading_a_reader_and_writes_its_own_folder(env, capsys):
+    put_raw(env)
+    run(env, "extract", str(env.src))
+    assert FakePipe.log[0] == ("init", False) and [e[0] for e in FakePipe.log[1:]] == ["raw"]   # ไม่โหลดตัวอ่าน ไม่อ่านภาพ
+    assert FakePipe.log[1][2] == "<!-- s00 text -->\nข้อความจาก section a"
+    final = env.data / "05_extract" / "scans" / "openthai" / "luma" / "rules"
     result = json.loads((final / "a_p1.json").read_text(encoding="utf-8"))
-    assert result["raw_text"] is None                                   # ผลสุดท้ายไม่แบกข้อความดิบ (อยู่ที่ raw_data)
+    assert result["raw_text"] is None                                   # ผลสุดท้ายไม่แบกข้อความดิบ (อยู่ที่ 04_ocr)
     m = json.loads((final / "manifest.json").read_text(encoding="utf-8"))
-    assert m["files"][0]["output"] == "a_p1.json" and m["settings"]["raw_data"] == "../../../../../04_ocr/scans/paddle/page"
+    assert m["files"][0]["output"] == "a_p1.json" and m["settings"]["raw_data"] == "../../../../../04_ocr/scans/openthai/luma"
+    assert not (env.data / "02_preprocess").exists()                   # extract ไม่แตะภาพเลย
     capsys.readouterr()
 
 
-def test_reuse_raw_extracts_again_without_loading_or_calling_the_reader(env, capsys):
-    run(env, "extract", str(env.src), "--llm", "off")
-    FakePipe.log.clear()
-    run(env, "extract", str(env.src), "--llm", "on", "--reuse-raw")
-    assert FakePipe.log[0] == ("init", False)                          # ไม่โหลดตัวอ่าน
-    assert [e[0] for e in FakePipe.log[1:]] == ["raw"] and FakePipe.log[1][2] == "อ่านสด หน้า 1"
-    base = env.data / "04_ocr" / "scans" / "paddle" / "page"
-    ex = env.data / "05_extract" / "scans" / "paddle" / "page"
-    assert (ex / "llm" / "a_p1.json").exists() and (ex / "rules" / "a_p1.json").exists()
-    assert (base / "a_p1.txt").read_text(encoding="utf-8") == "อ่านสด หน้า 1"   # ข้อความดิบไม่ถูกแตะ
+def test_every_engine_reads_from_its_own_section_folder(env, capsys):
+    for engine in ("typhoon", "paddle", "oxr"):
+        put_raw(env, engine=engine, variant="flat")
+        run(env, "extract", str(env.src), "--engine", engine, "--variant", "flat")
+        assert (env.data / "05_extract" / "scans" / engine / "flat" / "rules" / "a_p1.json").exists()
+    assert not list(env.data.rglob("page"))                             # ไม่มีโฟลเดอร์ผลอ่านทั้งหน้า
     capsys.readouterr()
 
 
-def test_reuse_raw_without_stored_text_skips_the_file_and_creates_nothing_else(env, capsys):
-    run(env, "extract", str(env.src), "--llm", "off", "--reuse-raw")
+def test_llm_on_writes_the_llm_folder_next_to_rules(env, capsys):
+    put_raw(env)
+    run(env, "extract", str(env.src), "--llm", "on")
+    assert (env.data / "05_extract" / "scans" / "openthai" / "luma" / "llm" / "a_p1.json").exists()
+    capsys.readouterr()
+
+
+def test_extract_without_section_text_skips_the_file_and_creates_nothing_else(env, capsys):
+    run(env, "extract", str(env.src))
     out = capsys.readouterr().out
-    assert "ไม่มีข้อความดิบ" in out and not (env.data / "05_extract" / "scans" / "paddle" / "page" / "rules" / "a_p1.json").exists()
+    assert "ไม่มีข้อความดิบ" in out and "sections --engine openthai --to ocr" in out
+    assert not list((env.data / "05_extract").rglob("a_p1.json"))
 
 
-def test_vlm_mode_goes_to_typhoon_folder_with_markdown_raw_data(env, capsys):
-    run(env, "extract", str(env.src), "--mode", "vlm", "--llm", "off")
-    base = env.data / "04_ocr" / "scans" / "typhoon" / "page"
-    ex = env.data / "05_extract" / "scans" / "typhoon" / "page"
-    assert (base / "a_p1.md").exists() and (ex / "rules" / "a_p1.json").exists()
-    capsys.readouterr()
+def test_whole_page_reading_is_refused_for_every_engine(env):
+    for engine in ("openthai", "typhoon", "paddle", "oxr"):
+        with pytest.raises(SystemExit, match="ห้ามอ่านทั้งหน้า"):
+            run(env, "ocr", str(env.src), "--engine", engine)
+    assert not (env.data / "04_ocr").exists()
 
 
-def test_variant_reuses_raw_data_variant_and_writes_final_variant_only(env, capsys):
-    ocr = env.data / "04_ocr" / "scans" / "typhoon"
-    ex = env.data / "05_extract" / "scans" / "typhoon"
-    (ocr / "luma").mkdir(parents=True)
-    (ocr / "luma" / "a_p1.md").write_text("ข้อความจาก section", encoding="utf-8")
-    run(env, "extract", str(env.src), "--mode", "vlm", "--llm", "off", "--reuse-raw", "--variant", "luma")
-    assert FakePipe.log[0] == ("init", False) and FakePipe.log[-1][:3] == ("raw", 1, "ข้อความจาก section")
-    assert (ex / "luma" / "rules" / "a_p1.json").exists()
-    assert not (ex / "page").exists() and not (ocr / "page").exists()  # ผลอ่านทั้งหน้าไม่ถูกแตะ/สร้าง
-    capsys.readouterr()
-
-
-def test_variant_without_reuse_raw_is_refused(env):
-    with pytest.raises(SystemExit, match="--reuse-raw"):
-        run(env, "extract", str(env.src), "--mode", "vlm", "--llm", "off", "--variant", "luma")
+def test_old_whole_page_options_are_gone(env):
+    for argv in (["--mode", "vlm"], ["--reuse-raw"]):
+        with pytest.raises(SystemExit):
+            cli.build_parser().parse_args(["extract", str(env.src), *argv])
 
 
 def test_keep_raw_keeps_text_in_the_final_json_too(env, capsys):
-    run(env, "extract", str(env.src), "--llm", "off", "--keep-raw")
-    r = json.loads((env.data / "05_extract" / "scans" / "paddle" / "page" / "rules" / "a_p1.json").read_text(encoding="utf-8"))
-    assert r["raw_text"] == "อ่านสด หน้า 1"
+    put_raw(env)
+    run(env, "extract", str(env.src), "--keep-raw")
+    r = json.loads((env.data / "05_extract" / "scans" / "openthai" / "luma" / "rules" / "a_p1.json").read_text(encoding="utf-8"))
+    assert r["raw_text"] == "<!-- s00 text -->\nข้อความจาก section a"
     capsys.readouterr()
 
 
-def test_out_moves_raw_data_and_final_together_but_not_the_shared_preprocess(env, capsys, tmp_path):
+def test_out_reads_and_writes_under_the_given_folder(env, capsys, tmp_path):
     out = tmp_path / "exp"
-    run(env, "extract", str(env.src), "--llm", "off", "--out", str(out))
-    assert (out / "04_ocr" / "page" / "a_p1.txt").exists() and (out / "05_extract" / "page" / "rules" / "a_p1.json").exists()
-    assert (env.data / "02_preprocess" / "scans" / "default" / "final" / "a_p1.png").exists()
-    assert not (env.data / "04_ocr").exists() and not (env.data / "05_extract").exists()
-    capsys.readouterr()
-
-
-def test_second_extract_with_another_engine_reuses_the_same_preprocessed_image(env, capsys, monkeypatch):
-    run(env, "extract", str(env.src), "--llm", "off")
-    img = env.data / "02_preprocess" / "scans" / "default" / "final" / "a_p1.png"
-    stamp = img.stat().st_mtime_ns
-    run(env, "extract", str(env.src), "--mode", "vlm", "--llm", "off")
-    assert img.stat().st_mtime_ns == stamp                              # ภาพสุดท้ายชุดเดียวใช้ร่วมกันทุก engine
-    capsys.readouterr()
-
-
-def test_ocr_command_writes_only_raw_data(env, capsys, monkeypatch):
-    class Reader:
-        def recognize(self, img):
-            return SimpleNamespace(text="ข้อความดิบ", mean_confidence=0.8)
-
-    monkeypatch.setattr("fin_extractor.ocr.create_engine", lambda name, cfg: Reader())
-    run(env, "ocr", str(env.src))
-    base = env.data / "04_ocr" / "scans" / "paddle" / "page"
-    ex = env.data / "05_extract" / "scans" / "paddle" / "page"
-    assert (base / "a_p1.txt").read_text(encoding="utf-8") == "ข้อความดิบ" and not (ex).exists()
-    m = json.loads((base / "manifest.json").read_text(encoding="utf-8"))
-    assert m["command"] == "ocr" and m["files"][0]["output"] == "a_p1.txt"
+    d = out / "04_ocr" / "luma" / "a"
+    d.mkdir(parents=True)
+    (d / "a_p1.md").write_text("ข้อความ", encoding="utf-8")
+    run(env, "extract", str(env.src), "--out", str(out))
+    assert (out / "05_extract" / "luma" / "rules" / "a_p1.json").exists()
+    assert not (env.data / "05_extract").exists()
     capsys.readouterr()
 
 
@@ -162,41 +136,22 @@ def test_preprocess_command_manifest_points_at_final_images(env, capsys):
     capsys.readouterr()
 
 
-def test_more_than_two_inputs_get_one_subfolder_per_file_and_reuse_raw_reads_them(env):
+def test_preprocess_steps_are_nested_per_file_only_when_many(env, capsys):
     for name in ("b", "c"):
         save_image(env.src / f"{name}.png", np.full((30, 50, 3), 180, dtype=np.uint8))
-    run(env, "extract", str(env.src))
-    base = env.data / "04_ocr" / "scans" / "paddle" / "page"
-    ex = env.data / "05_extract" / "scans" / "paddle" / "page"
-    for stem in ("a", "b", "c"):
-        assert (base / stem / f"{stem}_p1.txt").exists() and (base / stem / f"{stem}_p1.meta.json").exists()
-        assert (ex / "rules" / stem / f"{stem}_p1.json").exists()
-        assert (env.data / "02_preprocess" / "scans" / "default" / "final" / stem / f"{stem}_p1.png").exists()
-    m = json.loads((ex / "rules" / "manifest.json").read_text(encoding="utf-8"))
-    assert sorted(f["output"] for f in m["files"]) == ["a/a_p1.json", "b/b_p1.json", "c/c_p1.json"]
-    FakePipe.log = []
-    run(env, "extract", str(env.src), "--reuse-raw")
-    assert [e[0] for e in FakePipe.log if e[0] != "init"] == ["raw", "raw", "raw"]  # อ่านจากโฟลเดอร์ย่อยครบ ไม่เรียก OCR
-    assert not list((ex / "rules").glob("*_p1.json"))                  # ไม่มีผลกระจายนอกโฟลเดอร์ย่อย
-
-
-def test_two_inputs_stay_flat_and_steps_are_nested_only_when_many(env):
-    save_image(env.src / "b.png", np.full((30, 50, 3), 180, dtype=np.uint8))
-    run(env, "extract", str(env.src))
-    base = env.data / "04_ocr" / "scans" / "paddle" / "page"
-    ex = env.data / "05_extract" / "scans" / "paddle" / "page"
-    assert (base / "a_p1.txt").exists() and (ex / "rules" / "b_p1.json").exists()
-    save_image(env.src / "c.png", np.full((30, 50, 3), 180, dtype=np.uint8))
     run(env, "preprocess", str(env.src), "--steps", "--profile", "s")
     steps = env.data / "02_preprocess" / "scans" / "s" / "steps"
     assert any((steps / "a").iterdir()) and any((steps / "c").iterdir())
+    capsys.readouterr()
 
 
-def test_extract_only_selects_files_by_name_suffix_but_keeps_the_per_file_layout(env):
+def test_extract_only_selects_files_by_name_suffix_but_keeps_the_per_file_layout(env, capsys):
     for name in ("b", "c"):
         save_image(env.src / f"{name}.png", np.full((30, 50, 3), 180, dtype=np.uint8))
+    put_raw(env, stems=("a", "b", "c"))
     run(env, "extract", str(env.src), "--only", "b")
-    ex = env.data / "05_extract" / "scans" / "paddle" / "page" / "rules"
+    ex = env.data / "05_extract" / "scans" / "openthai" / "luma" / "rules"
     m = json.loads((ex / "manifest.json").read_text(encoding="utf-8"))
-    assert [f["output"] for f in m["files"]] == ["b/b_p1.json"]  # เลือกไฟล์เดียว แต่โครงโฟลเดอร์ต่อไฟล์ตามอินพุตทั้งหมด (3 ไฟล์)
+    assert [f["output"] for f in m["files"]] == ["b/b_p1.json"]
     assert not (ex / "a").exists() and not (ex / "c").exists()
+    capsys.readouterr()

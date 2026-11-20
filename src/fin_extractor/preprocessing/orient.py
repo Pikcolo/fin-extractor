@@ -20,12 +20,14 @@ _orientation_model = None
 
 
 def _load_orientation_model():
+    """โหลดตัวจำแนกทิศโดยไม่ให้ torch ถูกโหลดพ่วง (cuDNN ของ torch กับ Paddle ชนกัน ดู ``paddle_engine.without_modelscope``)."""
     global _orientation_model
     if _orientation_model is None:
-        from ..ocr.paddle_engine import prepare_paddle_env
+        from ..ocr.paddle_engine import prepare_paddle_env, without_modelscope
 
         prepare_paddle_env()
-        from paddlex import create_model
+        with without_modelscope():
+            from paddlex import create_model
 
         _orientation_model = create_model(model_name="PP-LCNet_x1_0_doc_ori")
     return _orientation_model

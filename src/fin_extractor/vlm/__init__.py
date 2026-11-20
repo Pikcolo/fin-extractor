@@ -19,7 +19,11 @@ def create_reader(engine: str, cfg: dict[str, Any]):
 
 
 def vlm_model(engine: str, cfg: dict[str, Any]) -> str:
-    return cfg["openthai"]["model_dir"].replace("\\", "/").rstrip("/").rsplit("/", 1)[-1] if engine == "openthai" else cfg["vlm"]["model"]
+    """ชื่อโมเดลของตัวอ่าน VLM: openthai/oxr = ชื่อโฟลเดอร์ weights · typhoon (หรือ vlm) = ชื่อโมเดลใน Ollama/API."""
+    if engine in ("openthai", "oxr"):
+        key = "openthai" if engine == "openthai" else "oxr_local"
+        return cfg[key]["model_dir"].replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
+    return cfg["vlm"]["model"]
 
 
 __all__ = ["TyphoonOCR", "VLMResult", "VLM_ENGINES", "create_reader", "vlm_model"]

@@ -1,10 +1,14 @@
 # ขั้นที่ 4: อ่านข้อความ (OCR)
 
-แยกเป็นสองทางตามโหมด:
-- `--mode ocr` → **4A** OCR engine แบบดั้งเดิม
-- `--mode vlm` → **4B** Vision Language Model อ่านทั้งหน้าเป็น Markdown: Typhoon OCR (`--engine paddle|vlm` ในโหมดนี้ใช้ Typhoon) หรือ OpenThai 2.0 (`--engine openthai` ดู [04-openthai-ocr.md](04-openthai-ocr.md))
+> **ห้ามอ่านทั้งหน้า:** ทุก engine อ่านทีละภาพ section ผ่าน `python -m fin_extractor sections --engine openthai|typhoon|paddle|oxr` เท่านั้น
+> (ตัวอ่านรายส่วนอยู่ที่ `src/fin_extractor/sections/read.py` คำสั่ง `ocr` ถูกปิด `extract` สกัดจากข้อความรายส่วนที่เก็บไว้เท่านั้น)
+> หัวข้อ 4A/4B ข้างล่างอธิบายตัวอ่านแต่ละตระกูล ส่วนตัวเลขผลวัด "ทั้งหน้า" ในเอกสารนี้เป็นบันทึกของรุ่นก่อนที่ยังอ่านทั้งหน้า เทียบกับผลรายส่วนตรง ๆ ไม่ได้
 
-สำหรับสแกนจริง flow หลักคือ `python -m fin_extractor sections` ซึ่งอ่านทีละ section ด้วย OpenThai/OXR (ดู [03-sections.md](03-sections.md) และ [archive/oxr.md](archive/oxr.md)) เอกสารนี้อธิบายการอ่านทั้งหน้า (`ocr`/`extract`)
+ตัวอ่านสองตระกูล (เดิมเลือกด้วย `--mode`):
+- **4A** OCR engine แบบดั้งเดิม (PaddleOCR: `--engine paddle` ข้อความรายส่วนเป็นบรรทัดล้วน ไม่มีตาราง)
+- **4B** Vision Language Model อ่านภาพเป็น Markdown: Typhoon OCR (`--engine typhoon` ผ่าน Ollama) หรือ OpenThai 2.0 (`--engine openthai` ดู [04-openthai-ocr.md](04-openthai-ocr.md))
+
+การแบ่งหน้าเป็น section ดู [03-sections.md](03-sections.md) · OXR ดู [archive/oxr.md](archive/oxr.md)
 
 ## หลักการ
 
@@ -151,7 +155,7 @@ VLM อ่านทั้งหน้าเป็น Markdown และเข้
 | โครงตาราง | ไม่มี (เป็นบรรทัดข้อความ) | ได้ `<table>` ครบทุกแถว |
 | เวลา | ~4.5 วินาที | ~50 วินาที |
 
-ดูข้อความดิบด้วย `python -m fin_extractor ocr <ไฟล์> --engine paddle|vlm|openthai` (บันทึกที่ `data/04_ocr/<dataset>/<engine>/page/` โดย engine = `paddle`, `typhoon` (เมื่อใช้ `--engine vlm`) หรือ `openthai` ผล Paddle เป็น `.txt`, ผล VLM เป็น `.md` พร้อม `.meta.json`)
+ดูข้อความดิบด้วย `python -m fin_extractor sections <ไฟล์หรือโฟลเดอร์> --engine <engine> --to ocr` (บันทึกที่ `data/04_ocr/<dataset>/<engine>/<วิธี>/<ไฟล์>/` เป็น `.md` ต่อทุกส่วน + `.sections.json` + `.chunks.json` ทุก engine)
 
 ## ผลบนลายมือ: Typhoon OCR ทั้งหน้า เทียบ PaddleOCR (สแกนจริง 4 ใบ)
 

@@ -126,10 +126,10 @@ flowchart TD
 
 ```bash
 # อ่านข้อความดิบ (ใช้ GPU) → data/04_ocr/<dataset>/openthai/page/
-python -m fin_extractor ocr data/01_input/finance_doc_scan --engine openthai
+python -m fin_extractor sections data/01_input/finance_doc_scan --to ocr   # อ่านทีละ section (ห้ามอ่านทั้งหน้า)
 
 # สกัดจากข้อความดิบ ไม่แตะ GPU
-python -m fin_extractor extract data/01_input/finance_doc_scan --mode vlm --engine openthai --llm off --reuse-raw
+python -m fin_extractor extract data/01_input/finance_doc_scan --engine openthai
 
 # ลองโหมดอ่านตารางซ้ำ: ไฟล์ override เล็ก ๆ (deep-merge ทับ default.yaml)
 #   openthai:

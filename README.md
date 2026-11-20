@@ -40,24 +40,22 @@ pytest                                    # ต้องผ่านทั้ง
 
 ```powershell
 python scripts/data/make_synthetic_samples.py                  # ใบกำกับภาษีสมมติ 21 ใบ → data/01_input/synthetic/
-python -X utf8 -m fin_extractor extract data/01_input/synthetic   # Paddle + rules → data/05_extract/synthetic/paddle/page/rules/
+python -X utf8 -m fin_extractor sections data/01_input/synthetic --engine paddle   # Paddle ทีละ section + rules → data/05_extract/synthetic/paddle/luma/rules/
 ```
 
 ### คำสั่งหลัก
 
 ```powershell
 python -m fin_extractor preprocess data/01_input --steps           # ดูผล preprocess ทีละขั้น
-python -m fin_extractor ocr data/01_input/BITKUB-001.jpg           # ข้อความดิบ (--engine vlm = Typhoon OCR)
-python -m fin_extractor extract data/01_input                      # pipeline เต็ม → JSON (ค่าตั้งต้น --mode ocr)
-python -m fin_extractor extract data/01_input --mode vlm           # Typhoon OCR + LLM + rules (ต้องเปิด Ollama)
-python -m fin_extractor extract data/01_input --reuse-raw --only 1306   # สกัดซ้ำจากข้อความดิบ (ไม่เรียก OCR/GPU) เฉพาะไฟล์ที่ชื่อลงท้าย 1306
-python -m fin_extractor sections data/01_input/finance_doc_scan    # flow หลักของสแกนจริง (ดูหัวข้อถัดไป)
+python -m fin_extractor sections data/01_input/finance_doc_scan    # flow หลัก (ดูหัวข้อถัดไป) --engine openthai|typhoon|paddle|oxr
+python -m fin_extractor extract data/01_input/finance_doc_scan --engine typhoon --only 1306   # สกัดซ้ำจากข้อความรายส่วนที่เก็บไว้ (ไม่อ่านภาพ ไม่ใช้ GPU)
 python -m fin_extractor compare data/01_input/finance_doc_scan     # เทียบผลสกัด luma/flat/bin ติดธงแถวที่เทียบไม่แฟร์
 python -m fin_extractor schema                                # export JSON Schema (หลังแก้ schema.py)
 pytest
 ```
 
-โหมด `vlm` ต้อง `ollama pull scb10x/typhoon-ocr1.5-3b` และ `ollama pull qwen2.5:3b` (หรือใช้ Typhoon API ตั้งค่าใน `.env`)
+**ห้ามอ่านทั้งหน้า:** ทุก engine อ่านทีละ section ผ่านคำสั่ง `sections` เท่านั้น คำสั่ง `ocr` ถูกปิด และ `extract` สกัดจากข้อความรายส่วนที่เก็บไว้เท่านั้น
+`--engine typhoon` ต้อง `ollama pull scb10x/typhoon-ocr1.5-3b` · LLM สกัด (`extract --llm on`) ต้อง `ollama pull qwen2.5:3b` (หรือใช้ Typhoon API ตั้งค่าใน `.env`)
 
 ### flow หลัก: แบ่ง section แล้วอ่านด้วย OpenThai (สแกนจริง)
 
@@ -98,10 +96,10 @@ data/
 └── reports/                                     รายงานภาพ
 ```
 
-ถ้ารันหนึ่งครั้งมีไฟล์อินพุตมากกว่า 2 ไฟล์ ผลของแต่ละไฟล์จะอยู่ในโฟลเดอร์ย่อยชื่อไฟล์ (เช่น `04_ocr/<ชุด>/paddle/page/<ไฟล์>/<ไฟล์>_p1.txt`) ไม่เกิน 2 ไฟล์ก็วางตรง ๆ (ตั้งที่ `NEST_OVER` ใน `src/fin_extractor/paths.py`)
+ถ้ารันหนึ่งครั้งมีไฟล์อินพุตมากกว่า 2 ไฟล์ ผลของแต่ละไฟล์จะอยู่ในโฟลเดอร์ย่อยชื่อไฟล์ (เช่น `05_extract/<ชุด>/openthai/luma/rules/<ไฟล์>/<ไฟล์>_p1.json`) ไม่เกิน 2 ไฟล์ก็วางตรง ๆ (ตั้งที่ `NEST_OVER` ใน `src/fin_extractor/paths.py`)
 
-เช่น `extract data/01_input/finance_doc_scan` → `data/05_extract/finance_doc_scan/paddle/page/rules/<ไฟล์>_p1.json` และข้อความดิบที่ `data/04_ocr/finance_doc_scan/paddle/page/`
-`extract ... --reuse-raw` สกัดซ้ำจากข้อความดิบโดยไม่เรียก OCR/GPU ดู [docs/00-setup-and-usage.md](docs/00-setup-and-usage.md#โครงเก็บผลลัพธ์)
+เช่น `sections data/01_input/finance_doc_scan --engine typhoon` → ข้อความรายส่วนที่ `data/04_ocr/finance_doc_scan/typhoon/luma/` และ JSON ที่ `data/05_extract/finance_doc_scan/typhoon/luma/rules/`
+`extract ... --engine <ตัวเดิม>` สกัดซ้ำจากข้อความนั้นโดยไม่อ่านภาพ/ไม่ใช้ GPU ดู [docs/00-setup-and-usage.md](docs/00-setup-and-usage.md#โครงเก็บผลลัพธ์)
 
 ## โครงสร้างโฟลเดอร์
 

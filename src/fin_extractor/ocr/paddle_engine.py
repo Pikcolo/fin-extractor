@@ -6,7 +6,10 @@
 from __future__ import annotations
 
 import os
+import sys
 import sysconfig
+import types
+from contextlib import contextmanager
 from pathlib import Path
 
 import numpy as np
@@ -27,6 +30,25 @@ def prepare_paddle_env() -> None:
     """เรียกก่อน import paddle/paddlex ทุกครั้ง: ที่เก็บโมเดลในโปรเจกต์ + DLL ของ CUDA บน Windows."""
     use_project_model_cache()
     _expose_nvidia_dlls()
+
+
+@contextmanager
+def without_modelscope():
+    """ระหว่าง import paddlex/paddleocr: ใส่ ``modelscope`` ตัวหลอก ไม่ให้ torch ถูกโหลดพ่วง
+
+    paddlex import ``modelscope`` (ใช้แค่ดาวน์โหลดโมเดล ซึ่งเราเก็บไว้ในโปรเจกต์แล้ว) และ modelscope import torch ถ้าติดตั้งอยู่
+    torch (cu128) มากับ cuDNN 9.19 ส่วน paddlepaddle-gpu ล็อก cuDNN 9.15 ชื่อ DLL เดียวกัน อยู่ใน process เดียวกันไม่ได้
+    (ตัวไหนโหลดก่อน อีกตัวล้มด้วย WinError 127 ตัวตรวจทิศเคยล้มทั้ง 18 ใบ) process ที่ใช้ Paddle จึงโหลด torch ไม่ได้อีก
+    (คำสั่ง sections รัน preprocess แยก process และไม่ import torch เมื่ออ่านด้วย paddle/typhoon)
+    """
+    stub = None
+    if "modelscope" not in sys.modules:
+        stub = sys.modules["modelscope"] = types.ModuleType("modelscope")
+    try:
+        yield
+    finally:
+        if stub is not None and sys.modules.get("modelscope") is stub:
+            del sys.modules["modelscope"]
 
 
 def _expose_nvidia_dlls() -> None:
@@ -54,8 +76,9 @@ class PaddleEngine(OCREngine):
 
     def __init__(self, lang: str = "th", use_angle_cls: bool = True):
         prepare_paddle_env()
-        import paddleocr
-        from paddleocr import PaddleOCR
+        with without_modelscope():
+            import paddleocr
+            from paddleocr import PaddleOCR
 
         self._v3 = int(paddleocr.__version__.split(".")[0]) >= 3
         if self._v3:

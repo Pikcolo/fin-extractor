@@ -31,7 +31,7 @@
 |---|---|---|
 | 5A Rules | `extraction/rule_extractor.py`, `patterns.py` | ทุกครั้ง |
 | 5A+ ชนิดเอกสาร | `doctypes.py`, `extraction/profile_extractor.py` | ทุกครั้ง: จำแนกโปรไฟล์ แล้วสกัด `document_fields`, `remark` และชื่อลูกค้า `buyer.name` จากป้าย (`extraction/core_labels.py`) (ดู [06 หัวข้อ 3.6](06-design-and-roadmap.md)) |
-| 5B LLM | `extraction/llm_extractor.py` | `--llm auto` ในโหมด `--mode vlm` (ค่าตั้งต้น) หรือ `--llm on` / `--llm hybrid` (`--llm off` = rules อย่างเดียว) |
+| 5B LLM | `extraction/llm_extractor.py` | `extract --llm on` หรือ `auto` / `--llm hybrid` (`--llm off` = rules อย่างเดียว) |
 | 5C เลือกผล | `pipeline.py → extract_traced`, `fill_missing` | เมื่อมีทั้ง 5A และ 5B (`--llm auto` หรือ `on`) |
 | 5D hybrid | `extraction/hybrid.py` | `--llm hybrid` (ดูหัวข้อ 5D) |
 
