@@ -172,6 +172,8 @@ data/
 | `ocr/oxr/benchmark_oxr.py` | วัด CER ภาพสังเคราะห์กับ free API ของ OXR (ห้ามใช้กับสแกนจริง) | `make_synthetic_samples.py` | `data/etc/benchmarks/oxr_synthetic_*.json` |
 | `eval/compare_modes.py` | (ผลรุ่นเก่าที่อ่านทั้งหน้า) เทียบผล `paddle/page/rules` กับ `typhoon/page/llm` รายใบ ใช้กับผลเก่าที่มีอยู่เท่านั้น | `extract data/01_input/finance_doc_scan` ทั้ง `--mode ocr` และ `--mode vlm` (อ่าน `final/` ของสองชุดนั้น) | `compare_modes.md` |
 | `eval/compare_file.py <เลขไฟล์>` | เทียบผลสกัดของไฟล์เดียวรายฟิลด์ ข้าม engine/extractor (ไม่ใช้ GPU) มีคอลัมน์อ้างอิงถ้าใส่ `reference.json` | ผล `extract` ของแต่ละ engine | `data/etc/compare/<ไฟล์>/` |
+| `eval/groundtruth_app.py <input>` | หน้าเว็บในเครื่อง (`127.0.0.1` เท่านั้น) กรอก ground truth: ภาพเอกสารคู่ฟอร์มฟิลด์ เติมค่าจากผลสกัด (`--prefill`, ค่าตั้งต้น `openthai/luma/rules`) คนยืนยันหรือแก้ ช่องที่ต่างจากระบบเป็นสีเหลือง | ภาพ final + ผล `extract` | `data/etc/groundtruth/<dataset>/<ไฟล์>.json` |
+| `eval/score_groundtruth.py <input> [--runs …] [--by-field]` | ให้คะแนนผลสกัดทุกชุดเทียบ ground truth ที่ตรวจเสร็จ: accuracy = ถูก / ช่องที่เอกสารมีค่า, ผิด, ไม่ได้ค่า, ใส่เกิน พิมพ์แค่จำนวนนับ ไม่พิมพ์ค่า | ground truth + ผล `extract` | `data/etc/groundtruth/<dataset>/score.md` |
 | `eval/benchmark.py prepare --per-cell 2` | โหลดชุด Invoice Extraction Benchmark จาก Hugging Face (ต้องต่อเน็ต) พร้อมเฉลย; `--thai <โฟลเดอร์>` เพิ่มเอกสารไทยที่มีเฉลย `.json` คู่กัน | — | `data/01_input/benchmark/` |
 | `eval/benchmark.py run paddle\|paddle+llm\|vlm` | รันทีละ engine กับชุดข้างบน (`paddle+llm`, `vlm` ต้องมี Ollama) | `prepare` | `ieb/<engine>.jsonl` |
 | `eval/benchmark.py report` | สรุปความถูกต้องรายฟิลด์และเวลาของทุก engine ที่ `run` แล้ว | `run` | `ieb/report.md` |

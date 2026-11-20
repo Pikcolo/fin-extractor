@@ -18,6 +18,7 @@
     05_extract/<dataset>/<engine>/<วิธี>/<extractor>/<ไฟล์>_p<หน้า>.json   ผลตาม schema extractor = rules | llm | hybrid
     etc/benchmarks/  etc/compare/                งานทดสอบ/เปรียบเทียบที่ข้าม engine/ข้ามไฟล์
     etc/experiments/<ชื่อ>/                      การทดลองครั้งเดียวที่ไม่ใช่ส่วนของ pipeline
+    etc/groundtruth/<dataset>/<ไฟล์>.json        ค่าที่ถูกตามเอกสาร คนกรอกในเครื่อง (scripts/eval/groundtruth_app.py)
     reports/                                     รายงานภาพ
 
 ถ้ารันหนึ่งครั้งมีไฟล์อินพุตมากกว่า ``NEST_OVER`` (2) ไฟล์ ผลของแต่ละไฟล์จะอยู่ในโฟลเดอร์ย่อยชื่อไฟล์ ถ้าไม่เกินก็วางตรง ๆ
@@ -45,6 +46,7 @@ DEFAULT_FOLDERS = {
     "benchmarks": "etc/benchmarks",
     "compare": "etc/compare",
     "experiments": "etc/experiments",
+    "groundtruth": "etc/groundtruth",
     "reports": "reports",
 }
 DEFAULT_PROFILE = "default"
@@ -174,6 +176,10 @@ class DataPaths:
     # ชื่อเดิม (ใช้ในสคริปต์/notebook ที่ยังไม่ย้าย)
     section_features = section_layout
     section_clean = section_images
+
+    def groundtruth(self, dataset: str) -> Path:
+        """ground truth ที่คนกรอก: ``etc/groundtruth/<dataset>/<ไฟล์>.json`` (ดู groundtruth.py)."""
+        return self._top("groundtruth") / slug(dataset)
 
     def experiments(self, name: str | None = None) -> Path:
         return self._top("experiments") / slug(name) if name else self._top("experiments")

@@ -170,3 +170,20 @@ ExtractionResult                     ผลของ 1 หน้า
 | `total_amount` | decimal (สตริง) | ยอดสุทธิรวม VAT |
 
 ภาพทุกขั้นของ preprocess ดูได้ด้วย `python -m fin_extractor preprocess <input> --steps` (เก็บที่ `data/02_preprocess/<dataset>/<profile>/steps/`)
+
+## Ground truth ที่คนกรอก (วัดความถูก ไม่ใช่แค่ความครบ)
+
+ตัวเลขผลวัดก่อนหน้านี้ทั้งหมดนับแค่ "ฟิลด์ที่ขาด" ไม่รู้ว่าค่าที่ได้ถูกหรือผิด ground truth ปิดช่องนี้สำหรับชุดพัฒนา โดยข้อมูลไม่ออกนอกเครื่อง
+
+1. **กรอก:** `python scripts/eval/groundtruth_app.py data/01_input/finance_doc_scan` แล้วเปิด `http://127.0.0.1:8765`
+   - ซ้ายคือภาพ final ขวาคือฟอร์มที่เติมค่าจากผลสกัดไว้แล้ว
+   - แก้ให้ตรงเอกสาร ช่องที่เอกสารไม่มีให้ติ๊ก "ไม่มี" รายการสินค้ากรอกเป็นตาราง (ติ๊ก "ตรวจรายการแล้ว" จึงนับคะแนน)
+   - "บันทึกร่าง" ยังไม่นับคะแนน "ตรวจเสร็จ" นับ
+2. **ไฟล์:** `data/etc/groundtruth/<dataset>/<ไฟล์>.json` ค่า `null` = เอกสารไม่มีช่องนี้ (รูปแบบใน `src/fin_extractor/groundtruth.py`)
+3. **ให้คะแนน:** `python scripts/eval/score_groundtruth.py data/01_input/finance_doc_scan --by-field`
+   - เทียบทุกชุดผลใต้ `05_extract/<dataset>/` เช่น `openthai/luma/rules` กับ `openthai/regions-luma/rules`
+   - เทียบหลัง normalize ตามชนิดค่า: เงินเทียบเป็นค่า (`1,940.00` = `1940`), เลขภาษีเทียบตัวเลขล้วน, ข้อความตัดช่องว่างและแก้สระอำ
+   - ไม่มีเกณฑ์ความคล้าย ต่างตัวเดียวก็ผิด
+
+ground truth ชุดนี้ใช้ตอนพัฒนาเท่านั้น (เลือกวิธีแบ่งหน้า/engine) ตอนใช้งานจริงไม่มีเฉลย นอกจากค่าที่นักบัญชียืนยันหรือแก้ในหน้าตรวจ ซึ่งเก็บในรูปเดียวกันนี้ได้
+
