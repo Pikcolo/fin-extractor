@@ -82,7 +82,7 @@
 
 ค่าตั้งต้นใช้ `qwen2.5:3b` ผ่าน Ollama (`llm_extractor.*` ใน config)
 
-1. **ส่ง prompt** (`vlm/prompts.py`):
+1. **ส่ง prompt** (`extraction/prompts.py`):
    - system: กฎการสกัด เช่น ห้ามเดา ไม่พบให้ใส่ null, เลขภาษีต้องติดกัน 13 หลัก, วันที่ใช้ ค.ศ., `vat_rate` เป็นทศนิยม
    - user: JSON Schema ของ `InvoiceData` + ข้อความเอกสาร
 2. **บังคับ JSON** (`format: json` สำหรับ Ollama, `response_format` สำหรับ OpenAI)

@@ -20,7 +20,7 @@ import numpy as np
 from PIL import Image
 
 from ..config import resolve_path
-from .base import VLMResult
+from .base import ReadResult
 
 
 class OpenThaiOCR:
@@ -32,7 +32,7 @@ class OpenThaiOCR:
 
     @property
     def name(self) -> str:
-        return f"vlm:{self.model}"
+        return f"openthai:{self.model}"
 
     def _load(self):
         if self._parser is not None:
@@ -69,17 +69,17 @@ class OpenThaiOCR:
 
         return Backend(model, processor)
 
-    def recognize(self, img: np.ndarray) -> VLMResult:
+    def recognize(self, img: np.ndarray) -> ReadResult:
         parser = self._load()  # ต้องมาก่อน import nemotron_parse (เพิ่ม path ของโมเดลที่นี่)
         from nemotron_parse.inference import GenerationError
 
         page = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
         try:
             doc = parser.parse(page, mode=self.cfg.get("parse_mode", "single"))
-            return VLMResult(self.name, doc["markdown"], "stop")
+            return ReadResult(self.name, doc["markdown"], "stop")
         except GenerationError as e:  # ตอบไม่จบ (ชน max_tokens) — เก็บเท่าที่อ่านได้ แล้วติดธง truncated
             from nemotron_parse.postprocessing import clean_raw_output, postprocess_document
 
             raw = clean_raw_output(e.response.get("raw_out") or "")
             md = postprocess_document(raw, image_size=page.size, options=parser.options)["markdown"] if raw.strip() else ""
-            return VLMResult(self.name, md, "length")
+            return ReadResult(self.name, md, "length")

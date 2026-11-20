@@ -26,7 +26,7 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
-from fin_extractor.ocr.base import OCRWord, group_into_lines  # noqa: E402
+from fin_extractor.readers.lines import OCRWord, group_into_lines  # noqa: E402
 from fin_extractor.paths import DEFAULT_PROFILE, DataPaths, font_path  # noqa: E402
 
 MAX_SIDE = 1800
@@ -133,9 +133,9 @@ def main() -> None:
         if args.redo or not cache.exists():
             if engine is None:  # โหลด Paddle เมื่อจำเป็นเท่านั้น และโหลดครั้งเดียว
                 from fin_extractor.config import load_config
-                from fin_extractor.ocr import create_engine
+                from fin_extractor.readers.paddle import PaddleEngine
 
-                engine = create_engine("paddle", load_config())
+                engine = PaddleEngine(**load_config()["paddle"])
             run_paddle(img_path, cache, engine)
         words = read_words(cache)
         with Image.open(img_path) as im:

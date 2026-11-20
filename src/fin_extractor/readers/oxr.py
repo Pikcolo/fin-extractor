@@ -22,7 +22,7 @@ import cv2
 import numpy as np
 
 from ..config import resolve_path
-from .base import VLMResult
+from .base import ReadResult
 
 PROMPT = "Recognize the content of the image."  # prompt ตายตัวของ OXR (oxr/model/prompts.py ในรีโปของเขา)
 STOP_TOKEN = "<|im_end|>"
@@ -56,7 +56,7 @@ class OXRLocal:
 
     @property
     def name(self) -> str:
-        return "oxr-local"
+        return f"oxr:{self.model_dir.name}"
 
     def _load(self):
         if self._model is not None:
@@ -83,7 +83,7 @@ class OXRLocal:
         self._dtype = dtype
         return self._model
 
-    def recognize(self, img: np.ndarray) -> VLMResult:
+    def recognize(self, img: np.ndarray) -> ReadResult:
         """ภาพ BGR (ภาพย่อยหนึ่งส่วน) → ข้อความ ``finish_reason='length'`` เมื่อชน max_new_tokens (ข้อความอาจไม่ครบหรือวนซ้ำ)."""
         import torch
         from PIL import Image
@@ -102,4 +102,4 @@ class OXRLocal:
         tokens = out[0].tolist()
         truncated = len(tokens) >= self.max_new_tokens and stop_id not in tokens
         text = model.text_tokenizer.decode(tokens, skip_special_tokens=True)
-        return VLMResult(self.name, text.strip(), "length" if truncated else "stop")
+        return ReadResult(self.name, text.strip(), "length" if truncated else "stop")

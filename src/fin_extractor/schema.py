@@ -1,6 +1,6 @@
 """Data Contract — โครงสร้าง JSON มาตรฐานของผลลัพธ์.
 
-ทุก engine (OCR แบบ rule-based / VLM / LLM) ต้องคืนค่าเป็น ``ExtractionResult``
+ทุก engine (ตัวอ่านทุกตัว + rules / LLM) ต้องคืนค่าเป็น ``ExtractionResult``
 เพื่อให้ระบบปลายทางใช้ได้โดยไม่ต้องรู้ว่ามาจาก engine ไหน
 รัน ``python -m fin_extractor schema`` เพื่อ export เป็น schemas/invoice.schema.json
 
@@ -141,18 +141,18 @@ class ExtractionResult(BaseModel):
     schema_version: str = SCHEMA_VERSION
     source_file: str
     page: int = 1
-    engine: str = Field(..., description="เช่น paddle+rules, vlm:typhoon-ocr+llm")
+    engine: str = Field(..., description="<engine>[:<โมเดล>]+<ผู้สกัด> เช่น paddle+rules, openthai:OpenThai2.0-OCR-Markdown+rules, typhoon:scb10x/typhoon-ocr1.5-3b+llm")
     data: InvoiceData
     checks: list[ValidationCheck] = Field(default_factory=list)
     field_evidence: dict[str, FieldEvidence] = Field(
         default_factory=dict,
         description="หลักฐานรายฟิลด์ คีย์แบบ vendor.tax_id, total_amount, items[0].amount",
     )
-    ocr_confidence: float | None = Field(None, ge=0, le=1, description="ค่าเฉลี่ยที่ OCR engine รายงานเอง (VLM ไม่มีค่านี้)")
+    ocr_confidence: float | None = Field(None, ge=0, le=1, description="ค่าเฉลี่ยที่ OCR engine รายงานเอง (มีเฉพาะ Paddle ตัวอื่นไม่มีค่านี้)")
     missing_fields: list[str] = Field(default_factory=list, description="field สำคัญที่หาไม่เจอ")
     handwritten_fields: list[str] = Field(
         default_factory=list, description="field ที่อ่านมาจากลายมือ (เช่น vendor.name, total_amount) — ต้องมีหลักฐานยืนยันจึงอนุมัติอัตโนมัติ"
     )
     status: Literal["auto_approved", "needs_review", "failed"]
-    raw_text: str | None = Field(None, description="ข้อความดิบจาก OCR/VLM ไว้ debug")
+    raw_text: str | None = Field(None, description="ข้อความดิบจากตัวอ่าน ไว้ debug")
     rejected: list[RejectedValue] = Field(default_factory=list, description="ค่าที่ LLM เสนอแต่ไม่ถูกรับ (โหมด hybrid) พร้อมเหตุผล")

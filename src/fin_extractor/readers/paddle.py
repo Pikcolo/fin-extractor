@@ -15,7 +15,8 @@ from pathlib import Path
 import numpy as np
 
 from ..paths import model_dir
-from .base import OCREngine, OCRResult, OCRWord, group_into_lines, polygon_to_bbox
+from .base import ReadResult
+from .lines import OCREngine, OCRResult, OCRWord, group_into_lines, polygon_to_bbox
 
 
 def use_project_model_cache() -> None:
@@ -107,3 +108,23 @@ class PaddleEngine(OCREngine):
                     if text.strip():
                         words.append(OCRWord(text, float(score), polygon_to_bbox(poly)))
         return OCRResult(self.name, group_into_lines(words))
+
+
+class PaddleReader:
+    """PaddleOCR ในรูปเดียวกับตัวอ่านอื่น: ข้อความของภาพเป็นบรรทัดล้วน (ไม่มีตาราง Markdown) + ความมั่นใจเฉลี่ย
+    โหลดโมเดลตอนอ่านภาพแรก (``_load``) ไม่มีเพดาน token จึง ``finish_reason`` เป็น None เสมอ."""
+
+    name = "paddle"
+
+    def __init__(self, cfg: dict):
+        self.cfg = cfg
+        self.engine: PaddleEngine | None = None
+
+    def _load(self) -> PaddleEngine:
+        if self.engine is None:
+            self.engine = PaddleEngine(**self.cfg)
+        return self.engine
+
+    def recognize(self, img: np.ndarray) -> ReadResult:
+        res = self._load().recognize(img)
+        return ReadResult(self.name, res.text, confidence=res.mean_confidence)

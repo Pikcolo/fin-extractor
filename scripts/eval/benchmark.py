@@ -39,11 +39,11 @@ OUT = ROOT / "data" / "benchmarks" / "ieb"
 IEB = "drew-ipp/invoice-extraction-benchmark"
 IEB_RAW = f"https://huggingface.co/datasets/{IEB}/resolve/main/corpus/v1/"
 
-# engine ที่รองรับ: ชื่อ → (mode, ocr engine, ใช้ LLM ไหม)
+# engine ที่รองรับ: ชื่อ → (ตัวอ่าน, ใช้ LLM ไหม)  ("vlm" = ชื่อเดิมของ typhoon+llm คงไว้ให้ชื่อไฟล์ผลเก่าตรง)
 ENGINES = {
-    "paddle": ("ocr", "paddle", False),
-    "paddle+llm": ("ocr", "paddle", True),
-    "vlm": ("vlm", "paddle", True),
+    "paddle": ("paddle", False),
+    "paddle+llm": ("paddle", True),
+    "vlm": ("typhoon", True),
 }
 
 FIELDS = ["vendor_name", "invoice_number", "invoice_date", "subtotal", "tax", "total"]
@@ -172,13 +172,13 @@ def run(name: str) -> int:
     if name not in ENGINES:
         print(f"ไม่รู้จัก engine {name!r} เลือกจาก {list(ENGINES)}")
         return 1
-    mode, engine, use_llm = ENGINES[name]
+    engine, use_llm = ENGINES[name]
     docs = sorted(p for p in DATA.iterdir() if p.suffix.lower() in {".pdf", ".jpg", ".jpeg", ".png"})
     if not docs:
         print("ยังไม่มีชุดข้อมูล — รัน prepare ก่อน")
         return 1
 
-    pipe = FinanceOCRPipeline(load_config(), mode=mode, engine=engine, use_llm=use_llm)
+    pipe = FinanceOCRPipeline(load_config(), engine=engine, use_llm=use_llm)
     pipe.process_file(docs[0])  # อุ่นเครื่อง โหลดโมเดล ไม่นับเวลา
 
     OUT.mkdir(parents=True, exist_ok=True)

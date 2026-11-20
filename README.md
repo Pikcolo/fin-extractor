@@ -9,9 +9,8 @@ OCR + Information Extraction สำหรับเอกสารการเง
 ไฟล์ (jpg/png/pdf)
   └─ io/loader          โหลด + render PDF เป็นภาพทีละหน้า
       └─ preprocessing  upscale → orientation → deskew   (คงสี; denoise/CLAHE/binarize ปิดเป็นค่าตั้งต้น)
-          ├─ ocr/       PaddleOCR                         (mode=ocr)   → ข้อความ + bbox + confidence
-          ├─ vlm/       Typhoon OCR → Markdown/HTML table  (mode=vlm)
-          └─ sections/  flow หลัก: แบ่งเป็นส่วน → ภาพรายส่วน → OpenThai ทีละส่วน → .md + chunks.json → rules   (ดู "flow หลัก")
+          └─ sections/  flow หลัก: แบ่งเป็นส่วน → ภาพรายส่วน → อ่านทีละส่วน → .md + chunks.json → rules   (ดู "flow หลัก")
+              ├─ readers/   ตัวอ่านทุก engine ทางเดียวกัน: openthai (ค่าตั้งต้น) · typhoon · paddle · oxr → ReadResult
               └─ extraction/  rules (regex+keyword)  และ/หรือ  LLM → InvoiceData
                   └─ validation/  checksum เลขภาษี, Σitems, ส่วนลด, ก่อนVAT+VAT=รวม, VAT 7% → status + field_evidence
 ```
@@ -136,10 +135,10 @@ fin_extractor/
 │   │   ├── crop.py             ตัดขอบ
 │   │   ├── binarize.py         Otsu / adaptive / Sauvola
 │   │   └── pipeline.py         รวมขั้นตอนตาม config: clean(streaks) → upscale → orient → deskew → crop → denoise → CLAHE → binarize
-│   ├── ocr/                    base.py (interface กลาง) + paddle_engine.py
 │   ├── sections/               ★ flow หลัก: layout.py (ผัง) · images.py (luma/flat/bin) · crops.py · build.py (ขั้น 3a–3b) · read.py (ขั้น 4 OCR รายส่วน + chunks.json) · flow.py (กติกาข้ามขั้น) · compare.py (คำสั่ง compare)
-│   ├── vlm/                    base.py (VLMResult), client.py (Ollama/OpenAI-compatible), typhoon_ocr.py, openthai_ocr.py, oxr_local.py, prompts.py
-│   ├── extraction/             patterns.py (regex), rule_extractor.py, profile_extractor.py, core_labels.py, llm_extractor.py, hybrid.py
+│   ├── readers/                ตัวอ่านขั้น 4 ทุก engine: __init__.py (make_reader, ENGINES) · base.py (ReadResult) · openthai.py · typhoon.py · paddle.py (+ lines.py) · oxr.py
+│   ├── llm_client.py           เรียกโมเดลแบบแชต (Ollama/OpenAI-compatible) ใช้ทั้ง Typhoon และ LLM ตัวสกัด
+│   ├── extraction/             patterns.py (regex), rule_extractor.py, profile_extractor.py, core_labels.py, llm_extractor.py, prompts.py, hybrid.py
 │   └── validation/             tax_id.py, checks.py, scoring.py, evidence.py
 └── tests/
 ```

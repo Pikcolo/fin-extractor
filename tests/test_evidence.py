@@ -126,7 +126,7 @@ class _StubLLM:
 def _pipe(llm):
     from fin_extractor.pipeline import FinanceOCRPipeline
 
-    p = object.__new__(FinanceOCRPipeline)  # ไม่โหลด OCR/VLM — ทดสอบเฉพาะตรรกะรวมผล
+    p = object.__new__(FinanceOCRPipeline)  # ไม่โหลดตัวอ่าน — ทดสอบเฉพาะตรรกะรวมผล
     p.cfg = {"validation": {"amount_tolerance": 0.02, "default_vat_rate": 0.07}}
     p.llm = llm
     p.profiles, p.doc_table, p.core_labels = [], {}, ()

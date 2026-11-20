@@ -27,7 +27,7 @@ from .patterns import TAX_ID_RE
 _LEAD = re.compile(r"^[\s:：.\-/|]+")
 # คำนำหน้าที่ OCR ต่อติดหลังป้าย (เห็นใน 1307, 1311, 1317, 1318, 1321, 1323)
 _PREFIX = re.compile(r"^(?:(?:customer\s*name|name|address|code)\b|ชื่อ|ซื่อ|ชือซี|ที่อยู่|นามลูกค้า)[\s:：.\-,]*", re.I)
-# เซลล์/ค่าที่เป็นแค่ป้ายกำกับ (เห็นใน 1308, 1309, 1317, 1319 ของผล vlm): ไม่ใช่ชื่อ
+# เซลล์/ค่าที่เป็นแค่ป้ายกำกับ (เห็นใน 1308, 1309, 1317, 1319 ของผล Typhoon/OpenThai): ไม่ใช่ชื่อ
 _LABEL_ONLY = re.compile(r"(?:customer\s*)?name|customer|address|ชื่อ|ที่อยู่|นามลูกค้า", re.I)
 # บรรทัดถัดไปที่ขึ้นต้นด้วยป้ายกำกับชื่อ (ใช้กับ next_line_caption)
 _CAPTION = re.compile(r"^\s*(?:(?:customer\s*)?name|ชื่อ|นามลูกค้า)\s*[:：|]", re.I)

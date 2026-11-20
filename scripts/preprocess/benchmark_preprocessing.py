@@ -56,7 +56,7 @@ def upright(img: np.ndarray, rot_cw: int) -> np.ndarray:
 # ---------- 1. orientation ----------
 
 def paddle_orientation_model():
-    from fin_extractor.ocr.paddle_engine import prepare_paddle_env
+    from fin_extractor.readers.paddle import prepare_paddle_env
 
     prepare_paddle_env()
     from paddlex import create_model
@@ -115,9 +115,9 @@ def variants(cfg: dict) -> dict[str, dict]:
 
 
 def bench_ocr(files: dict, root: Path, cfg: dict) -> list[dict]:
-    from fin_extractor.ocr import create_engine
+    from fin_extractor.readers.paddle import PaddleEngine
 
-    engine = create_engine("paddle", cfg)
+    engine = PaddleEngine(**cfg["paddle"])
     fields = json.loads((root / "truth.json").read_text(encoding="utf-8"))["fields"]
     engine.recognize(upright(read(root / "00_baseline.jpg"), 0))  # warm-up ไม่นับเวลา
     rows = []

@@ -237,7 +237,7 @@ def test_generic_llm_output_moves_any_document_fields_to_remark():
 def _pipe():
     from fin_extractor.pipeline import FinanceOCRPipeline
 
-    p = object.__new__(FinanceOCRPipeline)  # ไม่โหลด OCR/VLM — ทดสอบเฉพาะตรรกะสกัด
+    p = object.__new__(FinanceOCRPipeline)  # ไม่โหลดตัวอ่าน — ทดสอบเฉพาะตรรกะสกัด
     p.cfg = {"validation": {"amount_tolerance": 0.02, "default_vat_rate": 0.07}}
     p.llm, p.profiles, p.doc_table, p.core_labels = None, PROFILES, {}, ()
     return p

@@ -27,7 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 from fin_extractor.config import load_config  # noqa: E402
 from fin_extractor.io import iter_input_files, load_pages  # noqa: E402
 from fin_extractor.paths import DataPaths  # noqa: E402
-from fin_extractor.ocr.paddle_engine import PaddleEngine  # noqa: E402
+from fin_extractor.readers.paddle import PaddleEngine  # noqa: E402
 from fin_extractor.preprocessing import preprocess  # noqa: E402
 from fin_extractor.validation.tax_id import is_valid_thai_tax_id  # noqa: E402
 
@@ -84,7 +84,7 @@ def main() -> None:
     tol = cfg["validation"]["amount_tolerance"]
     vat = cfg["validation"]["default_vat_rate"]
     names = args.only.split(",") if args.only else list(VARIANTS)
-    engine = PaddleEngine(**cfg["ocr"]["paddle"])
+    engine = PaddleEngine(**cfg["paddle"])
 
     files = list(iter_input_files(args.input))
     pages = {p.name: load_pages(p, cfg["loader"]["pdf_dpi"])[0] for p in files}

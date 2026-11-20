@@ -19,12 +19,9 @@ import cv2
 import numpy as np
 
 from ..paths import DataPaths, doc_dir
+from ..readers import TORCH_ENGINES, make_reader
 from .crops import load_final_image
 from .layout import crop_full, resize_to_work
-
-ENGINES = ("openthai", "typhoon", "paddle", "oxr")  # ทุก engine อ่านทีละ section เท่านั้น (ไม่มีทางอ่านทั้งหน้าใน CLI)
-TORCH_ENGINES = ("openthai", "oxr")  # ตัวที่ใช้ torch ในเครื่อง (typhoon เรียก Ollama, paddle ห้ามอยู่ร่วม process กับ torch)
-
 
 REGIONS_VARIANT = "regions-luma"  # อ่านภาพ region ของคำสั่ง regions (03_sections/…/regions/<ไฟล์>/crops/) แทนภาพ section ผลแยกโฟลเดอร์ 04_ocr/…/regions-luma/
 
@@ -67,42 +64,6 @@ def read_clean_image(clean_dir: Path, entry: dict, variant: str) -> np.ndarray:
     """ภาพเทาช่องเดียวจากไฟล์ → BGR."""
     gray = cv2.imdecode(np.fromfile(str(clean_dir / entry["file"]), dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
     return cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
-
-
-class PaddleSectionReader:
-    """PaddleOCR ในรูปเดียวกับตัวอ่าน VLM: ข้อความของภาพ section เป็นบรรทัด (ไม่มีตาราง Markdown) ``finish_reason`` เป็น None เสมอ."""
-
-    name = "paddle"
-
-    def __init__(self, cfg: dict):
-        self.cfg = cfg
-        self.engine = None
-
-    def _load(self):
-        if self.engine is None:
-            from ..ocr import create_engine
-
-            self.engine = create_engine("paddle", self.cfg)
-        return self.engine
-
-    def recognize(self, img: np.ndarray):
-        from ..vlm.base import VLMResult
-
-        return VLMResult(self.name, self._load().recognize(img).text)
-
-
-def make_reader(engine: str, cfg: dict):
-    """ตัวอ่านของ engine นั้น (import ตอนใช้ ไม่โหลด torch/โมเดลของตัวที่ไม่ได้เลือก)."""
-    if engine == "oxr":
-        from ..vlm.oxr_local import OXRLocal
-        return OXRLocal(cfg["oxr_local"])
-    if engine == "typhoon":
-        from ..vlm.typhoon_ocr import TyphoonOCR
-        return TyphoonOCR(cfg["vlm"])
-    if engine == "paddle":
-        return PaddleSectionReader(cfg)
-    from ..vlm.openthai_ocr import OpenThaiOCR
-    return OpenThaiOCR(cfg["openthai"])
 
 
 def markdown_blocks(doc: dict) -> list[tuple[dict, str]]:
@@ -276,7 +237,7 @@ def read_dataset(paths: DataPaths, cfg: dict, dataset: str, stems: list[str], en
             t = time.perf_counter()
             try:
                 res = reader.recognize(img)
-                row.update(text=res.markdown, truncated=res.truncated)
+                row.update(text=res.text, truncated=res.truncated)
             except Exception as e:  # noqa: BLE001
                 row.update(text=None, error=repr(e)[:300])
                 rows.append(row)

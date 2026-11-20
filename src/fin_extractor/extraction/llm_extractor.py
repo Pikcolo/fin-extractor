@@ -15,8 +15,8 @@ from pydantic import ValidationError
 
 from ..doctypes import GENERIC_PROFILE, Profile
 from ..schema import InvoiceData
-from ..vlm.client import ChatClient
-from ..vlm.prompts import EXTRACTION_SYSTEM_PROMPT, extraction_user_prompt
+from ..llm_client import ChatClient
+from .prompts import EXTRACTION_SYSTEM_PROMPT, extraction_user_prompt
 from .patterns import normalize_tax_id, parse_amount, parse_date
 from .core_labels import split_branch
 from .profile_extractor import normalize_value

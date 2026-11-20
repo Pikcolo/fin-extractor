@@ -1,4 +1,4 @@
-"""Interface กลางของ OCR engine — ทุก engine คืน ``OCRResult`` รูปแบบเดียวกัน."""
+"""กล่องคำ/บรรทัดของ PaddleOCR (engine ที่คืนคำพร้อมพิกัดและความมั่นใจ) + ``normalize_thai`` ที่ขั้นสกัดใช้ร่วม."""
 
 from __future__ import annotations
 

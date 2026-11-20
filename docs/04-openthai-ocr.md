@@ -54,11 +54,11 @@ flowchart LR
 
 ## 3. ต่อเข้าโปรเจกต์อย่างไร
 
-ตัวอ่านเป็น VLM แบบเดียวกับ Typhoon จึงอยู่ใน `vlm/` และใช้ทางเดียวกัน: `ocr` เก็บ Markdown ดิบ แล้ว `extract` สกัดจากข้อความดิบนั้น
+ตัวอ่านอยู่ใน `readers/` และใช้ทางเดียวกับทุก engine: ขั้น ocr ของ `sections` เก็บ Markdown ดิบ แล้ว `extract` สกัดจากข้อความดิบนั้น
 
 ```mermaid
 flowchart TD
-    A["ภาพที่ผ่าน preprocess<br/>(ชุดเดียวกับ Paddle/Typhoon)"] --> B["OpenThaiOCR.recognize<br/>vlm/openthai_ocr.py"]
+    A["ภาพที่ผ่าน preprocess<br/>(ชุดเดียวกับ Paddle/Typhoon)"] --> B["OpenThaiOCR.recognize<br/>readers/openthai.py"]
     B --> C["DocumentParser (nemotron_parse)<br/>โหลดจาก models/OpenThai2.0-OCR-Markdown"]
     C --> D["Markdown ดิบ<br/>04_ocr/&lt;dataset&gt;/openthai/&lt;วิธี&gt;/*.md"]
     D --> E["markdown_to_lines<br/>(แปลงสระอำ + ช่องว่างทศนิยม)"]
@@ -67,15 +67,15 @@ flowchart TD
 
 | ส่วน | รายละเอียด |
 |---|---|
-| โค้ด | `src/fin_extractor/vlm/openthai_ocr.py` (ตัวอ่าน), `vlm/__init__.py` (`VLM_ENGINES`, `create_reader`), ต่อใน `cli.py` และ `pipeline.py` |
+| โค้ด | `src/fin_extractor/readers/openthai.py` (ตัวอ่าน), `readers/__init__.py` (`make_reader`, `reader_label`) ใช้ใน `sections/read.py` และ `pipeline.py` |
 | backend | `transformers` (ค่าตั้งต้น โหลดในโปรเซส) หรือ `vllm` (เรียก server ที่ `base_url`) ค่า `openthai:` ใน `configs/default.yaml` |
 | ไม่ต้อง pip install `nemotron_parse` | โค้ดอ่านผลอยู่ในโฟลเดอร์โมเดล โค้ดเพิ่ม path ให้เอง ต้องมีแค่ torch/transformers/timm/einops/accelerate (`pip install -e ".[openthai]"`) |
 | ทำไมใช้ Transformers แทน vLLM | vLLM ไม่รองรับ Windows ตรง ๆ (ต้อง WSL2) และโมเดลเล็กพอสำหรับ GPU 6GB |
 | การถอดรหัส | greedy (`temperature=0`, `top_k=1`, `repetition_penalty=1.1`) ตามตัวอย่างของผู้ทำโมเดล ซึ่งระบุว่า sampling ทำให้หน้าเพี้ยนบน Mac |
 | prompt | ส่ง `"\n" + prompt` ในโหมด Transformers เพื่อให้ token ตรงกับที่ vLLM server อ่าน (ตามตัวอย่างของ iApp) ยังไม่ได้เทียบผลกับ vLLM จริง |
 | ตอบไม่จบ | `GenerationError` (ชน `max_tokens=8744`) → เก็บเท่าที่อ่านได้ และตั้งธง `truncated` เหมือน Typhoon |
-| flow หลัก | `python -m fin_extractor sections` ใช้ OpenThai (ค่าตั้งต้น `--engine openthai`) อ่านทีละภาพย่อย (section) แทนทั้งหน้า ผลลง `04_ocr/<dataset>/openthai/<วิธี>/` แล้วสกัดด้วย `extract --mode vlm --engine openthai --llm off --reuse-raw` (ดู [03-sections.md](03-sections.md)) ส่วนหัวข้อ 4 ด้านล่างวัดแบบอ่านทั้งหน้า (`page`) |
-| ชื่อโฟลเดอร์ผล | `--engine openthai` → `04_ocr/<dataset>/openthai/` และ `05_extract/<dataset>/openthai/`; `extract --mode vlm` ที่ไม่ระบุ engine ยังเป็น `typhoon` เหมือนเดิม |
+| flow หลัก | `python -m fin_extractor sections` ใช้ OpenThai (ค่าตั้งต้น `--engine openthai`) อ่านทีละภาพย่อย (section) แทนทั้งหน้า ผลลง `04_ocr/<dataset>/openthai/<วิธี>/` แล้วสกัดด้วย `extract --engine openthai --llm off` (ดู [03-sections.md](03-sections.md)) ส่วนหัวข้อ 4 ด้านล่างวัดแบบอ่านทั้งหน้า (`page`) |
+| ชื่อโฟลเดอร์ผล | `--engine openthai` → `04_ocr/<dataset>/openthai/` และ `05_extract/<dataset>/openthai/` ชื่อ engine ในผลคือ `openthai:OpenThai2.0-OCR-Markdown` |
 
 ### การทำความสะอาดข้อความก่อนสกัด (`extraction/rule_extractor.py: markdown_to_lines`)
 

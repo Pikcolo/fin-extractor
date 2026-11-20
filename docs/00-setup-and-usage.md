@@ -214,8 +214,8 @@ fin_extractor/
 │   ├── runs.py                 manifest ของการรัน
 │   ├── io/                     ขั้นที่ 1 (01)
 │   ├── preprocessing/          ขั้นที่ 2 (02)
-│   ├── ocr/                    ขั้นที่ 4A (04)
-│   ├── vlm/                    ขั้นที่ 4B (Typhoon, OpenThai, OXR) + client สำหรับ LLM
+│   ├── readers/                ขั้นที่ 4 (04): ตัวอ่านทุก engine (openthai, typhoon, paddle, oxr) ใช้ make_reader ตัวเดียว
+│   ├── llm_client.py           เรียกโมเดลแบบแชต (Typhoon + LLM ตัวสกัด)
 │   ├── sections/               ขั้นที่ 3 (03): ผัง → ภาพรายส่วน → OCR รายส่วน + compare · regions/ = คำสั่ง regions (region/ตาราง/ช่อง/key-value)
 │   ├── extraction/             ขั้นที่ 5 (05)
 │   └── validation/             ขั้นที่ 5 ต่อ (05): validation + สถานะ + evidence รายฟิลด์
@@ -238,7 +238,7 @@ fin_extractor/
 
 - **PaddleOCR** รันจริงแล้วบนเอกสาร 2 ใบ (RTX 4050, CUDA 13), ชุดสังเคราะห์ 21 ใบ และสแกนจริง 18 ใบ (`--mode ocr` ราว 2–5 วินาที/ใบ ไม่นับใบแรกที่โหลดโมเดล) ผลเทียบ engine ที่เคยลองดู
   อยู่ใน [04-ocr.md](04-ocr.md#ผลเทียบสาม-engine-บนเครื่องนี้) — ยังน้อยเกินกว่าจะสรุป
-- **Prompt ของ Typhoon OCR** (`vlm/prompts.py`) อิงรูปแบบใน model card ควรเทียบกับ model card ของรุ่นที่ใช้อีกครั้ง
+- **Prompt ของ Typhoon OCR** (`TYPHOON_OCR_PROMPT` ใน `readers/typhoon.py`) อิงรูปแบบใน model card ควรเทียบกับ model card ของรุ่นที่ใช้อีกครั้ง
 - **Typhoon API บน cloud**: มี config แล้วแต่ยังไม่ได้เรียกจริง
 - **rules ถูกปรับให้เข้ากับ `BITKUB-001.jpg`** ชุดสแกนจริง 18 ใบ (`data/01_input/finance_doc_scan`) ไม่มีใบไหนได้ `auto_approved` อย่างถูกต้อง
   เพราะมีเอกสารหลายชนิดนอกใบกำกับภาษี (หนังสือรับรอง 50 ทวิ, ใบสำคัญรับเงินลายมือ, ใบเสร็จศุลกากร) และ rules บางส่วนพลาดแม้ OCR อ่านครบ (เช่น 001310)

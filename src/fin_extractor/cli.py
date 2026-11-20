@@ -28,7 +28,7 @@ from .config import load_config, resolve_path
 from .io import iter_input_files
 from .paths import DEFAULT_PROFILE, FINAL_DIR, DataPaths, dataset_of, doc_dir, find_dir, nest_per_file, variant_of
 from .runs import Run
-from .sections.read import ENGINES as SECTION_ENGINES
+from .readers import ENGINES as SECTION_ENGINES
 from .stages import load_raw, prepared_pages, raw_pages
 
 
@@ -64,11 +64,8 @@ def cmd_extract(args, cfg) -> None:
 
     paths, dataset = DataPaths(cfg), dataset_of(args.input)
     use_llm = {"on": True, "off": False, "auto": True, "hybrid": True}[args.llm]
-    # ข้อความรายส่วนเป็น Markdown ทุก engine (.md ที่ต่อจากทุก section) จึงสกัดแบบ vlm เสมอ
-    pipe = FinanceOCRPipeline(cfg, mode="vlm", engine=args.engine, use_llm=use_llm, with_reader=False,
+    pipe = FinanceOCRPipeline(cfg, engine=args.engine, use_llm=use_llm, with_reader=False,
                               strategy="hybrid" if args.llm == "hybrid" else None)
-    if args.engine == "paddle":  # pipeline โหมด vlm ตั้งชื่อตามโมเดล VLM (ชื่อเดิม paddle = Typhoon) แต่ข้อความนี้มาจาก PaddleOCR จริง
-        pipe.reader.name = "paddle"
     extractor = ("hybrid" if pipe.strategy == "hybrid" else "llm") if pipe.llm else "rules"
     base = Path(args.out) if args.out else None
     raw_dir = base / "04_ocr" / variant_of(args.variant) if base else paths.raw_data(args.engine, dataset, args.variant)

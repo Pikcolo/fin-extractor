@@ -1,8 +1,7 @@
-"""Orchestrator: ไฟล์ → หน้า → preprocess → OCR/VLM → extract → validate → ExtractionResult.
+"""Orchestrator: ข้อความที่อ่านได้ → extract → validate → ExtractionResult (ตัวอ่านทุก engine ใช้ทางเดียวกัน ดู readers/).
 
-mode
-- ``ocr`` : PaddleOCR + rules (หรือ + LLM ถ้า use_llm)
-- ``vlm`` : Typhoon OCR อ่านทั้งหน้าเป็น Markdown + LLM (หรือ + rules ถ้า use_llm=False)
+คำสั่ง ``extract`` ใช้ ``process_raw`` (สกัดจากข้อความรายส่วนที่เก็บไว้ ไม่สร้างตัวอ่าน)
+``process_page``/``process_file`` อ่านภาพที่ส่งมาทั้งภาพ มีไว้ให้สคริปต์วัดผลเท่านั้น (CLI ห้ามอ่านทั้งหน้า)
 """
 
 from __future__ import annotations
@@ -13,16 +12,29 @@ from types import SimpleNamespace
 from typing import Any, Literal
 
 from .doctypes import (
-    GENERIC_PROFILE, Profile, classify, core_labels_for, legacy_not_applicable, load_core_labels, load_profiles, squash)
+    GENERIC_PROFILE,
+    Profile,
+    classify,
+    core_labels_for,
+    legacy_not_applicable,
+    load_core_labels,
+    load_profiles,
+    squash,
+)
+from .extraction import extract_fields, lines_with_chunks, markdown_to_lines
 from .extraction.core_labels import extract_buyer_name
 from .extraction.hybrid import known_context, merge_llm, top_level, unresolved_keys
-from .extraction import extract_fields, lines_with_chunks, markdown_to_lines
 from .extraction.llm_extractor import profile_schema
-from .extraction.profile_extractor import dedupe_remark, extract_document_fields, extract_remark, extract_unmapped
+from .extraction.profile_extractor import (
+    dedupe_remark,
+    extract_document_fields,
+    extract_remark,
+    extract_unmapped,
+)
 from .io import load_pages
-from .ocr.base import normalize_thai
-from .ocr import create_engine
 from .preprocessing import preprocess
+from .readers import make_reader, reader_label
+from .readers.lines import normalize_thai
 from .schema import ExtractionResult, InvoiceData, RejectedValue, ValidationCheck
 from .validation import decide_status, run_checks
 from .validation.evidence import build_field_evidence, comparable, flatten
@@ -56,34 +68,22 @@ class FinanceOCRPipeline:
     def __init__(
         self,
         cfg: dict[str, Any],
-        mode: Literal["ocr", "vlm"] = "ocr",
-        engine: str = "paddle",
-        use_llm: bool | None = None,
+        engine: str = "openthai",
+        use_llm: bool = False,
         with_reader: bool = True,
         strategy: Literal["winner", "hybrid"] | None = None,
     ):
-        """``with_reader=False``: ไม่โหลดตัวอ่าน (OCR/VLM) ใช้สกัดซ้ำจากข้อความดิบที่เก็บไว้ (process_raw) โดยไม่แตะ GPU."""
+        """``with_reader=False``: ไม่สร้างตัวอ่าน ใช้สกัดซ้ำจากข้อความดิบที่เก็บไว้ (process_raw) โดยไม่แตะ GPU."""
         self.cfg = cfg
-        self.mode = mode
-        self.use_llm = (mode == "vlm") if use_llm is None else use_llm
+        self.use_llm = use_llm
         # winner = rules กับ LLM สกัดแยกกัน แล้วเลือกชุดที่ check ดีกว่า | hybrid = rules นำ LLM เติมเฉพาะช่องที่ยังไม่เสร็จ (extraction/hybrid.py)
         self.strategy = strategy or cfg.get("extraction", {}).get("strategy", "winner")
         if self.strategy not in ("winner", "hybrid"):
             raise ValueError(f"unknown extraction strategy: {self.strategy}")
         self.last_rejected: list[tuple[str, str]] = []  # ค่าที่ LLM เสนอแต่ด่านของ hybrid ปัดตก (คีย์, เหตุผล) ของหน้าล่าสุด
 
-        if mode not in ("ocr", "vlm"):
-            raise ValueError(f"unknown mode: {mode}")
-        if not with_reader:  # ใช้แค่ชื่อให้ engine_name ตรงกับตอนอ่านจริง
-            from .vlm import vlm_model
-
-            self.reader = SimpleNamespace(name=engine if mode == "ocr" else f"vlm:{vlm_model(engine, cfg)}")
-        elif mode == "ocr":
-            self.reader = create_engine(engine, cfg)
-        else:
-            from .vlm import create_reader
-
-            self.reader = create_reader(engine, cfg)
+        # ไม่สร้างตัวอ่าน: ใช้แค่ชื่อให้ engine_name ตรงกับตอนอ่านจริง
+        self.reader = make_reader(engine, cfg) if with_reader else SimpleNamespace(name=reader_label(engine, cfg))
         self.profile = cfg["preprocessing"]
         self.doc_table = cfg.get("document_types") or {}
         self.profiles = load_profiles(self.doc_table)
@@ -104,17 +104,12 @@ class FinanceOCRPipeline:
     def read_prepared(self, img):
         """อ่านข้อความจากภาพที่ผ่าน preprocess แล้ว คืน (lines, raw_text, ocr_confidence, extra_checks)."""
         res = self.reader.recognize(img)
-        if self.mode == "ocr":
-            return [ln.text for ln in res.lines], res.text, res.mean_confidence, []
-
-        extra = []
-        if res.truncated:
-            extra.append(self._incomplete_check())
-        return markdown_to_lines(res.markdown), res.markdown, None, extra
+        extra = [self._incomplete_check()] if res.truncated else []
+        return markdown_to_lines(res.text), res.text, res.confidence, extra
 
     @staticmethod
     def _incomplete_check() -> ValidationCheck:
-        return ValidationCheck(name="vlm_complete", passed=False, detail="VLM ตอบไม่จบ (max_tokens) — ข้อมูลอาจขาด")
+        return ValidationCheck(name="reader_complete", passed=False, detail="ตัวอ่านตอบไม่จบ (ชนเพดาน token) — ข้อมูลอาจขาด")
 
     @staticmethod
     def _chunks_of(lines: list[str], raw_text: str) -> list[str | None] | None:
@@ -125,11 +120,10 @@ class FinanceOCRPipeline:
         pairs = lines_with_chunks(raw_text)
         return [c for _ln, c in pairs] if [ln for ln, _c in pairs] == lines else None
 
-    def lines_from_raw(self, raw_text: str) -> list[str]:
-        """ข้อความดิบที่เก็บไว้ → บรรทัดสำหรับขั้นสกัด (แบบเดียวกับตอนอ่านสด)."""
-        if self.mode == "vlm":
-            return markdown_to_lines(raw_text)
-        return [ln for ln in raw_text.split("\n") if ln.strip()]
+    @staticmethod
+    def lines_from_raw(raw_text: str) -> list[str]:
+        """ข้อความดิบที่เก็บไว้ → บรรทัดสำหรับขั้นสกัด (แบบเดียวกับตอนอ่านสด ทุก engine)."""
+        return markdown_to_lines(raw_text)
 
     def _consistency(self, d: InvoiceData) -> float:
         checks = run_checks(d, self.cfg["validation"]["amount_tolerance"],

@@ -18,11 +18,11 @@ class FakePipe:
 
     log: list = []
 
-    def __init__(self, cfg, mode="ocr", engine="paddle", use_llm=None, with_reader=True, strategy=None):
-        self.mode, self.with_reader, self.strategy = mode, with_reader, strategy or "winner"
+    def __init__(self, cfg, engine="openthai", use_llm=False, with_reader=True, strategy=None):
+        self.with_reader, self.strategy = with_reader, strategy or "winner"
         self.reader = SimpleNamespace(name=engine)
-        self.llm = object() if (use_llm if use_llm is not None else mode == "vlm") else None
-        self.engine_name = f"{engine if mode == 'ocr' else 'vlm:fake'}+{'llm' if self.llm else 'rules'}"
+        self.llm = object() if use_llm else None
+        self.engine_name = f"{engine}:fake+{'llm' if self.llm else 'rules'}"
         FakePipe.log.append(("init", with_reader))
 
     def _result(self, source, page, raw):

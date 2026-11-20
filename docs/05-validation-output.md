@@ -30,7 +30,7 @@ check ใช้ทำสามอย่าง
 | `before_vat_plus_vat` | ยอดก่อน VAT + VAT = ยอดรวม | ✓ 44.45 + 3.11 = 47.56 |
 | `vat_rate` | VAT = ยอดก่อน VAT × อัตรา (ถ้าไม่มี ใช้ ยอดรวม × r / (1 + r)) | ✓ 3.11 |
 | `date_range` | 2000-01-01 ≤ วันที่ ≤ วันนี้ (ตรวจแค่ความสมเหตุสมผล ไม่นับเป็นตัวยืนยันว่าอ่านถูกวัน) | ✓ 2023-05-18 |
-| `vlm_complete` | VLM ตอบจบ ไม่ถูกตัดเพราะ token หมด (pipeline เพิ่มให้เฉพาะโหมด vlm เมื่อตอบไม่จบ จึงมีแต่ `passed=false`) | — |
+| `reader_complete` | ตัวอ่านตอบจบ ไม่ถูกตัดเพราะชนเพดาน token (pipeline เพิ่มให้เมื่อตอบไม่จบเท่านั้น จึงมีแต่ `passed=false` ผลก่อน 2026-11-20 ชื่อ `vlm_complete`) | — |
 
 `discount` ยอมรับได้สองแบบ เพราะเอกสารไทยมีทั้งราคาแบบไม่รวม VAT (หักส่วนลดก่อนคิดภาษี) และแบบรวม VAT แล้ว (เช่นใบเสร็จตัวอย่าง)
 
@@ -137,7 +137,7 @@ ExtractionResult                     ผลของ 1 หน้า
 | Field | ความหมาย |
 |---|---|
 | `source_file`, `page` | มาจากไฟล์ไหน หน้าไหน |
-| `engine` | engine ที่ใช้ เช่น `paddle+rules`, `vlm:scb10x/typhoon-ocr1.5-3b+llm:qwen2.5:3b` |
+| `engine` | `<engine>[:<โมเดล>]+<ผู้สกัด>` เช่น `paddle+rules`, `openthai:OpenThai2.0-OCR-Markdown+rules`, `typhoon:scb10x/typhoon-ocr1.5-3b+llm:qwen2.5:3b` (ผลก่อน 2026-11-20 ใช้ `vlm:<โมเดล>`) |
 | `data` | field ที่สกัดได้ (`InvoiceData`) |
 | `checks` | ผลการตรวจทุกข้อพร้อมรายละเอียด |
 | `schema_version` | เวอร์ชันของ schema (ตอนนี้ `"3.0"`) |

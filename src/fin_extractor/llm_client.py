@@ -1,4 +1,4 @@
-"""Client กลางสำหรับเรียก VLM/LLM — รองรับ 2 provider.
+"""Client กลางสำหรับเรียกโมเดลแบบแชต (Typhoon ตัวอ่าน และ LLM ตัวสกัด) — รองรับ 2 provider.
 
 - ``ollama`` : Ollama native API (``/api/chat``) — ต้องใช้ตัวนี้เพราะ endpoint แบบ OpenAI ของ Ollama
                ไม่ให้ตั้ง ``num_ctx`` (default 4096 token ไม่พอ: ภาพเอกสาร 1 หน้ากิน ~2-4k token)
@@ -14,7 +14,7 @@ from typing import Any
 import cv2
 import numpy as np
 
-from ..config import get_secret
+from .config import get_secret
 
 
 @dataclass
@@ -24,7 +24,7 @@ class ChatResponse:
 
 
 def encode_image(img: np.ndarray, max_side: int | None = None) -> str:
-    """ย่อภาพ (ถ้าใหญ่เกิน) แล้ว encode เป็น base64 PNG — VLM คิด token ตามขนาดภาพ."""
+    """ย่อภาพ (ถ้าใหญ่เกิน) แล้ว encode เป็น base64 PNG — โมเดลคิด token ตามขนาดภาพ."""
     if max_side and max(img.shape[:2]) > max_side:
         scale = max_side / max(img.shape[:2])
         img = cv2.resize(img, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)

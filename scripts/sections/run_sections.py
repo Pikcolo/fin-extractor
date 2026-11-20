@@ -10,12 +10,12 @@
     luma (ค่าตั้งต้น) / flat / bin (ตัวขาวบนดำ) = ไฟล์ภาพย่อย ``03_sections/…/images/<แบบ>/<ไฟล์>/sNN.png`` (make_clean_sections.py) ตรวจก่อนว่าตรงกับผังปัจจุบัน ไม่งั้นหยุด
     color                    = ตัดจากภาพ final สีในหน่วยความจำตามผัง ไม่มีไฟล์ภาพย่อย ไม่ผ่าน luma/flat
 ตัวอ่าน (เลือกด้วย ``--engine``) ตั้งค่าที่ section ชื่อเดียวกันใน configs/default.yaml
-    oxr      ``vlm/oxr_local.py``    (``oxr_local:``) โหลดตรง ไม่ใช้ Docker
-    openthai ``vlm/openthai_ocr.py`` (``openthai:``)
+    oxr      ``readers/oxr.py``      (``oxr:``) โหลดตรง ไม่ใช้ Docker
+    openthai ``readers/openthai.py`` (``openthai:``)
 ผล: ``data/04_ocr/<dataset>/<engine>/<แบบ>/<ไฟล์>/<ไฟล์>_p1.sections.json`` = รายการ section ตามลำดับอ่าน (color = raw_data)
     {id, kind, bbox, text, truncated, seconds} ส่วนที่ lab ตัดทิ้ง (ว่าง) ไม่ถูกอ่าน เก็บเป็น ``skipped``
 นอกจากนี้เขียน ``<ไฟล์>_p1.md`` ไว้ข้างกัน = ข้อความของทุกส่วนต่อกันตามลำดับอ่าน (ป้ายแต่ละส่วนเป็นคอมเมนต์ HTML ซึ่ง rules ตัดทิ้งตอนอ่าน)
-เป็นรูปแบบเดียวกับข้อความดิบของโหมด VLM จึงใช้กับ ``extract --reuse-raw`` ได้ ``--markdown-only`` สร้าง .md จากผลที่มีอยู่โดยไม่โหลดโมเดล (ไม่ใช้ GPU)
+เป็นรูปแบบเดียวกับข้อความดิบที่คำสั่ง extract อ่าน จึงใช้กับ ``extract --reuse-raw`` ได้ ``--markdown-only`` สร้าง .md จากผลที่มีอยู่โดยไม่โหลดโมเดล (ไม่ใช้ GPU)
 รันต่อจากที่ค้างได้ (ข้ามไฟล์ที่มีผลแล้ว ใส่ --redo เพื่อทำใหม่) บันทึกผลทีละไฟล์
 
 OXR ไม่รู้ภาษาไทย: ช่องที่มีไทยจะได้ข้อความมั่ว/อักษรจีน และอาจวนซ้ำจนชนเพดาน token (ช้า) ผลนี้เป็นข้อมูลดิบ ยังไม่ได้คัดว่าช่องไหนเชื่อได้
@@ -34,8 +34,9 @@ sys.path.insert(0, str(ROOT / "src"))
 from fin_extractor import sections as S  # noqa: E402
 from fin_extractor.config import load_config  # noqa: E402
 from fin_extractor.paths import DataPaths, dataset_of  # noqa: E402
+from fin_extractor.readers import ENGINES  # noqa: E402
 from fin_extractor.sections.read import (  # noqa: E402,F401  (tests และสคริปต์อื่นเรียกผ่านชื่อนี้)
-    ENGINES, clean_index, fingerprint, image_locator, kept_layout, markdown_blocks, markdown_of, read_clean_image, read_dataset, chunks_of,
+    clean_index, fingerprint, image_locator, kept_layout, markdown_blocks, markdown_of, read_clean_image, read_dataset, chunks_of,
     script_mix, write_markdown)
 
 VARIANTS = ("color", *S.VARIANTS)  # color = ตัดจากภาพ final ในหน่วยความจำ ที่เหลือคือภาพที่ make_clean_sections เขียนไว้

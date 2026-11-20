@@ -10,7 +10,7 @@ import html
 import re
 from decimal import Decimal
 
-from ..ocr.base import normalize_thai
+from ..readers.lines import normalize_thai
 from ..schema import InvoiceData, LineItem
 from ..validation.tax_id import is_valid_thai_tax_id
 from .patterns import AMOUNT_RE, PERCENT_RE, find_amounts, find_tax_ids, parse_date
@@ -49,8 +49,8 @@ AMOUNT_FIELDS: list[tuple[str, re.Pattern]] = [
 
 
 def markdown_to_lines(markdown: str) -> list[str]:
-    """แปลง Markdown/HTML table จาก VLM ให้เป็นบรรทัดข้อความ (1 แถวตาราง = 1 บรรทัด)."""
-    # บาง VLM (OpenThai) พิมพ์ "ำ" เป็น นิคหิต+า (U+0E4D U+0E32) ทำให้ป้ายอย่าง "นำส่ง" จับไม่เจอ
+    """แปลงข้อความจากตัวอ่าน (Markdown/HTML table หรือบรรทัดล้วน) ให้เป็นบรรทัดข้อความ (1 แถวตาราง = 1 บรรทัด)."""
+    # บางตัวอ่าน (OpenThai) พิมพ์ "ำ" เป็น นิคหิต+า (U+0E4D U+0E32) ทำให้ป้ายอย่าง "นำส่ง" จับไม่เจอ
     # และบางครั้งมีช่องว่างก่อนทศนิยม ("106,250 .00") ทำให้ตัวจับยอดเงินมองไม่เห็น
     text = re.sub(r"(?<=\d)[ \t\u00a0]+\.(?=\d{2}(?!\d))", ".", normalize_thai(markdown))
     text = re.sub(r"</t[dh]>", " | ", text, flags=re.I)

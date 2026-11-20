@@ -1,11 +1,11 @@
-"""vlm/oxr_local.py: ไม่โหลดโมเดลจริง (3GB/GPU) ทดสอบเฉพาะตรรกะรอบ ๆ ด้วยโมเดลปลอม."""
+"""readers/oxr.py: ไม่โหลดโมเดลจริง (3GB/GPU) ทดสอบเฉพาะตรรกะรอบ ๆ ด้วยโมเดลปลอม."""
 
 import numpy as np
 import pytest
 
 torch = pytest.importorskip("torch")
 
-from fin_extractor.vlm.oxr_local import OXRLocal, STOP_TOKEN  # noqa: E402
+from fin_extractor.readers.oxr import OXRLocal, STOP_TOKEN  # noqa: E402
 
 
 class _Tok:
@@ -50,7 +50,7 @@ def test_stop_token_is_passed_as_eos_so_generation_ends_early():
     r = _reader([5, 6, 99])
     res = r.recognize(IMG)
     assert r._model.kwargs["eos_token_id"] == 99 and r._model.kwargs["do_sample"] is False
-    assert res.markdown == "5 6" and res.finish_reason == "stop" and not res.truncated
+    assert res.text == "5 6" and res.finish_reason == "stop" and not res.truncated
 
 
 def test_hitting_the_token_cap_without_a_stop_token_is_flagged_truncated():
@@ -61,7 +61,7 @@ def test_hitting_the_token_cap_without_a_stop_token_is_flagged_truncated():
 def test_indicator_buffer_is_restored_after_loading():
     from types import SimpleNamespace
 
-    from fin_extractor.vlm.oxr_local import restore_indicator_buffer
+    from fin_extractor.readers.oxr import restore_indicator_buffer
 
     # Transformers 5.x ไม่เติม non-persistent buffer: ได้ [0,0,0,0] หรือค่าขยะเกินขอบเขต
     for broken in ([0, 0, 0, 0], [3444631011552, 0, 0, 0]):

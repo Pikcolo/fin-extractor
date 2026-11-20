@@ -11,8 +11,8 @@
 | 2 | Preprocess ภาพทั้งหน้า (ทิศ เอียง ขอบ) | `preprocessing/` | [02-preprocessing.md](02-preprocessing.md) |
 | 3 | แบ่งหน้าเป็น section ก่อน OCR (flow หลัก, ข้ามได้ถ้าอ่านทั้งหน้า) | `sections/` | [03-sections.md](03-sections.md) |
 | 3 | ทางเลือก: แบ่ง region / ตาราง → ช่อง → key/value + ระบาย QR (คำสั่ง `regions` · OCR ผ่าน `sections --layout regions` วัดแล้วแย่กว่าผัง section) | `sections/regions/`, `configs/regions/` | [03-regions.md](03-regions.md) |
-| 4 | อ่านข้อความ: 4A PaddleOCR · 4B VLM (Typhoon / OpenThai) | `ocr/`, `vlm/`, `sections/read.py` | [04-ocr.md](04-ocr.md) |
-| 4 | OpenThai 2.0 OCR: ตัวอ่านของ flow หลัก (หลักการ การต่อเข้า ผลวัด 18 ใบ) | `vlm/openthai_ocr.py` | [04-openthai-ocr.md](04-openthai-ocr.md) |
+| 4 | อ่านข้อความ: ตัวอ่านทุก engine ทางเดียวกัน (OpenThai · Typhoon · Paddle · OXR) | `readers/`, `sections/read.py` | [04-ocr.md](04-ocr.md) |
+| 4 | OpenThai 2.0 OCR: ตัวอ่านของ flow หลัก (หลักการ การต่อเข้า ผลวัด 18 ใบ) | `readers/openthai.py` | [04-openthai-ocr.md](04-openthai-ocr.md) |
 | 5 | สกัด field: 5A rules · 5B LLM · 5C เลือกผล · 5D hybrid | `extraction/`, `pipeline.py` | [05-extraction.md](05-extraction.md) |
 | 5 | 5E validation · 5F สถานะ · 5G บันทึก JSON | `validation/`, `cli.py` | [05-validation-output.md](05-validation-output.md) |
 | — | หลักการระบบ, data contract (schema), best solution และ roadmap | `schema.py` | [06-design-and-roadmap.md](06-design-and-roadmap.md) |
@@ -29,7 +29,7 @@
 
 | เรื่อง | เอกสาร |
 |---|---|
-| OXR: ตัวอ่านเอกสารที่อ่านไทยไม่ได้ (โค้ด `scripts/ocr/oxr/`, `vlm/oxr_local.py`) | [archive/oxr.md](archive/oxr.md) |
+| OXR: ตัวอ่านเอกสารที่อ่านไทยไม่ได้ (โค้ด `scripts/ocr/oxr/`, `readers/oxr.py`) | [archive/oxr.md](archive/oxr.md) |
 
 ## Workflow
 
@@ -81,9 +81,9 @@ flowchart TD
         D2["2. Preprocess<br/>ตะแคง/เอียง · คงสี"]
     end
 
-    subgraph OCR["OCR / VLM — อ่านข้อความ"]
-        E1["4A. OCR engine<br/>PaddleOCR"]
-        E2["4B. Typhoon OCR<br/>→ Markdown + ตาราง HTML"]
+    subgraph OCR["อ่านข้อความทั้งหน้า (รุ่นเก่า)"]
+        E1["4. PaddleOCR ทั้งหน้า"]
+        E2["4. Typhoon OCR ทั้งหน้า<br/>→ Markdown + ตาราง HTML"]
     end
 
     subgraph EXT["EXTRACTION + VALIDATION + OUTPUT"]
@@ -119,17 +119,17 @@ flowchart TD
 - **Paddle + LLM** (`data/05_extract/finance_doc_scan/paddle/page/llm/`): 15 `needs_review`, 1 `failed`, 2 `auto_approved` (001313, 001314 ซึ่งเป็น Tax Invoice อังกฤษใบเดียวกัน) `buyer.name` มี 17 ใบ สกัดจากข้อความ Paddle ชุดเดียวกับ Paddle + rules ด้วย `--llm on --reuse-raw` (ไม่เรียก Paddle ซ้ำ) รัน 2026-11-11
 - **Typhoon + rules** (`data/05_extract/finance_doc_scan/typhoon/page/rules/`): 18 `needs_review` (สกัดจากข้อความ Typhoon ชุดเดียวกับ LLM ด้วย `--reuse-raw` ไม่เรียก Typhoon ซ้ำ)
 - **Typhoon + LLM** (`data/05_extract/finance_doc_scan/typhoon/page/llm/`): 18 `needs_review` `buyer.name` มี 16 ใบ (rules ล้วน: Paddle 13, Typhoon 11)
-- **ผลของ VLM/LLM ไม่ซ้ำกันทุกรอบ** (Typhoon สุ่มเล็กน้อย): ข้อความ Typhoon รอบใหม่ต่างจากรอบก่อนทั้ง 18 ใบ และรอบก่อนมี `auto_approved` 2 ใบ รอบนี้ 0 ส่วนผล rules ล้วนบนข้อความ Paddle ซ้ำได้เหมือนเดิม
+- **ผลของ Typhoon/LLM ไม่ซ้ำกันทุกรอบ** (Typhoon สุ่มเล็กน้อย): ข้อความ Typhoon รอบใหม่ต่างจากรอบก่อนทั้ง 18 ใบ และรอบก่อนมี `auto_approved` 2 ใบ รอบนี้ 0 ส่วนผล rules ล้วนบนข้อความ Paddle ซ้ำได้เหมือนเดิม
 - เทียบสถานะกับรอบเก่าตรง ๆ ไม่ได้: โปรไฟล์ชนิดเอกสารยังเป็นฉบับร่างและอนุมัติอัตโนมัติไม่ได้ ([06 หัวข้อ 3.6](06-design-and-roadmap.md))
-- ข้อสังเกตเรื่องค่าผิดของ LLM จากรอบ 2026-11-10 (แต่งตัวเลข แปลงปีผิด สลับผู้ขาย/ผู้ซื้อ ดู [ขั้นที่ 4](04-ocr.md#ผลเทียบสองโหมดบนสแกนจริง-18-ใบ---mode-ocr-เทียบ---mode-vlm)) ยังไม่ได้ตรวจซ้ำกับรอบใหม่
+- ข้อสังเกตเรื่องค่าผิดของ LLM จากรอบ 2026-11-10 (แต่งตัวเลข แปลงปีผิด สลับผู้ขาย/ผู้ซื้อ ดู [ขั้นที่ 4](04-ocr.md#ผลเทียบ-paddle-กับ-typhoon-อ่านทั้งหน้าบนสแกนจริง-18-ใบ-รุ่นเก่า---mode-ocr----mode-vlm-ถอดแล้ว)) ยังไม่ได้ตรวจซ้ำกับรอบใหม่
 
 ชุดนี้มีเอกสารหลายชนิดปนกัน (ใบกำกับภาษี, หนังสือรับรองหัก ณ ที่จ่าย, ใบสำคัญรับเงินลายมือ, ใบเสร็จศุลกากร)
 และส่วนใหญ่ไม่ได้พลาดที่ preprocess ดู [ขั้นที่ 2](02-preprocessing.md#ผลวัดบนสแกนจริง)
 
 ผลกับใบเสร็จตัวอย่าง:
 
-- **โหมด vlm:** ได้ทุก field ถูกต้อง ผ่าน check ครบ 6 ข้อ
-- **โหมด ocr (Paddle):** ได้ค่าครบ 6/6 รายการ 5/5 ผ่าน check 6/6
+- **Typhoon ทั้งหน้า (`--mode vlm` เดิม):** ได้ทุก field ถูกต้อง ผ่าน check ครบ 6 ข้อ
+- **Paddle ทั้งหน้า (`--mode ocr` เดิม):** ได้ค่าครบ 6/6 รายการ 5/5 ผ่าน check 6/6
 
 ไฟล์ที่ควบคุมลำดับทั้งหมดคือ `src/fin_extractor/pipeline.py` ค่าทุกตัวอ่านจาก `configs/default.yaml`
 

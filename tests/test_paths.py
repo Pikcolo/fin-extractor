@@ -95,7 +95,7 @@ def test_bundled_fonts_exist_and_render_thai():
 
 
 def test_paddle_models_cache_goes_into_the_project_unless_user_overrides(monkeypatch):
-    from fin_extractor.ocr.paddle_engine import use_project_model_cache
+    from fin_extractor.readers.paddle import use_project_model_cache
     from fin_extractor.paths import model_dir
 
     monkeypatch.delenv("PADDLE_PDX_CACHE_HOME", raising=False)

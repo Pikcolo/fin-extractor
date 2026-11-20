@@ -23,7 +23,7 @@ def _load_orientation_model():
     """โหลดตัวจำแนกทิศโดยไม่ให้ torch ถูกโหลดพ่วง (cuDNN ของ torch กับ Paddle ชนกัน ดู ``paddle_engine.without_modelscope``)."""
     global _orientation_model
     if _orientation_model is None:
-        from ..ocr.paddle_engine import prepare_paddle_env, without_modelscope
+        from ..readers.paddle import prepare_paddle_env, without_modelscope
 
         prepare_paddle_env()
         with without_modelscope():

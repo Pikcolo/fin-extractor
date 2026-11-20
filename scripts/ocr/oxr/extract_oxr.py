@@ -80,7 +80,7 @@ def main() -> None:
     paths, dataset = DataPaths(cfg), dataset_of(args.input)
     raw_dir, final_dir = paths.raw_data("oxr", dataset), paths.final("oxr", dataset, "rules")
     reader = OXRReader(args.api)
-    pipe = FinanceOCRPipeline(cfg, mode="vlm", use_llm=False, with_reader=False)  # ขั้นสกัด/ตรวจเหมือนทางของ Typhoon แบบ rules
+    pipe = FinanceOCRPipeline(cfg, engine="oxr", use_llm=False, with_reader=False)  # ขั้นสกัด/ตรวจเหมือนตัวอ่านอื่น แบบ rules
     pipe.reader = reader
     settings = {"mode": "oxr", "engine": pipe.engine_name, "api": args.api, "profile": args.profile}
     with Run("extract", args.input, cfg, final_dir, settings) as run:

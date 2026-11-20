@@ -87,15 +87,10 @@ def read(path: Path) -> np.ndarray:
 
 
 def make_reader(engine: str, cfg: dict):
-    if engine == "paddle":
-        from fin_extractor.ocr import create_engine
+    from fin_extractor.readers import make_reader as reader_of
 
-        reader = create_engine("paddle", cfg)
-        return lambda img: reader.recognize(img).text
-    from fin_extractor.vlm import TyphoonOCR
-
-    reader = TyphoonOCR(cfg["vlm"])
-    return lambda img: "\n".join(markdown_to_lines(reader.recognize(img).markdown))
+    reader = reader_of({"vlm": "typhoon"}.get(engine, engine), cfg)  # "vlm" = ชื่อเดิมของ typhoon (ชื่อไฟล์ผลเก่า cer_*_vlm.json)
+    return lambda img: "\n".join(markdown_to_lines(reader.recognize(img).text))
 
 
 def summarize(rows: list[dict]) -> dict:

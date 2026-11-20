@@ -170,7 +170,7 @@ OCRResult (คำ + bbox + conf)
 | `extraction/rule_extractor.py`, `patterns.py` | คืนช่วงต้นทางของค่า |
 | `pipeline.py` | ส่งคำที่มี confidence ไปถึง extractor |
 | `extraction/llm_extractor.py` | จับคู่ค่ากลับหา OCR |
-| `vlm/client.py` | (ถ้าเลือก logprobs) ขอและเก็บ logprobs |
+| `llm_client.py` | (ถ้าเลือก logprobs) ขอและเก็บ logprobs |
 | `validation/evidence.py` | ใส่ `model_conf` (และ `engines_agree` ถ้าทำ) |
 | `scripts/eval/benchmark.py` | เพิ่มการวัด calibration |
 

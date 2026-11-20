@@ -43,7 +43,7 @@ def buyer(lines, profile=GENERIC_PROFILE):
     (["ที่อยู่Addressนามลูกค้าName บริษัท ตัวอย่าง จำกัต49/12 ชออ 6"], ("บริษัท ตัวอย่าง จำกัต", None)),
     # 001319: เลขภาษี 13 หลักตามหลังชื่อทันที
     (["Codeนามลูกค้าบริษัท ตัวอย่าง จำกัด 0105561234501 เลยที่ใบกำกับOrder No. ST6910"], ("บริษัท ตัวอย่าง จำกัด", None)),
-    # ตัวคั่นตารางจาก markdown/HTML ของ VLM
+    # ตัวคั่นตารางจาก markdown/HTML ของตัวอ่าน (Typhoon/OpenThai)
     (["นามลูกค้า : บริษัท ตัวอย่าง จำกัด | เลขที่ใบกำกับภาษี : A1"], ("บริษัท ตัวอย่าง จำกัด", None)),
 ])
 def test_buyer_name_from_observed_label_shapes(lines, expected):
