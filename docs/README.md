@@ -1,27 +1,38 @@
 # fin-extractor: ขั้นตอนการทำงาน
 
 ระบบรับภาพหรือ PDF ของเอกสารการเงิน (ใบกำกับภาษี ใบเสร็จ invoice) แล้วคืนผลเป็น JSON ตาม schema เดียวกันทุกครั้ง
-ทำงาน 7 ขั้น โดยขั้นที่ 3–4 แยกเป็นสองทางตามโหมดที่เลือก (คำสั่ง `preprocess` · `ocr` · `extract` · `sections` · `compare` · `schema` ดู [06-usage.md](06-usage.md))
+เลขของเอกสารตรงกับเลขขั้นและโฟลเดอร์ข้อมูล (`data/01_input` … `data/05_extract`) เลขเดียวกัน = part เดียวกัน
+คำสั่ง `preprocess` · `ocr` · `extract` · `sections` · `compare` · `schema` ดู [00-setup-and-usage.md](00-setup-and-usage.md)
 
-| ขั้น | ชื่อ                                                                                                                                                                                                                                                                                                                                        | โค้ด                                                                               | เอกสาร                                                                    |
-| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| 1        | เตรียมและโหลดไฟล์                                                                                                                                                                                                                                                                                                              | `io/loader.py`                                                                       | [01-file-preparation.md](01-file-preparation.md)                                 |
-| 2        | Preprocess ภาพ                                                                                                                                                                                                                                                                                                                               | `preprocessing/`                                                                     | [02-preprocessing.md](02-preprocessing.md)                                       |
-| 3        | อ่านข้อความ (OCR / VLM)                                                                                                                                                                                                                                                                                                              | `ocr/`, `vlm/`                                                                     | [03-text-reading.md](03-text-reading.md)                                         |
-| 4        | สกัด field                                                                                                                                                                                                                                                                                                                                  | `extraction/`, `pipeline.py`                                                       | [04-extraction.md](04-extraction.md)                                             |
-| 5–7     | Validation, คะแนน, บันทึก JSON                                                                                                                                                                                                                                                                                                       | `validation/`, `cli.py`                                                            | [05-validation-output.md](05-validation-output.md)                               |
-| —       | ติดตั้งและวิธีใช้                                                                                                                                                                                                                                                                                                              |                                                                                        | [06-usage.md](06-usage.md)                                                       |
-| —       | แผนรองรับลายมือและ confidence รายฟิลด์                                                                                                                                                                                                                                                                                |                                                                                        | [07-handwriting-and-field-confidence.md](07-handwriting-and-field-confidence.md) |
-| —       | หลักการระบบ, best solution และแผนอัปเดต                                                                                                                                                                                                                                                                                  |                                                                                        | [08-solution-and-roadmap.md](08-solution-and-roadmap.md)                         |
-| —       | Decision model (concept: Jev / Laya)                                                                                                                                                                                                                                                                                                            |                                                                                        | [09-decision-model.md](09-decision-model.md)                                     |
-| —       | แผน decision engine กับ confidence รายฟิลด์ (ความเห็น ข้อแย้ง ตัวชี้วัด แผนเป็นขั้น)                                                                                                                                                                                                           |                                                                                        | [11-decision-engine-confidence-plan.md](11-decision-engine-confidence-plan.md)   |
-| —       | OXR: ตัวอ่านเอกสารที่ลองแล้ว (หลักการ ข้อดีข้อเสีย ผลวัดภาษาไทย)                                                                                                                                                                                                                          | `scripts/oxr/benchmark_oxr.py`, `scripts/oxr/extract_oxr.py`                               | [10-oxr.md](10-oxr.md)                                                           |
-| —       | **สายงานล่าสุด** แบ่งหน้าเป็น section ก่อน OCR (ตารางก้อนเดียว, ท่อนสูงสุด 0.3 ของหน้า, ภาพรายส่วน luma/flat/bin แยกโฟลเดอร์ ค่าตั้งต้น luma, อ่านทีละส่วนด้วย OpenThai; เทียบ 3 แบบบน 18 ใบและข้อจำกัด) | `src/fin_extractor/sections/`, `fin_extractor sections`, `fin_extractor compare` | [13-section-preprocess.md](13-section-preprocess.md)                             |
-| —       | OpenThai 2.0 OCR: ตัวอ่าน VLM ภาษาไทยที่ต่อเข้าแล้ว (หลักการ การต่อเข้าโปรเจกต์ ผลวัด 18 ใบ)                                                                                                                                                                                        | `vlm/openthai_ocr.py`                                                                | [12-openthai-ocr.md](12-openthai-ocr.md)                                         |
+| ขั้น | เรื่อง | โค้ด | เอกสาร |
+|---|---|---|---|
+| — | ติดตั้งและวิธีใช้ (คำสั่ง, โครงเก็บผล, สคริปต์) | | [00-setup-and-usage.md](00-setup-and-usage.md) |
+| 1 | เตรียมและโหลดไฟล์ | `io/loader.py` | [01-input.md](01-input.md) |
+| 2 | Preprocess ภาพทั้งหน้า (ทิศ เอียง ขอบ) | `preprocessing/` | [02-preprocessing.md](02-preprocessing.md) |
+| 3 | แบ่งหน้าเป็น section ก่อน OCR (flow หลัก, ข้ามได้ถ้าอ่านทั้งหน้า) | `sections/` | [03-sections.md](03-sections.md) |
+| 4 | อ่านข้อความ: 4A PaddleOCR · 4B VLM (Typhoon / OpenThai) | `ocr/`, `vlm/`, `sections/read.py` | [04-ocr.md](04-ocr.md) |
+| 4 | OpenThai 2.0 OCR: ตัวอ่านของ flow หลัก (หลักการ การต่อเข้า ผลวัด 18 ใบ) | `vlm/openthai_ocr.py` | [04-openthai-ocr.md](04-openthai-ocr.md) |
+| 5 | สกัด field: 5A rules · 5B LLM · 5C เลือกผล · 5D hybrid | `extraction/`, `pipeline.py` | [05-extraction.md](05-extraction.md) |
+| 5 | 5E validation · 5F สถานะ · 5G บันทึก JSON | `validation/`, `cli.py` | [05-validation-output.md](05-validation-output.md) |
+| — | หลักการระบบ, data contract (schema), best solution และ roadmap | `schema.py` | [06-design-and-roadmap.md](06-design-and-roadmap.md) |
+
+**draft** (แผน/concept ยังไม่มีโค้ด)
+
+| เรื่อง | เอกสาร |
+|---|---|
+| แผนรองรับลายมือและ confidence รายฟิลด์ | [draft-07-handwriting-and-field-confidence.md](draft-07-handwriting-and-field-confidence.md) |
+| Decision model (concept: Jev / Laya) | [draft-08-decision-model.md](draft-08-decision-model.md) |
+| แผน decision engine กับ confidence รายฟิลด์ (ความเห็น ข้อแย้ง ตัวชี้วัด) | [draft-09-decision-engine-confidence-plan.md](draft-09-decision-engine-confidence-plan.md) |
+
+**archive** (ลองแล้วไม่ใช้ เก็บไว้เป็นหลักฐานผลวัด)
+
+| เรื่อง | เอกสาร |
+|---|---|
+| OXR: ตัวอ่านเอกสารที่อ่านไทยไม่ได้ (โค้ด `scripts/ocr/oxr/`, `vlm/oxr_local.py`) | [archive/oxr.md](archive/oxr.md) |
 
 ## Workflow
 
-**flow หลักสำหรับสแกนจริง** (`python -m fin_extractor sections <input>` = ห้าขั้นนี้ในคำสั่งเดียว ข้ามขั้นที่ผลยังใช้ได้ ไม่ใช้ OCR คัดส่วน) อยู่ในแผนภาพถัดไป ส่วนแผนภาพหลักข้างล่างคือสองโหมดเดิม (`ocr` / `vlm`)
+**flow หลักสำหรับสแกนจริง** (`python -m fin_extractor sections <input>` = ห้าขั้นนี้ในคำสั่งเดียว ข้ามขั้นที่ผลยังใช้ได้ ไม่ใช้ OCR คัดส่วน) อยู่ในแผนภาพถัดไป ส่วนแผนภาพที่สองคือสองโหมดเดิมที่อ่านทั้งหน้า (`ocr` / `vlm` ข้ามขั้น 3)
 
 ```mermaid
 flowchart TD
@@ -29,9 +40,9 @@ flowchart TD
 
     subgraph PRE["PREPROCESS + แบ่ง section — ภาพล้วน ไม่เรียก OCR (CPU)"]
         direction TB
-        B["1. preprocess<br/>ตะแคง/เอียง · คงสี → final/"]
-        C["2. layout<br/>ผังแบ่งแถบ/ท่อน → 03_sections/…/layout/ (เก็บไว้ดู debug)"]
-        D["3. images<br/>03_sections/…/images/<วิธี>/<ไฟล์>/sNN.png"]
+        B["2. preprocess<br/>ตะแคง/เอียง · คงสี → final/"]
+        C["3a. layout<br/>ผังแบ่งแถบ/ท่อน → 03_sections/…/layout/ (เก็บไว้ดู debug)"]
+        D["3b. images<br/>03_sections/…/images/<วิธี>/<ไฟล์>/sNN.png"]
         B --> C --> D
     end
 
@@ -50,7 +61,7 @@ flowchart TD
     D --> E --> F
 ```
 
-ค่าตั้งต้น `luma` (ฟิลด์ที่ขาดรวม 18 ใบ: luma 14 · flat 16 · bin 28 ไม่มีเฉลย) รายละเอียดและข้อจำกัดใน [13-section-preprocess.md](13-section-preprocess.md)
+ค่าตั้งต้น `luma` (ฟิลด์ที่ขาดรวม 18 ใบ: luma 14 · flat 16 · bin 28 ไม่มีเฉลย) รายละเอียดและข้อจำกัดใน [03-sections.md](03-sections.md)
 
 ### สองโหมดเดิม
 
@@ -70,17 +81,17 @@ flowchart TD
     end
 
     subgraph OCR["OCR / VLM — อ่านข้อความ"]
-        E1["3A. OCR engine<br/>PaddleOCR"]
-        E2["3B. Typhoon OCR<br/>→ Markdown + ตาราง HTML"]
+        E1["4A. OCR engine<br/>PaddleOCR"]
+        E2["4B. Typhoon OCR<br/>→ Markdown + ตาราง HTML"]
     end
 
     subgraph EXT["EXTRACTION + VALIDATION + OUTPUT"]
-        F["4A. Rules (regex + keyword)"]
-        G["4B. LLM → JSON"]
-        H["4C. เลือกผลที่ตัวเลขสอดคล้องกว่า<br/>+ เติม field ที่ขาด"]
-        I["5. Validation<br/>checksum, ผลรวม, VAT"]
-        J["6. สถานะ (กฎจาก check + field ที่ขาด)"]
-        K["7. บันทึก JSON<br/>data/05_extract/<ชุด>/<engine>/page/<extractor>/"]
+        F["5A. Rules (regex + keyword)"]
+        G["5B. LLM → JSON"]
+        H["5C. เลือกผลที่ตัวเลขสอดคล้องกว่า<br/>+ เติม field ที่ขาด"]
+        I["5E. Validation<br/>checksum, ผลรวม, VAT"]
+        J["5F. สถานะ (กฎจาก check + field ที่ขาด)"]
+        K["5G. บันทึก JSON<br/>data/05_extract/<ชุด>/<engine>/page/<extractor>/"]
     end
 
     C -- "--mode ocr" --> D1 --> E1 --> F
@@ -108,8 +119,8 @@ flowchart TD
 - **Typhoon + rules** (`data/05_extract/finance_doc_scan/typhoon/page/rules/`): 18 `needs_review` (สกัดจากข้อความ Typhoon ชุดเดียวกับ LLM ด้วย `--reuse-raw` ไม่เรียก Typhoon ซ้ำ)
 - **Typhoon + LLM** (`data/05_extract/finance_doc_scan/typhoon/page/llm/`): 18 `needs_review` `buyer.name` มี 16 ใบ (rules ล้วน: Paddle 13, Typhoon 11)
 - **ผลของ VLM/LLM ไม่ซ้ำกันทุกรอบ** (Typhoon สุ่มเล็กน้อย): ข้อความ Typhoon รอบใหม่ต่างจากรอบก่อนทั้ง 18 ใบ และรอบก่อนมี `auto_approved` 2 ใบ รอบนี้ 0 ส่วนผล rules ล้วนบนข้อความ Paddle ซ้ำได้เหมือนเดิม
-- เทียบสถานะกับรอบเก่าตรง ๆ ไม่ได้: โปรไฟล์ชนิดเอกสารยังเป็นฉบับร่างและอนุมัติอัตโนมัติไม่ได้ ([08 หัวข้อ 3.6](08-solution-and-roadmap.md))
-- ข้อสังเกตเรื่องค่าผิดของ LLM จากรอบ 2026-11-10 (แต่งตัวเลข แปลงปีผิด สลับผู้ขาย/ผู้ซื้อ ดู [ขั้นที่ 3](03-text-reading.md#ผลเทียบสองโหมดบนสแกนจริง-18-ใบ---mode-ocr-เทียบ---mode-vlm)) ยังไม่ได้ตรวจซ้ำกับรอบใหม่
+- เทียบสถานะกับรอบเก่าตรง ๆ ไม่ได้: โปรไฟล์ชนิดเอกสารยังเป็นฉบับร่างและอนุมัติอัตโนมัติไม่ได้ ([06 หัวข้อ 3.6](06-design-and-roadmap.md))
+- ข้อสังเกตเรื่องค่าผิดของ LLM จากรอบ 2026-11-10 (แต่งตัวเลข แปลงปีผิด สลับผู้ขาย/ผู้ซื้อ ดู [ขั้นที่ 4](04-ocr.md#ผลเทียบสองโหมดบนสแกนจริง-18-ใบ---mode-ocr-เทียบ---mode-vlm)) ยังไม่ได้ตรวจซ้ำกับรอบใหม่
 
 ชุดนี้มีเอกสารหลายชนิดปนกัน (ใบกำกับภาษี, หนังสือรับรองหัก ณ ที่จ่าย, ใบสำคัญรับเงินลายมือ, ใบเสร็จศุลกากร)
 และส่วนใหญ่ไม่ได้พลาดที่ preprocess ดู [ขั้นที่ 2](02-preprocessing.md#ผลวัดบนสแกนจริง)
@@ -131,7 +142,7 @@ flowchart TD
 | ได้                                                                                                                                                  | เสีย                                                                                                                   |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | เส้นทางเดียว ไม่ต้องแยกว่า PDF แบบไหน                                                                                    | PDF จากโปรแกรมช้ากว่าที่ควร (OCR แทนการอ่านข้อความตรง ๆ)                       |
-| ไม่มีความเสี่ยงจาก text layer ที่เพี้ยน ([ดูขั้นที่ 1](01-file-preparation.md#pdf-ที่ข้างในเป็นภาพ)) | ความแม่นของ PDF จากโปรแกรมขึ้นกับ OCR ทั้งที่ข้อความจริงมีอยู่แล้ว |
+| ไม่มีความเสี่ยงจาก text layer ที่เพี้ยน ([ดูขั้นที่ 1](01-input.md#pdf-ที่ข้างในเป็นภาพ)) | ความแม่นของ PDF จากโปรแกรมขึ้นกับ OCR ทั้งที่ข้อความจริงมีอยู่แล้ว |
 | ทุกหน้าผ่าน preprocess / OCR / validation ชุดเดียวกัน                                                                             |                                                                                                                            |
 
 ### 2. ทุก engine คืนผลรูปเดียวกัน

@@ -158,7 +158,7 @@ class DataPaths:
         return self.sections(dataset, profile) / LAYOUT_DIR
 
     def section_images(self, dataset: str, stem: str | None = None, variant: str | None = None, profile: str = DEFAULT_PROFILE) -> Path:
-        """ภาพส่วนที่เตรียมก่อน OCR ``images/<วิธี>/<ไฟล์>/`` (สร้างด้วย scripts/make_clean_sections.py) วิธี = luma | flat | bin"""
+        """ภาพส่วนที่เตรียมก่อน OCR ``images/<วิธี>/<ไฟล์>/`` (สร้างด้วย scripts/sections/make_clean_sections.py) วิธี = luma | flat | bin"""
         base = self.sections(dataset, profile) / IMAGES_DIR
         if variant:
             base = base / variant

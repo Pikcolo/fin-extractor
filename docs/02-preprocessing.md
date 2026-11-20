@@ -68,10 +68,10 @@ OCR ตัดภาพเป็นบรรทัดก่อนแล้วอ�
 
 ## ผลวัด
 
-ชุดทดสอบ: ใบกำกับภาษีไทยสังเคราะห์ 21 ใบ สร้างด้วย `scripts/make_synthetic_samples.py` เนื้อหาเดียวกันทุกใบ
+ชุดทดสอบ: ใบกำกับภาษีไทยสังเคราะห์ 21 ใบ สร้างด้วย `scripts/data/make_synthetic_samples.py` เนื้อหาเดียวกันทุกใบ
 เปลี่ยนทีละปัจจัย (มุมเอียง, สีตัวอักษร 5 แบบ, แถบหัวสี, ตราประทับแดงทับยอด, เอฟเฟกต์สแกน, ตะแคง 90/180/270°)
 และมีใบที่รวมหลายปัจจัย เฉลย (มุมที่ใส่จริง สี ค่าเงิน) อยู่ใน `data/01_input/synthetic/truth.json`
-(โฟลเดอร์นี้ไม่ถูก commit และตอนนี้ยังไม่มีในเครื่อง สร้างใหม่ด้วย `scripts/make_synthetic_samples.py`) วัดด้วย `scripts/benchmark_preprocessing.py` ผลดิบอยู่ใน `data/etc/benchmarks/preprocessing_synthetic.json`
+(โฟลเดอร์นี้ไม่ถูก commit และตอนนี้ยังไม่มีในเครื่อง สร้างใหม่ด้วย `scripts/data/make_synthetic_samples.py`) วัดด้วย `scripts/preprocess/benchmark_preprocessing.py` ผลดิบอยู่ใน `data/etc/benchmarks/preprocessing_synthetic.json`
 
 > **ข้อจำกัดสำคัญ:** ผลวัดในหัวข้อนี้ (ก่อนถึง [ผลวัดบนสแกนจริง](#ผลวัดบนสแกนจริง)) เป็น **ภาพสังเคราะห์ ไม่ใช่สแกนจริง**
 > ใช้เทียบทีละปัจจัยได้ แต่ภาพเรนเดอร์สะอาด ผลจึงง่ายกว่าของจริง
@@ -124,7 +124,7 @@ OCR ตัดภาพเป็นบรรทัดก่อนแล้วอ�
 ## ผลวัดบนสแกนจริง
 
 ชุดทดสอบ: `data/01_input/finance_doc_scan` PDF สแกน 18 ใบ (หน้าเดียว render ที่ 300 dpi ได้ราว 2500×3520 px) **ไม่มีเฉลย**
-วัดด้วย `scripts/benchmark_real_scans.py` ผลดิบและข้อความ OCR อยู่ใน `data/etc/benchmarks/real_scans.json`
+วัดด้วย `scripts/preprocess/benchmark_real_scans.py` ผลดิบและข้อความ OCR อยู่ใน `data/etc/benchmarks/real_scans.json`
 โฟลเดอร์แยกตามชุด (`settings.json`, `metrics.csv`, ข้อความ OCR, ภาพ) ที่ `data/etc/benchmarks/preprocess_experiments/` ลบแล้ว (2026-11-20)
 เพราะเป็นสำเนาจัดรูปของ `real_scans.json` ที่ยังเก็บอยู่ สร้างใหม่ได้ด้วย `organize_preprocess_results.py` (ภาพต้องรัน `benchmark_real_scans.py` ใหม่ ซึ่งรัน Paddle ทั้ง 18 ใบ)
 
@@ -173,17 +173,17 @@ OCR ตัดภาพเป็นบรรทัดก่อนแล้วอ�
 
 ภาพหลัง preprocess ของใบที่พลาดหนักตรงและคมชัดดี ปัญหาอยู่ที่ขั้นอื่น
 
-- **ลายมือ** (001320, 001322): Paddle อ่านลายมือไม่ได้ เช่น เลขภาษีเหลือ `[เลขลายมือ ปกปิด]` ไม่มี preprocess ชุดไหนในตารางแก้ได้ (ดู [07](07-handwriting-and-field-confidence.md))
+- **ลายมือ** (001320, 001322): Paddle อ่านลายมือไม่ได้ เช่น เลขภาษีเหลือ `[เลขลายมือ ปกปิด]` ไม่มี preprocess ชุดไหนในตารางแก้ได้ (ดู [07](draft-07-handwriting-and-field-confidence.md))
 - **ชนิดเอกสารไม่ตรงกับ schema ใบกำกับภาษี**: หนังสือรับรอง 50 ทวิและใบเสร็จศุลกากรไม่มี "รวมทั้งสิ้น" ในความหมายของใบกำกับ
   ขั้นสกัดจึงหา `total_amount` ไม่เจอและสถานะเป็น `failed` ทั้งที่ OCR อ่านข้อความได้
 - **ขั้นสกัด field (rules)**: 001310 ข้อความ OCR มี `788.90`, `737.29`, `51.61` และ `7%` ครบ แต่ `vat_rate` ตรวจไม่ผ่าน
-  เป็นปัญหาของขั้นที่ 4 ไม่ใช่ขั้นนี้
+  เป็นปัญหาของขั้นที่ 5 (สกัด field) ไม่ใช่ขั้นนี้
 
 รันชุดวัดซ้ำ:
 
 ```bash
-.venv/Scripts/python scripts/benchmark_real_scans.py                    # ~10 นาที (13 ชุด × 18 ไฟล์) → data/etc/benchmarks/real_scans.json
-.venv/Scripts/python scripts/organize_preprocess_results.py             # จัดเป็นโฟลเดอร์ต่อชุด → data/etc/benchmarks/preprocess_experiments/
+.venv/Scripts/python scripts/preprocess/benchmark_real_scans.py                    # ~10 นาที (13 ชุด × 18 ไฟล์) → data/etc/benchmarks/real_scans.json
+.venv/Scripts/python scripts/preprocess/organize_preprocess_results.py             # จัดเป็นโฟลเดอร์ต่อชุด → data/etc/benchmarks/preprocess_experiments/
 ```
 
 ## เทียบกับ learning/preprocess_finance
@@ -415,11 +415,11 @@ OCR ตัดภาพเป็นบรรทัดก่อนแล้วอ�
 
 ### ทดลองแล้วไม่นำมาใช้: ตัด ROI ลายมือหมึกน้ำเงินแล้วส่ง VLM
 
-ลองแยกหมึกน้ำเงินด้วยสี หา contour เป็นกรอบ ครอปความละเอียดเต็มแล้วให้ Typhoon OCR อ่านทีละกรอบ (สคริปต์ทดลองถูกลบออกจาก repo หลังตัดสินใจไม่นำเข้า pipeline ผลที่ได้บันทึกไว้ข้างล่างและใน [07](07-handwriting-and-field-confidence.md))
+ลองแยกหมึกน้ำเงินด้วยสี หา contour เป็นกรอบ ครอปความละเอียดเต็มแล้วให้ Typhoon OCR อ่านทีละกรอบ (สคริปต์ทดลองถูกลบออกจาก repo หลังตัดสินใจไม่นำเข้า pipeline ผลที่ได้บันทึกไว้ข้างล่างและใน [07](draft-07-handwriting-and-field-confidence.md))
 บนสแกนลายมือ 2 ใบ ช่วยให้เลขภาษีของ 001322 ถูก 1 ค่า (ผ่าน checksum) แต่ 001320 ไม่ดีขึ้น และค่าอื่นแย่ลงหลายค่า (วันที่ผิด ยอดเงินกลายเป็นคำบรรยายภาพ)
-กับเอกสารที่ไม่มีหมึกน้ำเงินแบ่งสัญญาณรบกวนเป็นกรอบจำนวนมากและทำให้ Ollama ล้ม จึงไม่นำเข้า pipeline รายละเอียดและตัวเลขดู [07](07-handwriting-and-field-confidence.md#เฟส-4-อ่านลายมือเป็นช่อง)
+กับเอกสารที่ไม่มีหมึกน้ำเงินแบ่งสัญญาณรบกวนเป็นกรอบจำนวนมากและทำให้ Ollama ล้ม จึงไม่นำเข้า pipeline รายละเอียดและตัวเลขดู [07](draft-07-handwriting-and-field-confidence.md#เฟส-4-อ่านลายมือเป็นช่อง)
 
-สิ่งที่ได้จากการลองเปรียบเทียบคือ VLM ทั้งหน้าอ่านลายมือได้ดีกว่า Paddle มาก (ดู [03](03-text-reading.md#ผลบนลายมือ-typhoon-ocr-ทั้งหน้า-เทียบ-paddleocr-สแกนจริง-4-ใบ)) การเปลี่ยนตัวอ่านจึงคุ้มกว่าเพิ่มขั้น preprocess
+สิ่งที่ได้จากการลองเปรียบเทียบคือ VLM ทั้งหน้าอ่านลายมือได้ดีกว่า Paddle มาก (ดู [04](04-ocr.md#ผลบนลายมือ-typhoon-ocr-ทั้งหน้า-เทียบ-paddleocr-สแกนจริง-4-ใบ)) การเปลี่ยนตัวอ่านจึงคุ้มกว่าเพิ่มขั้น preprocess
 
 ## ผลกับภาพตัวอย่าง
 
@@ -433,8 +433,8 @@ python -m fin_extractor preprocess data/01_input --steps
 รันชุดวัดซ้ำ:
 
 ```bash
-.venv/Scripts/python scripts/make_synthetic_samples.py
-.venv/Scripts/python scripts/benchmark_preprocessing.py
+.venv/Scripts/python scripts/data/make_synthetic_samples.py
+.venv/Scripts/python scripts/preprocess/benchmark_preprocessing.py
 ```
 
 ## ประวัติ: เคยมีสอง profile
@@ -487,14 +487,14 @@ projection profile แม่นกว่า แต่ไม่มีด่าน
 ### pipeline ตายตัว
 
 ทุกภาพผ่านทุกขั้นที่เปิดไว้ ไม่มีขั้นที่วัดก่อนว่าภาพนี้จำเป็นต้องแก้ไหม และไม่มีขั้นปฏิเสธภาพที่
-เบลอหรือมืดจนอ่านไม่ได้ ภาพแบบนั้นจะไปจบที่ `needs_review` หรือ `failed` ในขั้นที่ 6
+เบลอหรือมืดจนอ่านไม่ได้ ภาพแบบนั้นจะไปจบที่ `needs_review` หรือ `failed` ตอนตัดสินสถานะ ([05-validation-output.md](05-validation-output.md))
 
 ### preprocessing ไม่ใช่คอขวดสุดท้ายของความถูกต้อง
 
 ตัวอย่างจากชุดสังเคราะห์: `combo_faded_rot270_skew+5_stamp_scan` ผ่าน preprocessing ถูกต้อง (ตะแคงและเอียงแก้ตรง) และ OCR อ่านได้
 `34,989.00` แต่ตราประทับทับบรรทัดยอดรวมจนป้ายชื่อเพี้ยนเป็น `รามทั้งส้น` และข้อความตราติดเป็นบรรทัดเดียวกัน
-ขั้นสกัด field (rules) จึงจับ `total_amount` ไม่ได้ เป็นปัญหาของขั้นที่ 4 ไม่ใช่ขั้นนี้
+ขั้นสกัด field (rules) จึงจับ `total_amount` ไม่ได้ เป็นปัญหาของขั้นที่ 5 (สกัด field) ไม่ใช่ขั้นนี้
 
 ## ผลลัพธ์ของขั้นนี้
 
-ภาพที่ปรับแล้ว พร้อม `meta` (scale, orientation, skew_angle และ `orientation_error`/`orientation_source` เมื่อมี เก็บเป็น `<ไฟล์>_p<หน้า>.meta.json` ข้างภาพ final) ส่งต่อให้ [ขั้นที่ 3: อ่านข้อความ](03-text-reading.md)
+ภาพที่ปรับแล้ว พร้อม `meta` (scale, orientation, skew_angle และ `orientation_error`/`orientation_source` เมื่อมี เก็บเป็น `<ไฟล์>_p<หน้า>.meta.json` ข้างภาพ final) ส่งต่อให้ [ขั้นที่ 3: อ่านข้อความ](04-ocr.md)

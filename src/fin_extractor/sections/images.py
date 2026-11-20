@@ -1,7 +1,7 @@
 """ภาพของแต่ละส่วนก่อนเข้า OCR (ขั้น 3 ของ flow: 03_sections/.../images/<วิธี>) — luma | flat | bin
 
 ย้ายมาจาก notebooks/preprocess_lab/labkit.py แบบคัดลอกตรงตัว ค่าคงที่ (DOT_MAX_H MIN_GLYPH_* BIN_FLOOR ฯลฯ)
-วัดจากไม่กี่ใบ ไม่ใช่ค่าที่พิสูจน์แล้ว ดู docs/13-section-preprocess.md
+วัดจากไม่กี่ใบ ไม่ใช่ค่าที่พิสูจน์แล้ว ดู docs/03-sections.md
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""ขั้น 2–3 ของ flow: ผังแบ่ง section (``build_layouts``) และภาพรายส่วนก่อน OCR (``build_images``) — ภาพล้วน CPU ไม่เรียก OCR
+"""ขั้น 3a–3b ของ flow: ผังแบ่ง section (``build_layouts``) และภาพรายส่วนก่อน OCR (``build_images``) — ภาพล้วน CPU ไม่เรียก OCR
 
 ผลอยู่ที่ ``03_sections/<dataset>/<profile>/`` (ดู paths.py) ``layout/<ไฟล์>.json`` + ``<ไฟล์>_layout.png`` ภาพตรวจด้วยตา
 (น้ำเงิน = ตารางทั้งก้อน/ท่อน, ส้ม = ข้อความ, เขียว = ช่อง (โหมด cells), แดง = ว่าง ไม่ส่ง OCR เลข = id ส่วน)

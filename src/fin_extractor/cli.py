@@ -7,7 +7,7 @@
 
 ผลอยู่ใต้ data/ ตามโครงใน fin_extractor/paths.py:
   02_preprocess/<dataset>/<profile>/{final,steps}/   04_ocr/<dataset>/<engine>/<วิธี>/   05_extract/<dataset>/<engine>/<วิธี>/<extractor>/
-  (วิธี = page อ่านทั้งหน้า · luma|flat|bin|color อ่านทีละ section) ขั้น 03_sections ทำด้วย scripts/ (ดู docs/13)
+  (วิธี = page อ่านทั้งหน้า · luma|flat|bin|color อ่านทีละ section) ขั้น 03_sections ทำด้วยคำสั่ง sections (ดู docs/03-sections.md)
 (รันที่มีไฟล์อินพุตเกิน 2 ไฟล์ ผลแต่ละไฟล์อยู่ในโฟลเดอร์ย่อยชื่อไฟล์ ดู paths.nest_per_file)
 พร้อม manifest.json (รายละเอียดดู fin_extractor/runs.py)
 """
@@ -100,7 +100,7 @@ def cmd_extract(args, cfg) -> None:
     extractor = ("hybrid" if pipe.strategy == "hybrid" else "llm") if pipe.llm else "rules"
     ext = "md" if args.mode == "vlm" else "txt"
     if args.variant and not args.reuse_raw:
-        sys.exit("--variant ใช้กับ --reuse-raw เท่านั้น (อ่านข้อความดิบของ scripts/run_sections.py --variant ... ที่เก็บไว้ ไม่ใช่การอ่านสด)")
+        sys.exit("--variant ใช้กับ --reuse-raw เท่านั้น (อ่านข้อความดิบของ scripts/sections/run_sections.py --variant ... ที่เก็บไว้ ไม่ใช่การอ่านสด)")
     base = Path(args.out) if args.out else None  # raw_data_<แบบ>/ และ final_<แบบ>/ ข้างผลปกติ ไม่ทับกัน
     raw_dir = base / "04_ocr" / variant_of(args.variant) if base else paths.raw_data(label, dataset, args.variant)
     final_dir = base / "05_extract" / variant_of(args.variant) / extractor if base else paths.final(label, dataset, extractor, args.variant)
@@ -188,7 +188,7 @@ def cmd_sections(args, cfg) -> None:
         print(f"ผังใช้ได้อยู่แล้ว {len(stems) - len(stale)} ไฟล์ · ทำใหม่ {len(stale)}", flush=True)
         if stale:
             build_layouts(paths, dataset, args.profile, stale, args.table_mode, args.max_piece_frac, args.fill_aware, args.dotted_rules)
-    variants = () if args.variant == "color" else (args.variant,)  # ค่าตั้งต้นเขียนเฉพาะวิธีที่ใช้ (flat/bin ทดลองผ่าน scripts/make_clean_sections.py ซึ่งเขียนครบทั้งสามวิธี)
+    variants = () if args.variant == "color" else (args.variant,)  # ค่าตั้งต้นเขียนเฉพาะวิธีที่ใช้ (flat/bin ทดลองผ่าน scripts/sections/make_clean_sections.py ซึ่งเขียนครบทั้งสามวิธี)
     if "images" in todo and variants:
         banner("images")
         stale = stems_needing(lambda s: not args.redo and not args.drop_empty_rows and images_are_current(paths, dataset, s, variants, args.profile), stems)
@@ -279,7 +279,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--reuse-raw", action="store_true",
                    help="สกัดซ้ำจากข้อความดิบที่เก็บไว้ใน raw_data (ไม่โหลด/เรียก OCR หรือ VLM ใช้ลองเปลี่ยน rules/LLM)")
     s.add_argument("--variant", choices=["luma", "flat", "bin", "color"],
-                   help="ใช้กับ --reuse-raw: อ่านข้อความดิบจาก raw_data_<แบบ>/ (ผลของ scripts/run_sections.py --variant) แล้วเขียนผลที่ final_<แบบ>/<extractor>/ "
+                   help="ใช้กับ --reuse-raw: อ่านข้อความดิบจาก raw_data_<แบบ>/ (ผลของ scripts/sections/run_sections.py --variant) แล้วเขียนผลที่ final_<แบบ>/<extractor>/ "
                         "ไม่ใส่ = raw_data/ และ final/ ตามปกติ")
     s.add_argument("--only", nargs="*", help="สกัดเฉพาะไฟล์ที่ชื่อลงท้ายด้วยเลขเหล่านี้ เช่น 1309 (ไม่ใส่ = ทุกไฟล์ในอินพุต)")
     s.add_argument("--keep-raw", action="store_true", help="เก็บข้อความดิบใน JSON ผลสุดท้ายด้วย")
@@ -289,21 +289,21 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("sections", help="flow หลักของสแกนจริง: preprocess → แบ่ง section → ภาพรายส่วน → OCR → สกัด (ข้ามขั้นที่ผลยังใช้ได้)")
     s.add_argument("input", help="ไฟล์หรือโฟลเดอร์อินพุต (ชื่อโฟลเดอร์ = ชื่อชุดข้อมูล)")
     s.add_argument("--variant", choices=["luma", "flat", "bin", "color"], default="luma",
-                   help="ภาพรายส่วนที่ส่งเข้า OCR (ค่าตั้งต้น luma วัดแล้วดีสุดบน 18 ใบ ดู docs/13) color = ตัดจากภาพ final สี ไม่มีขั้น images")
+                   help="ภาพรายส่วนที่ส่งเข้า OCR (ค่าตั้งต้น luma วัดแล้วดีสุดบน 18 ใบ ดู docs/03-sections.md) color = ตัดจากภาพ final สี ไม่มีขั้น images")
     s.add_argument("--engine", choices=["openthai", "oxr"], default="openthai", help="ตัวอ่านรายส่วน (ขั้น extract รองรับ openthai)")
     s.add_argument("--from", dest="start", choices=["preprocess", "layout", "images", "ocr", "extract"], default="preprocess",
                    help="เริ่มที่ขั้นนี้ (ขั้นก่อนหน้าไม่รัน ใช้ผลที่มี)")
     s.add_argument("--to", dest="stop", choices=["preprocess", "layout", "images", "ocr", "extract"], default="extract", help="จบที่ขั้นนี้")
     s.add_argument("--only", nargs="*", help="เลขท้ายชื่อไฟล์ เช่น 1309")
     s.add_argument("--redo", action="store_true", help="ทำใหม่ทุกขั้นที่รัน แม้ผลเดิมยังใช้ได้")
-    s.add_argument("--table-mode", choices=["whole", "cells", "bands", "rows"], default="rows", help="วิธีแบ่งตาราง (ดู docs/13)")
+    s.add_argument("--table-mode", choices=["whole", "cells", "bands", "rows"], default="rows", help="วิธีแบ่งตาราง (ดู docs/03-sections.md)")
     s.add_argument("--max-piece-frac", type=float, default=None,
                    help="ส่วนที่สูงกว่านี้ (สัดส่วนความสูงหน้า) ถูกตัดเป็นท่อน 0 = ไม่ตัด (ไม่ใส่ = ค่าใน sections/layout.py)")
     s.add_argument("--fill-aware", action="store_true",
-                   help="ผังนับตัวอักษรบนพื้นสีเป็นหมึกและไม่ตัดผ่านแถบสี (กัน OCR เดาข้อความจากเสี้ยวแถบ เช่น 1306) ผลวัด 6 ใบที่ผังเปลี่ยน: ฟิลด์ที่ขาดรวมเท่าเดิม (ดู docs/13) จึงไม่เปิดเป็นค่าตั้งต้น")
+                   help="ผังนับตัวอักษรบนพื้นสีเป็นหมึกและไม่ตัดผ่านแถบสี (กัน OCR เดาข้อความจากเสี้ยวแถบ เช่น 1306) ผลวัด 6 ใบที่ผังเปลี่ยน: ฟิลด์ที่ขาดรวมเท่าเดิม (ดู docs/03-sections.md) จึงไม่เปิดเป็นค่าตั้งต้น")
     s.add_argument("--dotted-rules", action="store_true",
-                   help="ผังตัดตามเส้นแบ่งแถวที่เป็นเส้นประด้วย (ฟอร์มอย่าง 50 ทวิ ที่เส้นแถวเป็นเส้นประ) ยังไม่ได้วัดกับ OCR จึงไม่เปิดเป็นค่าตั้งต้น (ดู docs/13)")
-    s.add_argument("--drop-empty-rows", action="store_true", help="แบบ bin เท่านั้น: ลบแถวตารางที่ช่องตัวเลขว่าง (ดู docs/13)")
+                   help="ผังตัดตามเส้นแบ่งแถวที่เป็นเส้นประด้วย (ฟอร์มอย่าง 50 ทวิ ที่เส้นแถวเป็นเส้นประ) ยังไม่ได้วัดกับ OCR จึงไม่เปิดเป็นค่าตั้งต้น (ดู docs/03-sections.md)")
+    s.add_argument("--drop-empty-rows", action="store_true", help="แบบ bin เท่านั้น: ลบแถวตารางที่ช่องตัวเลขว่าง (ดู docs/03-sections.md)")
     profile_arg(s)
     s.set_defaults(func=cmd_sections)
 

@@ -78,7 +78,7 @@ def test_form_frame_around_two_tables_does_not_swallow_the_page():
 def test_make_section_layouts_script_writes_layout_and_keeps_notebook_keys(tmp_path, monkeypatch):
     import json
 
-    sys.path.insert(0, str(ROOT / "scripts"))
+    sys.path.insert(0, str(ROOT / "scripts" / "sections"))
     import make_section_layouts as script
     from fin_extractor.io import save_image
 
@@ -102,7 +102,7 @@ def test_make_section_layouts_script_writes_layout_and_keeps_notebook_keys(tmp_p
 
 
 def test_make_section_layouts_script_stops_clearly_without_preprocessed_images(tmp_path, monkeypatch):
-    sys.path.insert(0, str(ROOT / "scripts"))
+    sys.path.insert(0, str(ROOT / "scripts" / "sections"))
     import make_section_layouts as script
 
     cfg = tmp_path / "cfg.yaml"
@@ -176,7 +176,7 @@ def test_tall_table_is_split_into_row_groups_with_part_numbers():
 def test_run_sections_refuses_stale_or_missing_clean_images(tmp_path):
     import json
 
-    sys.path.insert(0, str(ROOT / "scripts"))
+    sys.path.insert(0, str(ROOT / "scripts" / "sections"))
     import run_sections
 
     layout = [{"id": "s00", "kind": "text", "bbox": [0, 0, 10, 10], "keep": True},
@@ -263,7 +263,7 @@ def test_default_mode_is_rows_with_full_width_bands():
 
 
 def test_chunks_map_each_md_chunk_to_its_section_image():
-    sys.path.insert(0, str(ROOT / "scripts"))
+    sys.path.insert(0, str(ROOT / "scripts" / "sections"))
     import run_sections
 
     doc = {"source": "doc1", "engine": "e", "variant": "luma", "sections": [

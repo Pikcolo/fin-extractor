@@ -8,7 +8,7 @@ loader:
   pdf_dpi: 300            # ความละเอียดตอน render PDF เป็นภาพ
 
 # Preprocessing ชุดเดียวใช้ทั้ง PaddleOCR และ VLM — ภาพสี ไม่ binarize
-# เลือกจากการวัดกับชุดสังเคราะห์ (scripts/benchmark_preprocessing.py, ผลใน docs/02-preprocessing.md)
+# เลือกจากการวัดกับชุดสังเคราะห์ (scripts/preprocess/benchmark_preprocessing.py, ผลใน docs/02-preprocessing.md)
 #   - ภาพสีอ่านค่าสำคัญได้ครบ ส่วนภาพเทาทำให้ตัวตรวจจับข้อความของ Paddle ไม่เจอบรรทัดในภาพสแกนบางใบ
 #   - NL-means + CLAHE ช้า (เตรียมภาพ ~5 วิ/ใบ เทียบ ~0.2 วิ) และไม่ทำให้อ่านได้มากขึ้น
 preprocessing:
@@ -59,7 +59,7 @@ openthai:
   max_tokens: 8744
   parse_mode: single             # single = อ่านหน้าเดียวรอบเดียว | double = อ่านซ้ำเฉพาะตาราง/chart แบบ crop (ช้ากว่า แต่ลดตารางตก)
 
-# OXR-1.0 (SoMarkAI) โหลดตรงด้วย Transformers ไม่ใช้ Docker — อ่านภาพย่อย (section) เฉพาะส่วนที่เป็นตัวเลข/อังกฤษ (ไม่รู้ภาษาไทย ดู docs/10-oxr.md)
+# OXR-1.0 (SoMarkAI) โหลดตรงด้วย Transformers ไม่ใช้ Docker — อ่านภาพย่อย (section) เฉพาะส่วนที่เป็นตัวเลข/อังกฤษ (ไม่รู้ภาษาไทย ดู docs/archive/oxr.md)
 # ดาวน์โหลด weights ~3GB เก็บนอก repo ได้: hf download SoMarkAI/OXR-1.0 --local-dir <model_dir>
 oxr_local:
   model_dir: D:/PIK/models/OXR-1.0   # ที่เก็บ weights บนเครื่องนี้ (นอก repo) เครื่องอื่นเปลี่ยนด้วย --config

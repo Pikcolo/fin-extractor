@@ -1,6 +1,8 @@
-# ขั้นที่ 5–7: Validation, คะแนน และบันทึกผล
+# ขั้นที่ 5 (ต่อ): Validation, สถานะ และบันทึกผล
 
-## ขั้นที่ 5: Validation (cross-check)
+ส่วนท้ายของขั้นสกัด (ผลอยู่ใน `05_extract/` เดียวกัน) ทำต่อจาก [05-extraction.md](05-extraction.md) ทันทีในคำสั่งเดียว
+
+## 5E: Validation (cross-check)
 
 โค้ด: `src/fin_extractor/validation/checks.py`, `tax_id.py`
 
@@ -13,8 +15,8 @@
 
 check ใช้ทำสามอย่าง
 1. บอกคนตรวจว่าข้อไหนน่าสงสัยและเพราะอะไร (`detail`)
-2. เป็นกรรมการเลือกระหว่างผลจาก rules กับ LLM (ขั้นที่ 4C)
-3. เป็นตัวตัดสินสถานะเอกสาร (ขั้นที่ 6) และเป็นหลักฐานรายฟิลด์ (`field_evidence`)
+2. เป็นกรรมการเลือกระหว่างผลจาก rules กับ LLM (5C)
+3. เป็นตัวตัดสินสถานะเอกสาร (5F) และเป็นหลักฐานรายฟิลด์ (`field_evidence`)
 
 **"ตรวจไม่ได้" ไม่ใช่ "ไม่ผ่าน"** ใบกำกับภาษีอย่างย่อไม่มีชื่อผู้ซื้อ ใบเสร็จบางใบไม่แยกยอดก่อนภาษี ถ้านับว่า
 ไม่ผ่าน เอกสารที่ถูกต้องจะตกทุกใบ จึงคืน `null`
@@ -46,7 +48,7 @@ check ใช้ทำสามอย่าง
 
 **ตัวอย่างที่จับได้จริง:** Tesseract (engine รุ่นก่อน ปัจจุบันถูกลบออกแล้ว) อ่าน 8.05 เป็น 805 ทำให้ผลรวมรายการไม่ตรงกับ 47.98 → `items_sum ✗`
 
-## ขั้นที่ 6: สถานะเอกสาร
+## 5F: สถานะเอกสาร
 
 โค้ด: `src/fin_extractor/validation/scoring.py`
 
@@ -58,7 +60,7 @@ check ใช้ทำสามอย่าง
 | ค่า | ที่มา |
 |---|---|
 | `missing_fields` | field ที่ชนิดเอกสารต้องมีแต่หาไม่เจอ ค่าตั้งต้น (generic) คือ `vendor.name`, `vendor.tax_id`, `invoice_no`, `date`, `total_amount` โปรไฟล์ชนิดเอกสารกำหนด `required` เองได้ และตัดช่องที่ชนิดนั้นไม่มี (`not_applicable`) ออก |
-| `checks` | ผล check แต่ละข้อจากขั้นที่ 5 |
+| `checks` | ผล check แต่ละข้อจาก 5E |
 | `ocr_confidence` | ค่าเฉลี่ยที่ OCR engine รายงานเอง (โหมด vlm เป็น `null`) — รายงานไว้ดู ไม่ได้ใช้ตัดสินสถานะ เพราะยังไม่มีข้อมูลบอกว่าค่าเท่าไรถึงเชื่อได้ |
 
 สถานะตัดสินด้วยกฎ:
@@ -85,7 +87,7 @@ check จับได้เฉพาะค่าที่ไม่สอดค�
 ความมั่นใจของโมเดล, หาค่าเจอในข้อความจริงไหม, รูปแบบถูกไหม, ยอดเงินลงตัวไหม, ผู้ขายอยู่ในทะเบียนไหม,
 ถามซ้ำได้คำตอบเดิมไหม)
 
-## ขั้นที่ 7: บันทึกผล
+## 5G: บันทึกผล
 
 โค้ด: `src/fin_extractor/cli.py → cmd_extract`
 
@@ -130,7 +132,7 @@ ExtractionResult                     ผลของ 1 หน้า
 เป็น Decimal ที่ไม่ปัด ระบบปลายทางที่เคยอ่านเป็นตัวเลข (schema 1.x) ต้องแปลงสตริงเอง ค่าคลาดของ check ยังเป็น ±0.02 บาทตาม config
 
 **`field_evidence`** คีย์เป็นชื่อฟิลด์แบบ `vendor.tax_id`, `total_amount`, `items[0].amount` ค่าเป็น `level` กับสัญญาณที่ใช้ตัดสิน
-(`checks_passed`, `checks_failed`, `grounded`, `sources_agree`, `source` ฯลฯ) กฎและข้อจำกัดอยู่ใน [08 หัวข้อ 4.3](08-solution-and-roadmap.md)
+(`checks_passed`, `checks_failed`, `grounded`, `sources_agree`, `source` ฯลฯ) กฎและข้อจำกัดอยู่ใน [06 หัวข้อ 4.3](06-design-and-roadmap.md)
 
 | Field | ความหมาย |
 |---|---|
@@ -141,7 +143,7 @@ ExtractionResult                     ผลของ 1 หน้า
 | `schema_version` | เวอร์ชันของ schema (ตอนนี้ `"3.0"`) |
 | `field_evidence` | ระดับหลักฐานรายฟิลด์ ไว้ไฮไลต์ใน Review UI |
 | `ocr_confidence` | ความมั่นใจเฉลี่ยของ OCR (โหมด vlm เป็น `null`) |
-| `missing_fields`, `status` | field สำคัญที่หาไม่เจอ และสถานะจากขั้นที่ 6 |
+| `missing_fields`, `status` | field สำคัญที่หาไม่เจอ และสถานะจาก 5F |
 | `raw_text` | ข้อความดิบจาก OCR/VLM (เฉพาะเมื่อใส่ `--keep-raw`) |
 | `rejected` | ค่าที่ LLM เสนอแต่ด่านของ `--llm hybrid` ปัดตก (`key`, `reason`) |
 | `handwritten_fields` | field ที่อ่านจากลายมือ ตอนนี้ไม่มีตัวตรวจลายมือใน pipeline จึงว่าง |
@@ -151,10 +153,10 @@ ExtractionResult                     ผลของ 1 หน้า
 | Field | ชนิด | หมายเหตุ |
 |---|---|---|
 | `document_type` | string | ชนิดที่สกัดได้ rules ได้ `tax_invoice`, `receipt`, `invoice`, `quotation` (LLM ตอบข้อความอิสระ) |
-| `document_profile` | string | โปรไฟล์ที่ใช้กำหนดฟิลด์ (`withholding_certificate`, `customs_receipt`, `payment_voucher`, `generic`) ดู [08 หัวข้อ 3.6](08-solution-and-roadmap.md) |
+| `document_profile` | string | โปรไฟล์ที่ใช้กำหนดฟิลด์ (`withholding_certificate`, `customs_receipt`, `payment_voucher`, `generic`) ดู [06 หัวข้อ 3.6](06-design-and-roadmap.md) |
 | `document_fields{}` | object | ฟิลด์เฉพาะชนิดเอกสารตามโปรไฟล์ เช่น 50 ทวิ: `total_paid`, `total_tax_withheld` ค่าเป็นสตริง money=ทศนิยม, date=ISO ค.ศ. คีย์ที่หาไม่เจอไม่มีในผล |
 | `vendor`, `buyer` | object | `name`, `tax_id` (13 หลัก), `branch`, `address` |
-| `remark[]` | array | `label`, `value`, `kind` (`pair` หรือ `unmapped`), `source_chunk` หมายเหตุ: ข้อมูลที่เอกสารพิมพ์ไว้แต่ไม่มีช่องข้างบนหรือใน `document_fields` ดู [04](04-extraction.md) หัวข้อ remark ชื่อเดิม `extra_fields` ของ schema 2.x |
+| `remark[]` | array | `label`, `value`, `kind` (`pair` หรือ `unmapped`), `source_chunk` หมายเหตุ: ข้อมูลที่เอกสารพิมพ์ไว้แต่ไม่มีช่องข้างบนหรือใน `document_fields` ดู [04](05-extraction.md) หัวข้อ remark ชื่อเดิม `extra_fields` ของ schema 2.x |
 | `book_no` | string | เล่มที่ (ยังไม่มี regex ใน rules มาจาก LLM เท่านั้น) |
 | `invoice_no` | string | |
 | `date` | date | ISO-8601 ปี ค.ศ. |

@@ -18,7 +18,7 @@ OCR + Information Extraction สำหรับเอกสารการเง
 
 ## เริ่มใช้งาน
 
-ต้องมี Python 3.10 ขึ้นไป รายละเอียดทุกขั้น (GPU/CPU, Ollama, ปัญหาที่พบบ่อย) อยู่ใน [docs/06-usage.md](docs/06-usage.md)
+ต้องมี Python 3.10 ขึ้นไป รายละเอียดทุกขั้น (GPU/CPU, Ollama, ปัญหาที่พบบ่อย) อยู่ใน [docs/00-setup-and-usage.md](docs/00-setup-and-usage.md)
 
 ```powershell
 git clone https://github.com/Pikcolo/fin-extractor.git
@@ -39,7 +39,7 @@ pytest                                    # ต้องผ่านทั้ง
 เอกสารจริงไม่อยู่ใน git (ทุกอย่างใต้ `data/` ถูก `.gitignore`) วางไฟล์ของคุณที่ `data/01_input/` หรือสร้างชุดสังเคราะห์:
 
 ```powershell
-python scripts/make_synthetic_samples.py                  # ใบกำกับภาษีสมมติ 21 ใบ → data/01_input/synthetic/
+python scripts/data/make_synthetic_samples.py                  # ใบกำกับภาษีสมมติ 21 ใบ → data/01_input/synthetic/
 python -X utf8 -m fin_extractor extract data/01_input/synthetic   # Paddle + rules → data/05_extract/synthetic/paddle/page/rules/
 ```
 
@@ -62,23 +62,23 @@ pytest
 ### flow หลัก: แบ่ง section แล้วอ่านด้วย OpenThai (สแกนจริง)
 
 อินพุต → preprocess → **แบ่งเป็นส่วน (เก็บผังไว้ดู/debug)** → ภาพแต่ละส่วนที่เตรียมก่อน OCR → OCR ทีละส่วน → **ข้อความ + ที่มาของแต่ละท่อน** → สกัดเป็น schema (ข้อมูลสำคัญที่ไม่มีช่องไปอยู่ใน `remark`)
-ไม่ใช้ OCR คัดส่วน ตารางเป็นก้อนเดียว ตัดท่อนสูงไม่เกิน 0.3 ของหน้า ใช้ GPU เฉพาะขั้น 4 ([docs/13](docs/13-section-preprocess.md))
+ไม่ใช้ OCR คัดส่วน ตารางเป็นก้อนเดียว ตัดท่อนสูงไม่เกิน 0.3 ของหน้า ใช้ GPU เฉพาะขั้น 4 ([docs/03](docs/03-sections.md))
 
 ```powershell
-python -X utf8 -m fin_extractor sections data/01_input/finance_doc_scan            # รันครบ 5 ขั้น ขั้นที่ผลยังใช้ได้ถูกข้าม
+python -X utf8 -m fin_extractor sections data/01_input/finance_doc_scan            # รันครบทุกขั้น ขั้นที่ผลยังใช้ได้ถูกข้าม
 python -X utf8 -m fin_extractor sections data/01_input/finance_doc_scan --from ocr --only 1306   # เริ่มกลางทาง/เฉพาะบางไฟล์
 ```
 
 | ขั้น | ผลที่ดูได้ (ใต้ `data/`) | ใช้อะไรดู debug |
 |---|---|---|
-| 1 preprocess | `02_preprocess/<ชุด>/<profile>/final/` ภาพทั้งหน้าตรงแล้ว | ภาพ + `manifest.json` (`orientation_error`) |
-| 2 layout | `03_sections/<ชุด>/<profile>/layout/<ไฟล์>.json` + `_layout.png` | ภาพกรอบสี + เลข id ของแต่ละส่วน |
-| 3 images | `03_sections/<ชุด>/<profile>/images/luma/<ไฟล์>/sNN.png` | ภาพที่ส่งเข้า OCR จริง |
+| 2 preprocess | `02_preprocess/<ชุด>/<profile>/final/` ภาพทั้งหน้าตรงแล้ว | ภาพ + `manifest.json` (`orientation_error`) |
+| 3a layout | `03_sections/<ชุด>/<profile>/layout/<ไฟล์>.json` + `_layout.png` | ภาพกรอบสี + เลข id ของแต่ละส่วน |
+| 3b images | `03_sections/<ชุด>/<profile>/images/luma/<ไฟล์>/sNN.png` | ภาพที่ส่งเข้า OCR จริง |
 | 4 ocr | `04_ocr/<ชุด>/openthai/luma/<ไฟล์>/` `.md` `.sections.json` `.chunks.json` | `chunks.json` = ท่อนข้อความ ↔ ภาพ section ↔ บรรทัดใน `.md` |
 | 5 extract | `05_extract/<ชุด>/openthai/luma/rules/<ไฟล์>_p1.json` | `field_evidence`, `remark[].source_chunk` ชี้กลับไปที่ section |
 
-- **ค่าตั้งต้นคือ `luma`**: เทียบ 3 แบบบน 18 ใบ (ไม่มีเฉลย วัดแค่ความครบ) luma ขาดฟิลด์รวม 14, flat 16, bin (ตัวขาวบนดำ) 28 ([docs/13](docs/13-section-preprocess.md)) `--variant flat|bin|color` ผลแยกโฟลเดอร์ ไม่ทับกัน
-- รันทีละขั้นได้ด้วยสคริปต์เดิม (`scripts/make_section_layouts.py` `make_clean_sections.py` `run_sections.py` เป็นตัวห่อบางๆ ของ `src/fin_extractor/sections/`)
+- **ค่าตั้งต้นคือ `luma`**: เทียบ 3 แบบบน 18 ใบ (ไม่มีเฉลย วัดแค่ความครบ) luma ขาดฟิลด์รวม 14, flat 16, bin (ตัวขาวบนดำ) 28 ([docs/03](docs/03-sections.md)) `--variant flat|bin|color` ผลแยกโฟลเดอร์ ไม่ทับกัน
+- รันทีละขั้นได้ด้วยสคริปต์เดิม (`scripts/sections/make_section_layouts.py` `make_clean_sections.py` `run_sections.py` เป็นตัวห่อบางๆ ของ `src/fin_extractor/sections/`)
 - เทียบผลสกัดข้ามวิธี: `python -m fin_extractor compare <input> [--variants luma flat bin] [--out ไฟล์.md]` ติดธงแถวที่เทียบไม่แฟร์ (ผังต่างกัน / ผลเก่ากว่าผัง / `--drop-empty-rows` / ไม่มีผล) และไม่นับในยอดรวม
 - ข้อมูลภาษีจริงไม่ถูก commit และผลวัดทั้งหมดไม่ใช่คะแนนความถูกต้อง
 - ข้อควรระวัง: ตรวจ `orientation_error` ใน `manifest.json` ของ preprocess ก่อนเชื่อผล (ตัวตรวจทิศอาจล้มเงียบ)
@@ -101,7 +101,7 @@ data/
 ถ้ารันหนึ่งครั้งมีไฟล์อินพุตมากกว่า 2 ไฟล์ ผลของแต่ละไฟล์จะอยู่ในโฟลเดอร์ย่อยชื่อไฟล์ (เช่น `04_ocr/<ชุด>/paddle/page/<ไฟล์>/<ไฟล์>_p1.txt`) ไม่เกิน 2 ไฟล์ก็วางตรง ๆ (ตั้งที่ `NEST_OVER` ใน `src/fin_extractor/paths.py`)
 
 เช่น `extract data/01_input/finance_doc_scan` → `data/05_extract/finance_doc_scan/paddle/page/rules/<ไฟล์>_p1.json` และข้อความดิบที่ `data/04_ocr/finance_doc_scan/paddle/page/`
-`extract ... --reuse-raw` สกัดซ้ำจากข้อความดิบโดยไม่เรียก OCR/GPU ดู [docs/06-usage.md](docs/06-usage.md#โครงเก็บผลลัพธ์)
+`extract ... --reuse-raw` สกัดซ้ำจากข้อความดิบโดยไม่เรียก OCR/GPU ดู [docs/00-setup-and-usage.md](docs/00-setup-and-usage.md#โครงเก็บผลลัพธ์)
 
 ## โครงสร้างโฟลเดอร์
 
@@ -110,14 +110,16 @@ fin_extractor/
 ├── configs/default.yaml        ค่าตั้งต้นทั้งหมด (preprocess, engine, endpoint VLM/LLM, document_types)
 ├── assets/fonts/               ฟอนต์ Sarabun (SIL OFL) ใช้วาดชุดสังเคราะห์/ป้ายภาพ
 ├── data/                       01_input … 05_extract + etc/ + reports/ (ไม่ commit ยกเว้น .gitkeep)
-├── docs/                       เอกสารอธิบายทีละขั้น
+├── docs/                       เอกสารเรียงตาม flow: 00 ติดตั้ง · 01–05 ทีละขั้น · 06 หลักการ/roadmap · draft-* แผนที่ยังไม่ทำ · archive/ สิ่งที่ลองแล้วไม่ใช้
 ├── models/                     โมเดลที่ library โหลดเอง (paddlex/, OpenThai2.0-OCR-Markdown/) ไม่ commit
 ├── notebooks/preprocess_lab/   labkit.py + notebook เช็ค preprocess (สร้างด้วย make_preprocess_notebooks.py ไม่ commit .ipynb)
 ├── schemas/                    JSON Schema (Data Contract) — generate จาก schema.py
-├── scripts/                    make_section_layouts / make_clean_sections / run_sections (ตัวห่อบางๆ ของ flow หลัก) · make_synthetic_samples + benchmark_preprocessing + benchmark_cer (ชุดสังเคราะห์) ·
-│                               benchmark_real_scans + organize_preprocess_results + compare_modes + compare_file (สแกนจริง ไม่ใช้เฉลย) ·
-│                               benchmark (ชุดมีเฉลย วัดความถูกต้องรายฟิลด์) · make_preprocess_notebooks · visualize_bbox ·
-│                               oxr/ (OXR): extract_oxr / benchmark_oxr / visualize_oxr / explain_oxr
+├── scripts/                    สคริปต์เสริมนอก pipeline แยกตาม part (เลขเดียวกับขั้นใน docs/)
+│   ├── data/                   make_synthetic_samples (ชุดสังเคราะห์ที่รู้เฉลย)
+│   ├── preprocess/             benchmark_preprocessing · benchmark_real_scans · organize_preprocess_results · make_preprocess_notebooks
+│   ├── sections/               make_section_layouts / make_clean_sections / run_sections (ตัวห่อบางๆ ของคำสั่ง sections รันทีละขั้น)
+│   ├── ocr/                    benchmark_cer · visualize_bbox · oxr/ (OXR ที่ลองแล้วไม่ใช้: extract / benchmark / visualize / explain)
+│   └── eval/                   benchmark (ชุดมีเฉลย) · compare_modes · compare_file (เทียบผลสกัด)
 ├── src/fin_extractor/
 │   ├── schema.py               ★ Data Contract (pydantic)
 │   ├── config.py
@@ -137,7 +139,7 @@ fin_extractor/
 │   │   ├── binarize.py         Otsu / adaptive / Sauvola
 │   │   └── pipeline.py         รวมขั้นตอนตาม config: clean(streaks) → upscale → orient → deskew → crop → denoise → CLAHE → binarize
 │   ├── ocr/                    base.py (interface กลาง) + paddle_engine.py
-│   ├── sections/               ★ flow หลัก: layout.py (ผัง) · images.py (luma/flat/bin) · crops.py · build.py (ขั้น 2–3) · read.py (ขั้น 4 OCR รายส่วน + chunks.json) · flow.py (กติกาข้ามขั้น) · compare.py (คำสั่ง compare)
+│   ├── sections/               ★ flow หลัก: layout.py (ผัง) · images.py (luma/flat/bin) · crops.py · build.py (ขั้น 3a–3b) · read.py (ขั้น 4 OCR รายส่วน + chunks.json) · flow.py (กติกาข้ามขั้น) · compare.py (คำสั่ง compare)
 │   ├── vlm/                    base.py (VLMResult), client.py (Ollama/OpenAI-compatible), typhoon_ocr.py, openthai_ocr.py, oxr_local.py, prompts.py
 │   ├── extraction/             patterns.py (regex), rule_extractor.py, profile_extractor.py, core_labels.py, llm_extractor.py, hybrid.py
 │   └── validation/             tax_id.py, checks.py, scoring.py, evidence.py
