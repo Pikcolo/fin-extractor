@@ -21,6 +21,8 @@ preprocessing:
   binarize: none          # none | otsu | adaptive | sauvola
   remove_borders: false
   keep_color: true        # VLM อ่านภาพสีได้ดีกว่า และ Paddle เสถียรกว่าภาพเทา
+  # remove_streaks: true  # ลบเส้นสกปรกจากเครื่องสแกนก่อนหมุน (เจอใน 1320 1322 ผลต่อ OCR ยังไม่ได้วัด ดู docs/02)
+  #                       # ไม่ใส่เป็นคีย์ตรงนี้: settings.json ของ profile เดิมจะไม่ตรงแล้วต้อง --force ทั้งชุด — เปิดด้วย --config + --profile ใหม่
 
 ocr:
   paddle:

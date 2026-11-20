@@ -14,7 +14,7 @@
 check ใช้ทำสามอย่าง
 1. บอกคนตรวจว่าข้อไหนน่าสงสัยและเพราะอะไร (`detail`)
 2. เป็นกรรมการเลือกระหว่างผลจาก rules กับ LLM (ขั้นที่ 4C)
-3. เป็นส่วนใหญ่ที่สุดของคะแนนความเชื่อมั่น (น้ำหนัก 0.5 ในขั้นที่ 6)
+3. เป็นตัวตัดสินสถานะเอกสาร (ขั้นที่ 6) และเป็นหลักฐานรายฟิลด์ (`field_evidence`)
 
 **"ตรวจไม่ได้" ไม่ใช่ "ไม่ผ่าน"** ใบกำกับภาษีอย่างย่อไม่มีชื่อผู้ซื้อ ใบเสร็จบางใบไม่แยกยอดก่อนภาษี ถ้านับว่า
 ไม่ผ่าน เอกสารที่ถูกต้องจะตกทุกใบ จึงคืน `null`
@@ -27,10 +27,14 @@ check ใช้ทำสามอย่าง
 | `discount` | subtotal − discount = ยอดก่อน VAT **หรือ** = ยอดรวม | ✓ 47.98 − 0.42 = 47.56 |
 | `before_vat_plus_vat` | ยอดก่อน VAT + VAT = ยอดรวม | ✓ 44.45 + 3.11 = 47.56 |
 | `vat_rate` | VAT = ยอดก่อน VAT × อัตรา (ถ้าไม่มี ใช้ ยอดรวม × r / (1 + r)) | ✓ 3.11 |
-| `date_range` | 2000-01-01 ≤ วันที่ ≤ วันนี้ | ✓ 2023-05-18 |
-| `vlm_complete` | VLM ตอบจบ ไม่ถูกตัดเพราะ token หมด (เฉพาะโหมด vlm เมื่อมีปัญหา) | — |
+| `date_range` | 2000-01-01 ≤ วันที่ ≤ วันนี้ (ตรวจแค่ความสมเหตุสมผล ไม่นับเป็นตัวยืนยันว่าอ่านถูกวัน) | ✓ 2023-05-18 |
+| `vlm_complete` | VLM ตอบจบ ไม่ถูกตัดเพราะ token หมด (pipeline เพิ่มให้เฉพาะโหมด vlm เมื่อตอบไม่จบ จึงมีแต่ `passed=false`) | — |
 
 `discount` ยอมรับได้สองแบบ เพราะเอกสารไทยมีทั้งราคาแบบไม่รวม VAT (หักส่วนลดก่อนคิดภาษี) และแบบรวม VAT แล้ว (เช่นใบเสร็จตัวอย่าง)
+
+**check บางข้อไม่ปรากฏในผล** เมื่อข้อมูลไม่เข้าเงื่อนไข: `buyer_tax_id_checksum` มีเมื่อมีเลขผู้ซื้อ, `discount` มีเมื่อมีทั้ง subtotal และ discount, `vat_rate` มีเมื่อมี `vat_amount`
+
+**ชนิดเอกสารเลือก check ได้** (`document_types.<ชนิด>.checks` ใน config) ข้อที่ชนิดนั้นไม่ใช้ยังอยู่ในผลแต่เป็น `passed=null` และ `detail` = "ไม่ใช้กับเอกสารชนิดนี้" เช่น 50 ทวิใช้แค่เลขภาษีและ `date_range`
 
 **ค่าที่ยอมให้คลาด:** ±0.02 บาทจากการปัดเศษ (`validation.amount_tolerance`)
 **อัตรา VAT ตั้งต้น:** 0.07 เมื่อเอกสารไม่ระบุ (`validation.default_vat_rate`)
@@ -40,7 +44,7 @@ check ใช้ทำสามอย่าง
 - `false` ไม่ผ่าน
 - `null` ข้อมูลไม่พอให้ตรวจ ไม่นับเป็นข้อผิด
 
-**ตัวอย่างที่จับได้จริง:** Tesseract อ่าน 8.05 เป็น 805 ทำให้ผลรวมรายการไม่ตรงกับ 47.98 → `items_sum ✗`
+**ตัวอย่างที่จับได้จริง:** Tesseract (engine รุ่นก่อน ปัจจุบันถูกลบออกแล้ว) อ่าน 8.05 เป็น 805 ทำให้ผลรวมรายการไม่ตรงกับ 47.98 → `items_sum ✗`
 
 ## ขั้นที่ 6: สถานะเอกสาร
 
@@ -53,7 +57,7 @@ check ใช้ทำสามอย่าง
 
 | ค่า | ที่มา |
 |---|---|
-| `missing_fields` | field สำคัญที่หาไม่เจอ จาก `vendor.name`, `vendor.tax_id`, `invoice_no`, `date`, `total_amount` |
+| `missing_fields` | field ที่ชนิดเอกสารต้องมีแต่หาไม่เจอ ค่าตั้งต้น (generic) คือ `vendor.name`, `vendor.tax_id`, `invoice_no`, `date`, `total_amount` โปรไฟล์ชนิดเอกสารกำหนด `required` เองได้ และตัดช่องที่ชนิดนั้นไม่มี (`not_applicable`) ออก |
 | `checks` | ผล check แต่ละข้อจากขั้นที่ 5 |
 | `ocr_confidence` | ค่าเฉลี่ยที่ OCR engine รายงานเอง (โหมด vlm เป็น `null`) — รายงานไว้ดู ไม่ได้ใช้ตัดสินสถานะ เพราะยังไม่มีข้อมูลบอกว่าค่าเท่าไรถึงเชื่อได้ |
 
@@ -61,9 +65,9 @@ check ใช้ทำสามอย่าง
 
 | สถานะ | เงื่อนไข | ความหมาย |
 |---|---|---|
-| `failed` | หา `total_amount` ไม่เจอ | สกัดไม่สำเร็จ |
+| `failed` | หายอดหลัก (`primary_amount` ของโปรไฟล์ ค่าตั้งต้น `total_amount`) ไม่เจอ | สกัดไม่สำเร็จ |
 | `auto_approved` | `missing_fields` ว่าง **และ** ไม่มี check ไหนไม่ผ่าน **และ** มี check ผ่านอย่างน้อยหนึ่งข้อ | ใช้ต่อได้เลย |
-| `needs_review` | กรณีอื่น | ควรให้คนตรวจ |
+| `needs_review` | กรณีอื่น รวมถึงโปรไฟล์ที่ยังเป็นฉบับร่าง (`status: draft…` ใน config ตอนนี้ทั้ง 3 ชนิดเป็นร่าง จึงไม่มีทางได้ `auto_approved`) | ควรให้คนตรวจ |
 
 **ตัวอย่าง:** `BITKUB-001.jpg` ผ่าน check 6/6 แต่ช่องเลขที่เอกสารในใบว่าง → `missing_fields: ["invoice_no"]` → `needs_review`
 
@@ -71,7 +75,7 @@ check ใช้ทำสามอย่าง
 ใบ 001307 (หนังสือรับรองหัก ณ ที่จ่าย) ได้ `auto_approved` ทั้งที่ข้อความดิบมีตัวเลขเงิน (ทศนิยม 2 ตำแหน่ง) แค่ `2,000.00` และ `60.00` (ภาษีที่หัก)
 LLM สกัดเป็น VAT `120.0` อัตรา 6% และยอดรวม `2120.0` ซึ่ง **ไม่พบในข้อความดิบ** (ตรวจเฉพาะรูปแบบทศนิยม 2 ตำแหน่ง) แต่ผ่าน check "ก่อน VAT + VAT = รวม" ทุกข้อเพราะตัวเลขที่แต่งขึ้นสอดคล้องกันเอง
 check จับได้เฉพาะค่าที่ไม่สอดคล้อง (เช่น เลขภาษีที่ checksum ไม่ผ่าน) จับค่าที่ถูกแต่งให้สอดคล้องไม่ได้
-ผู้ใช้ผลจากโหมดที่ใช้ LLM จึงไม่ควรอนุมัติอัตโนมัติโดยไม่ตรวจว่าค่าอยู่ในข้อความดิบจริง (ยังไม่มีขั้นนี้ในโค้ด)
+ผู้ใช้ผลจากโหมดที่ใช้ LLM จึงไม่ควรอนุมัติอัตโนมัติโดยไม่ตรวจว่าค่าอยู่ในข้อความดิบจริง ปัจจุบัน `field_evidence[].grounded` ตรวจว่าค่าอยู่ในข้อความหรือไม่ และ `--llm hybrid` ปัดค่าที่ไม่อยู่ในข้อความ แต่ `decide_status` ยังไม่ใช้ `grounded`
 
 **ถ้าอยากได้คะแนนเป็นตัวเลขในอนาคต** ต้องหาน้ำหนักและเกณฑ์จากข้อมูล ไม่ใช่ตั้งเอง: เก็บเอกสารที่มีเฉลย
 แล้วดูว่าสัญญาณแต่ละตัว (check, field ที่ขาด, ocr_confidence) ทำนายว่าผลถูกหรือผิดได้ดีแค่ไหน
@@ -85,11 +89,11 @@ check จับได้เฉพาะค่าที่ไม่สอดค�
 
 โค้ด: `src/fin_extractor/cli.py → cmd_extract`
 
-บันทึกเป็น `data/05_extract/<dataset>/<engine>/page/<rules|llm>/<ชื่อไฟล์>_p<หน้า>.json` (ข้อความดิบแยกไว้ที่ `raw_data/`) ตามโครง `ExtractionResult` (JSON Schema เต็มอยู่ที่ `schemas/invoice.schema.json`)
+บันทึกเป็น `data/05_extract/<dataset>/<engine>/<วิธี>/<rules|llm|hybrid>/<ชื่อไฟล์>_p<หน้า>.json` (วิธี = `page` อ่านทั้งหน้า หรือ `luma|flat|bin|color` อ่านทีละ section ข้อความดิบแยกไว้ที่ `data/04_ocr/<dataset>/<engine>/<วิธี>/` พร้อม `manifest.json` ของรัน) ตามโครง `ExtractionResult` (JSON Schema เต็มอยู่ที่ `schemas/invoice.schema.json`)
 
 ### หลักการของ schema (Data Contract)
 
-schema คือ **ข้อตกลง** ว่าผลลัพธ์หน้าตาแบบไหน ไม่ว่าจะมาจาก Tesseract + rules หรือ Typhoon + LLM ก็คืน
+schema คือ **ข้อตกลง** ว่าผลลัพธ์หน้าตาแบบไหน ไม่ว่าจะมาจาก Paddle + rules หรือ Typhoon/OpenThai + LLM ก็คืน
 `ExtractionResult` รูปเดียวกัน ระบบบัญชีปลายทางใช้ต่อได้โดยไม่ต้องรู้ว่าข้างในทำงานยังไง และเปลี่ยน
 engine ได้โดยไม่ทำให้ฝั่งนั้นพัง
 
@@ -109,8 +113,10 @@ ExtractionResult                     ผลของ 1 หน้า
 ├── checks: [ValidationCheck]        ผลการตรวจแต่ละข้อ + ฟิลด์ที่ใช้ตรวจ (fields)
 ├── field_evidence                   ระดับหลักฐานรายฟิลด์ (missing/not_applicable/conflict/verified/unverified)
 ├── ocr_confidence, missing_fields
+├── handwritten_fields               ตอนนี้ pipeline ไม่ได้เติม (ว่างเสมอ)
 ├── status
-└── raw_text                         ข้อความดิบไว้ debug
+├── raw_text                         ข้อความดิบไว้ debug (เฉพาะเมื่อใส่ --keep-raw)
+└── rejected: [RejectedValue]        ค่าที่ LLM เสนอแต่ไม่ถูกรับ (--llm hybrid): key, reason
 ```
 
 หลักที่ใช้ออกแบบ
@@ -129,7 +135,7 @@ ExtractionResult                     ผลของ 1 หน้า
 | Field | ความหมาย |
 |---|---|
 | `source_file`, `page` | มาจากไฟล์ไหน หน้าไหน |
-| `engine` | engine ที่ใช้ เช่น `vlm:scb10x/typhoon-ocr1.5-3b+llm:qwen2.5:3b` |
+| `engine` | engine ที่ใช้ เช่น `paddle+rules`, `vlm:scb10x/typhoon-ocr1.5-3b+llm:qwen2.5:3b` |
 | `data` | field ที่สกัดได้ (`InvoiceData`) |
 | `checks` | ผลการตรวจทุกข้อพร้อมรายละเอียด |
 | `schema_version` | เวอร์ชันของ schema (ตอนนี้ `"3.0"`) |
@@ -137,6 +143,8 @@ ExtractionResult                     ผลของ 1 หน้า
 | `ocr_confidence` | ความมั่นใจเฉลี่ยของ OCR (โหมด vlm เป็น `null`) |
 | `missing_fields`, `status` | field สำคัญที่หาไม่เจอ และสถานะจากขั้นที่ 6 |
 | `raw_text` | ข้อความดิบจาก OCR/VLM (เฉพาะเมื่อใส่ `--keep-raw`) |
+| `rejected` | ค่าที่ LLM เสนอแต่ด่านของ `--llm hybrid` ปัดตก (`key`, `reason`) |
+| `handwritten_fields` | field ที่อ่านจากลายมือ ตอนนี้ไม่มีตัวตรวจลายมือใน pipeline จึงว่าง |
 
 ### โครง `data`
 
@@ -146,7 +154,7 @@ ExtractionResult                     ผลของ 1 หน้า
 | `document_profile` | string | โปรไฟล์ที่ใช้กำหนดฟิลด์ (`withholding_certificate`, `customs_receipt`, `payment_voucher`, `generic`) ดู [08 หัวข้อ 3.6](08-solution-and-roadmap.md) |
 | `document_fields{}` | object | ฟิลด์เฉพาะชนิดเอกสารตามโปรไฟล์ เช่น 50 ทวิ: `total_paid`, `total_tax_withheld` ค่าเป็นสตริง money=ทศนิยม, date=ISO ค.ศ. คีย์ที่หาไม่เจอไม่มีในผล |
 | `vendor`, `buyer` | object | `name`, `tax_id` (13 หลัก), `branch`, `address` |
-| `remark[]` | array | `label`, `value` หมายเหตุ: ข้อมูลที่เอกสารพิมพ์ไว้แต่ไม่มีช่องข้างบนหรือใน `document_fields` (rules เก็บบรรทัด "ป้าย: ค่า", LLM กรอกละเอียดกว่า) ชื่อเดิม `extra_fields` ของ schema 2.x |
+| `remark[]` | array | `label`, `value`, `kind` (`pair` หรือ `unmapped`), `source_chunk` หมายเหตุ: ข้อมูลที่เอกสารพิมพ์ไว้แต่ไม่มีช่องข้างบนหรือใน `document_fields` ดู [04](04-extraction.md) หัวข้อ remark ชื่อเดิม `extra_fields` ของ schema 2.x |
 | `book_no` | string | เล่มที่ (ยังไม่มี regex ใน rules มาจาก LLM เท่านั้น) |
 | `invoice_no` | string | |
 | `date` | date | ISO-8601 ปี ค.ศ. |

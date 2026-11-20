@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from fin_extractor.config import load_config  # noqa: E402
 from fin_extractor.paths import DataPaths  # noqa: E402
-from fin_extractor.preprocessing import geometry  # noqa: E402
+from fin_extractor.preprocessing import deskew, orient  # noqa: E402
 from fin_extractor.preprocessing.pipeline import preprocess  # noqa: E402
 
 ROT_CODES = {90: cv2.ROTATE_90_CLOCKWISE, 180: cv2.ROTATE_180, 270: cv2.ROTATE_90_COUNTERCLOCKWISE}
@@ -71,7 +71,7 @@ def bench_orientation(files: dict, root: Path) -> list[dict]:
         img = read(root / name)
         rot = meta["rotate_applied_cw_deg"]
         fix = (360 - rot) % 360  # หมุนตามเข็มกี่องศาถึงจะตั้งตรง
-        osd = geometry.detect_orientation(img)
+        osd = orient.detect_orientation(img)
         t = time.perf_counter()
         label = int(next(iter(model.predict(img, batch_size=1)))["label_names"][0])
         rows.append({
@@ -95,7 +95,7 @@ def bench_deskew(files: dict, root: Path) -> list[dict]:
             continue  # วัดมุมเอียงบนภาพที่ตั้งตรงแล้วเท่านั้น
         img = read(root / name)
         applied = meta["skew_applied_ccw_deg"]
-        est = geometry.estimate_skew(img, 15.0)
+        est = deskew.estimate_skew(img, 15.0)
         # estimate_skew คืนมุมที่ต้องหมุนทวนเข็มเพื่อแก้ ดังนั้นควรได้ -applied
         rows.append({"file": name, "applied_ccw": applied, "estimated_fix_ccw": est, "error_deg": round(est + applied, 2)})
     return rows

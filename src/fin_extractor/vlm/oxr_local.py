@@ -16,14 +16,13 @@ from __future__ import annotations
 
 import sys
 import types
-from pathlib import Path
 from typing import Any
 
 import cv2
 import numpy as np
 
 from ..config import resolve_path
-from .typhoon_ocr import VLMResult
+from .base import VLMResult
 
 PROMPT = "Recognize the content of the image."  # prompt ตายตัวของ OXR (oxr/model/prompts.py ในรีโปของเขา)
 STOP_TOKEN = "<|im_end|>"

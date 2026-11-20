@@ -2,7 +2,9 @@
 
 แยกเป็นสองทางตามโหมด:
 - `--mode ocr` → **3A** OCR engine แบบดั้งเดิม
-- `--mode vlm` → **3B** Typhoon OCR (Vision Language Model)
+- `--mode vlm` → **3B** Vision Language Model อ่านทั้งหน้าเป็น Markdown: Typhoon OCR (`--engine paddle|vlm` ในโหมดนี้ใช้ Typhoon) หรือ OpenThai 2.0 (`--engine openthai` ดู [12-openthai-ocr.md](12-openthai-ocr.md))
+
+สำหรับสแกนจริง flow หลักคือ `python -m fin_extractor sections` ซึ่งอ่านทีละ section ด้วย OpenThai/OXR (ดู [13-section-preprocess.md](13-section-preprocess.md) และ [10-oxr.md](10-oxr.md)) เอกสารนี้อธิบายการอ่านทั้งหน้า (`ocr`/`extract`)
 
 ## หลักการ
 
@@ -47,7 +49,7 @@ Typhoon OCR เป็น **โมเดล OCR** ไม่ใช่โมเด�
 
 โค้ด: `src/fin_extractor/ocr/`
 
-ใช้ engine ตัวเดียวคือ PaddleOCR เพื่อลดภาระติดตั้งและดูแล ทุก engine ยังคืนค่าในรูปแบบกลาง (`OCRResult` ใน `base.py`)
+`ENGINES` ใน `ocr/__init__.py` มี PaddleOCR ตัวเดียวเพื่อลดภาระติดตั้งและดูแล engine ใดก็ตามต้องคืนค่าในรูปแบบกลาง (`OCRResult` ใน `base.py`)
 ถ้าจะเพิ่ม engine อื่นภายหลัง ไม่ต้องแก้ขั้นถัดไป
 
 | Engine | ไฟล์ | จุดเด่น | ตั้งค่า (`ocr.*`) |
@@ -77,12 +79,12 @@ Tesseract (`tha+eng`) และ EasyOCR (`th, en`) เคยรองรับ �
 
 พิกัดทุกกรอบอ้างอิงภาพหลัง preprocess ดังนั้น preprocess มีผลทางอ้อม: ภาพเอียงทำให้กรอบหลวม หมุนผิดทิศทำให้ตรวจจับแย่ลง
 Typhoon (VLM) ไม่มีขั้นตรวจจับกรอบและไม่มีความมั่นใจรายคำ คืนแค่ Markdown
-ผลที่ `extract` เก็บมีแค่ข้อความ (`raw_data/`) กรอบไม่ถูกเก็บ ดูกรอบด้วย `scripts/visualize_bbox.py` ซึ่งให้ Paddle อ่านภาพใหม่เฉพาะไฟล์ที่ระบุ
+ผลที่ `ocr`/`extract` เก็บมีแค่ข้อความ (`data/04_ocr/<dataset>/paddle/page/`) กรอบไม่ถูกเก็บ ดูกรอบด้วย `scripts/visualize_bbox.py` ซึ่งให้ Paddle อ่านภาพใหม่เฉพาะไฟล์ที่ระบุ (ผลที่ `04_ocr/<dataset>/paddle/visualize/`)
 
 ### ผลลัพธ์
 - list บรรทัดข้อความ
 - ข้อความดิบทั้งหน้า (`raw_text`)
-- ความมั่นใจเฉลี่ย (`ocr_confidence`) ใช้ในขั้นคิดคะแนน
+- ความมั่นใจเฉลี่ย (`ocr_confidence`) เก็บใน `.meta.json` และในผล `extract`
 
 ### ผลเทียบสาม engine บนเครื่องนี้
 
@@ -149,12 +151,13 @@ VLM อ่านทั้งหน้าเป็น Markdown และเข้
 | โครงตาราง | ไม่มี (เป็นบรรทัดข้อความ) | ได้ `<table>` ครบทุกแถว |
 | เวลา | ~4.5 วินาที | ~50 วินาที |
 
-ดูข้อความดิบด้วย `python -m fin_extractor ocr <ไฟล์> --engine paddle|vlm` (บันทึกที่ `data/04_ocr/<dataset>/<engine>/page/` ผล Paddle เป็น `.txt`, ผล VLM เป็น `.md`)
+ดูข้อความดิบด้วย `python -m fin_extractor ocr <ไฟล์> --engine paddle|vlm|openthai` (บันทึกที่ `data/04_ocr/<dataset>/<engine>/page/` โดย engine = `paddle`, `typhoon` (เมื่อใช้ `--engine vlm`) หรือ `openthai` ผล Paddle เป็น `.txt`, ผล VLM เป็น `.md` พร้อม `.meta.json`)
 
 ## ผลบนลายมือ: Typhoon OCR ทั้งหน้า เทียบ PaddleOCR (สแกนจริง 4 ใบ)
 
 ทดสอบกับใบที่ Paddle พลาดหนักในชุด `finance_doc_scan`: ใบสำคัญรับเงินลายมือ (001320, 001322) และหนังสือรับรองหัก ณ ที่จ่ายที่ช่องเลขเขียนด้วยมือ (001307, 001323)
 ไม่มีเฉลย จึงดูเลข 13 หลักที่ผ่าน checksum และอ่านเทียบกับภาพด้วยตา ผลข้อความอยู่ที่ `data/04_ocr/finance_doc_scan/typhoon/page/*_p1.md` (ถ้ารัน `ocr --engine vlm`)
+
 
 | ใบ | เลขภาษีที่ checksum ผ่าน: Paddle | เลขภาษีที่ checksum ผ่าน: VLM ทั้งหน้า | เวลา VLM |
 |---|---|---|---|
@@ -173,7 +176,7 @@ VLM อ่านทั้งหน้าเป็น Markdown และเข้
 > ตาราง `data/etc/benchmarks/compare_modes.md` เป็นของรอบเก่า
 
 ชุดที่เทียบ (ตัวเลขในตารางเป็นของรอบ 2026-11-10): ชุด A = `--mode ocr` (Paddle + rules) ชุด B = `--mode vlm` (Typhoon OCR + `qwen2.5:3b` + rules)
-ปัจจุบันอยู่ที่ `data/05_extract/finance_doc_scan/paddle/page/rules/` และ `data/05_extract/finance_doc_scan/typhoon/page/llm/` ตารางเทียบรายใบ: `data/etc/benchmarks/compare_modes.md` (สร้างด้วย `scripts/compare_modes.py`) ไม่มีเฉลย
+โฟลเดอร์ผลของสองชุดนี้ (`data/05_extract/finance_doc_scan/paddle/page/rules/` และ `.../typhoon/page/llm/`) ไม่มีในเครื่องนี้แล้ว ตารางเทียบรายใบ: `data/etc/benchmarks/compare_modes.md` (สร้างด้วย `scripts/compare_modes.py` ซึ่งอ่านสองโฟลเดอร์นั้นเป็นค่าตั้งต้น) ไม่มีเฉลย
 
 | | A: ocr | B: vlm |
 |---|---|---|

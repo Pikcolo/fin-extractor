@@ -1,7 +1,7 @@
 """วาดภาพแต่ละขั้นของ OXR จากผลดิบที่เก็บไว้ (ไม่เรียก OXR/GPU) แล้วรวมเป็นรายงาน HTML ในเครื่อง
 
 อินพุต: ผลเต็มของ OXR ใน ``04_ocr/<dataset>/oxr/page/`` สองแบบ
-  ``<ไฟล์>_p1.oxr.json``      รอบที่ส่งภาพที่ผ่าน preprocess (ภาพ = preprocess/<dataset>/default/final/)  ← scripts/extract_oxr.py
+  ``<ไฟล์>_p1.oxr.json``      รอบที่ส่งภาพที่ผ่าน preprocess (ภาพ = preprocess/<dataset>/default/final/)  ← scripts/oxr/extract_oxr.py
   ``<ไฟล์>_p1.pdf.oxr.json``  รอบที่ส่ง PDF ดิบ (ภาพ = PDF เรนเดอร์ 150 dpi เหมือนที่ OXR เรนเดอร์เอง)
 ผล: ``04_ocr/<dataset>/oxr/visualize/<เลขไฟล์>_<pdf|preprocessed>/index.html`` พร้อมภาพประกอบ (เปิดในเบราว์เซอร์ ลบทั้งโฟลเดอร์ได้)
 **ไม่ publish ขึ้นบริการภายนอก** เอกสารเป็นข้อมูลจริง
@@ -17,7 +17,7 @@
 สิ่งที่ผลดิบไม่มี (จึงวาดไม่ได้): กรอบก่อนตัดบล็อกซ้ำ/ซ้อน, header/footer ที่ถูกกรองทิ้ง, เวลาของแต่ละขั้น
 bbox/ลำดับ ในภาพคือผลสุดท้ายหลัง postprocess
 
-    .venv/Scripts/python scripts/visualize_oxr.py 001312 001313 001315
+    .venv/Scripts/python scripts/oxr/visualize_oxr.py 001312 001313 001315
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ from pathlib import Path
 import pypdfium2 as pdfium
 from PIL import Image, ImageDraw, ImageFont
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
 from fin_extractor.paths import FINAL_DIR, STEPS_DIR, DataPaths, find_dir, font_path  # noqa: E402

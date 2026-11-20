@@ -23,14 +23,14 @@ STAGES = ("preprocess", "layout", "images", "ocr", "extract")
 
 
 def layout_is_current(paths: DataPaths, dataset: str, stem: str, table_mode: str, max_piece_frac: float | None,
-                      profile: str = DEFAULT_PROFILE, fill_text: bool = False) -> bool:
+                      profile: str = DEFAULT_PROFILE, fill_text: bool = False, dotted: bool = False) -> bool:
     path = paths.section_layout(dataset, profile) / f"{stem}.json"
     page = page_images(paths.preprocess_final(dataset, profile)).get(stem)
     if not path.exists() or page is None or path.stat().st_mtime < page.stat().st_mtime:
         return False
     params = json.loads(path.read_text(encoding="utf-8")).get("layout_params", {})
     return (params.get("table_mode") == table_mode and params.get("max_piece_frac") == max_piece_frac
-            and bool(params.get("fill_text_ink", False)) == fill_text)  # ผังเก่าไม่มีคีย์ = แบบเดิม (ไม่คำนึงพื้นสี)
+            and bool(params.get("fill_text_ink", False)) == fill_text and bool(params.get("dotted_rules", False)) == dotted)  # ผังเก่าไม่มีคีย์ = แบบเดิม (ไม่คำนึงพื้นสี)
 
 
 def images_are_current(paths: DataPaths, dataset: str, stem: str, variants: tuple[str, ...], profile: str = DEFAULT_PROFILE) -> bool:

@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from .typhoon_ocr import TyphoonOCR, VLMResult
+from .base import VLMResult
+from .typhoon_ocr import TyphoonOCR
 
 # ชื่อ engine ที่เป็น VLM (อ่านทั้งหน้าเป็น Markdown) → ชื่อโฟลเดอร์ใน 04_ocr/ และ 05_extract/
 VLM_ENGINES = {"vlm": "typhoon", "openthai": "openthai"}

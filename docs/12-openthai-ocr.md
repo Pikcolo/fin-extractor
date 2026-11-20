@@ -50,7 +50,7 @@ flowchart LR
 - `openthai:` ใน `configs/default.yaml` และ `OpenThaiOCR` ไม่มีตัวเลือกภาษา ส่งเข้าแค่ภาพกับโหมด `parse_mode`
 - ไม่ได้สลับระหว่าง "OCR ไทย" กับ "OCR อังกฤษ" โมเดลเดียว (ตัวถอดรหัสเดียว) อ่านอักขระที่เห็นในภาพแล้วสร้างข้อความทีละโทเคน ทั้งไทย ละติน และตัวเลข ในผลเดียวกัน model card ระบุว่าฐานของโมเดล (Nemotron Parse) ผ่านการประเมินหลายภาษา (รวมไทย: MOSCAR Thai BoC F1 99.66/99.95 ของ Parse 2.0/3.5 ตามการ์ดของ NVIDIA ไม่ใช่ผลวัดของเรา) ภายในโมเดลตัดสินใจอย่างไรต่อตัวอักษร **ไม่มีเอกสารอธิบายและเรายังไม่ได้ตรวจ**
 - ผลที่ตามมา: ภาษาที่อ่านผิดมักเป็นการสะกดผิดไม่ใช่เลือกภาษาผิด เช่น ตัวอักษรไทยบางตัวถูกอ่านเป็นละติน/ตัวเลข ถ้าต้องบังคับภาษา (ไทยด้วยโมเดลหนึ่ง อังกฤษด้วยอีกโมเดล) ต้องเพิ่มตัวอ่านและตัวตัดสินเอง โปรเจกต์นี้ยังไม่ทำ (OXR ใน [10-oxr.md](10-oxr.md) อ่านเฉพาะตัวเลข/อังกฤษ เป็นตัวเลือกที่ลองแล้วอยู่นอกสายงานหลัก)
-- ที่ **วัดได้** คือสัดส่วนอักขระไทย/ละติน/ตัวเลขในข้อความที่ได้กลับมาของแต่ละส่วน อยู่ใน `.chunks.json` (`script_mix`) ดู [14](14-section-preprocess.md#ไฟล์-chunks-ข้อความท่อนนี้มาจากภาพ-section-ไหน) นับจากผลลัพธ์ ไม่ใช่สิ่งที่โมเดลเลือก
+- ที่ **วัดได้** คือสัดส่วนอักขระไทย/ละติน/ตัวเลขในข้อความที่ได้กลับมาของแต่ละส่วน อยู่ใน `.chunks.json` (`script_mix`) ดู [13](13-section-preprocess.md#ไฟล์-chunks-ข้อความท่อนนี้มาจากภาพ-section-ไหน) นับจากผลลัพธ์ ไม่ใช่สิ่งที่โมเดลเลือก
 
 ## 3. ต่อเข้าโปรเจกต์อย่างไร
 
@@ -62,7 +62,7 @@ flowchart TD
     B --> C["DocumentParser (nemotron_parse)<br/>โหลดจาก models/OpenThai2.0-OCR-Markdown"]
     C --> D["Markdown ดิบ<br/>04_ocr/&lt;dataset&gt;/openthai/&lt;วิธี&gt;/*.md"]
     D --> E["markdown_to_lines<br/>(แปลงสระอำ + ช่องว่างทศนิยม)"]
-    E --> F["rules / LLM → validation → JSON<br/>.../final/rules/"]
+    E --> F["rules / LLM → validation → JSON<br/>05_extract/&lt;dataset&gt;/openthai/&lt;วิธี&gt;/rules/"]
 ```
 
 | ส่วน | รายละเอียด |
@@ -74,6 +74,7 @@ flowchart TD
 | การถอดรหัส | greedy (`temperature=0`, `top_k=1`, `repetition_penalty=1.1`) ตามตัวอย่างของผู้ทำโมเดล ซึ่งระบุว่า sampling ทำให้หน้าเพี้ยนบน Mac |
 | prompt | ส่ง `"\n" + prompt` ในโหมด Transformers เพื่อให้ token ตรงกับที่ vLLM server อ่าน (ตามตัวอย่างของ iApp) ยังไม่ได้เทียบผลกับ vLLM จริง |
 | ตอบไม่จบ | `GenerationError` (ชน `max_tokens=8744`) → เก็บเท่าที่อ่านได้ และตั้งธง `truncated` เหมือน Typhoon |
+| flow หลัก | `python -m fin_extractor sections` ใช้ OpenThai (ค่าตั้งต้น `--engine openthai`) อ่านทีละภาพย่อย (section) แทนทั้งหน้า ผลลง `04_ocr/<dataset>/openthai/<วิธี>/` แล้วสกัดด้วย `extract --mode vlm --engine openthai --llm off --reuse-raw` (ดู [13-section-preprocess.md](13-section-preprocess.md)) ส่วนหัวข้อ 4 ด้านล่างวัดแบบอ่านทั้งหน้า (`page`) |
 | ชื่อโฟลเดอร์ผล | `--engine openthai` → `04_ocr/<dataset>/openthai/` และ `05_extract/<dataset>/openthai/`; `extract --mode vlm` ที่ไม่ระบุ engine ยังเป็น `typhoon` เหมือนเดิม |
 
 ### การทำความสะอาดข้อความก่อนสกัด (`extraction/rule_extractor.py: markdown_to_lines`)

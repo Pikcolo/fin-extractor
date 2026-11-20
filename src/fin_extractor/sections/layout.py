@@ -1,7 +1,7 @@
 """ผังแบ่งหน้าเป็นส่วน (section) จากภาพทั้งหน้าที่ preprocess แล้ว — **ภาพล้วน ไม่เรียก OCR** (ขั้น 3 ของ flow: 03_sections/.../layout)
 
 ย้ายมาจาก notebooks/preprocess_lab/labkit.py แบบคัดลอกตรงตัว (ผังที่ได้ต้องเท่าเดิมทุกไบต์) ค่าคงที่ที่นี่เป็น **ค่าทดลอง**
-วัดบนสแกนจริง 18 ใบ ไม่มีเฉลย ดู docs/14-section-preprocess.md ก่อนอ้างตัวเลข
+วัดบนสแกนจริง 18 ใบ ไม่มีเฉลย ดู docs/13-section-preprocess.md ก่อนอ้างตัวเลข
 ทำงานบนสำเนาด้านยาว WORK px แล้วตัดภาพจริงจากภาพเต็มสีด้วย crop_full
 """
 
@@ -171,6 +171,52 @@ def table_rules(horiz: np.ndarray, table: tuple[int, int, int, int], min_cover: 
     return [y + int(round(float(np.mean(g)))) for g in groups]
 
 
+DOT_GAP = 9  # ขยายแนวนอนเท่านี้ (px บนสำเนา 1600) เพื่อเชื่อมจุดของเส้นประให้ต่อกัน (ค่าทดลอง)
+DOT_THIN = 5  # หมึกที่สูงไม่ถึงเท่านี้ (px) นับว่าเป็น "เส้นบาง/จุด" (ค่าทดลอง)
+DOT_RUN = 0.3  # เส้นประต้องต่อเนื่องอย่างน้อยเท่านี้ของความกว้างตารางจึงนับเป็นเส้นแบ่งแถว (ค่าทดลอง; เส้นประของฟอร์ม 50 ทวิมีเฉพาะคอลัมน์ตัวเลข ไม่พาดทั้งตาราง)
+
+
+def thin_joined(binary_black_on_white: np.ndarray) -> np.ndarray:
+    """หมึกบาง ๆ (สูง < ``DOT_THIN``) ที่ขยายแนวนอน ``DOT_GAP`` ให้จุดของเส้นประต่อกัน (bool)"""
+    ink = 255 - binary_black_on_white
+    thin = cv2.subtract(ink, cv2.morphologyEx(ink, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (1, DOT_THIN))))
+    return cv2.dilate(thin, cv2.getStructuringElement(cv2.MORPH_RECT, (DOT_GAP, 1))) > 0
+
+
+def dotted_rules(joined: np.ndarray, table: tuple[int, int, int, int], min_run: float = DOT_RUN) -> list[int]:
+    """ตำแหน่ง y ของเส้นแบ่งแถวที่เป็น **เส้นประ** (``line_masks`` เก็บได้เฉพาะเส้นทึบ): แถวของ ``thin_joined`` ที่ช่วงต่อเนื่องยาวที่สุด ≥ ``min_run`` ของความกว้างตาราง"""
+    x, y, w, h = table
+    padded = np.pad(joined[y:y + h, x:x + w], ((0, 0), (1, 1))).astype(np.int8)
+    edges = np.diff(padded, axis=1)  # +1 = เริ่มช่วง, -1 = จบช่วง
+    longest = np.array([(np.where(r == -1)[0] - np.where(r == 1)[0]).max(initial=0) for r in edges]) / w
+    groups: list[list[int]] = []
+    for v in np.where(longest >= min_run)[0]:
+        if groups and v - groups[-1][-1] <= 3:
+            groups[-1].append(int(v))
+        else:
+            groups.append([int(v)])
+    return [y + int(round(float(np.mean(g)))) for g in groups]
+
+
+def cuts_below_rules(ink: np.ndarray, joined: np.ndarray, rules: list[int]) -> list[int]:
+    """จุดตัดใต้เส้นประแต่ละเส้น: ลบหมึกเส้นประออกจากสำเนาของ ``ink`` แล้วตัดที่กลางช่วงแถวว่างช่วงแรกใต้เส้น (ก่อนเส้นถัดไป)
+    เส้นประอยู่ที่ฐานข้อความของแถวนั้น จึงตัดใต้เส้น ไม่ใช่บนเส้น และไม่แตะข้อความฝั่งป้าย"""
+    ink = ink.copy()
+    for ry in rules:
+        band = slice(max(ry - 2, 0), ry + 4)
+        ink[band][joined[band]] = 0
+    empty = (ink > 0).mean(axis=1) < EMPTY_ROW
+    out = []
+    for ry, nxt in zip(rules, [*rules[1:], len(empty)]):
+        ys = np.where(empty[ry + 1:nxt])[0]
+        if ys.size:
+            last = 0
+            while last + 1 < ys.size and ys[last + 1] == ys[last] + 1:
+                last += 1
+            out.append(ry + 1 + int((ys[0] + ys[last]) // 2))
+    return out
+
+
 def band_cuts(ink: np.ndarray, candidates: set[int]) -> list[int]:
     """จุดตัดแนวนอนที่ใช้ได้จริง: ขอบหน้า + ตำแหน่งผู้สมัครที่ **แถวนั้นว่างตลอดความกว้างหน้า** (ไม่ตัดผ่านข้อความข้างตาราง)"""
     h_img = ink.shape[0]
@@ -182,7 +228,7 @@ def band_cuts(ink: np.ndarray, candidates: set[int]) -> list[int]:
 def layout_sections(binary_black_on_white: np.ndarray, min_table_ratio: float = 0.02,
                     min_component_px: int = 8, table_mode: str = "rows",
                     max_piece_frac: float | None = MAX_PIECE_FRAC, fill_region: np.ndarray | None = None,
-                    fill_text: np.ndarray | None = None) -> list[dict]:
+                    fill_text: np.ndarray | None = None, dotted: bool = False) -> list[dict]:
     """แบ่งหน้าเป็นภาพย่อยตามตาราง แล้วเรียงตามลำดับอ่าน (บนลงล่าง ซ้ายไปขวา)
 
     - ``table_mode="rows"`` (ค่าตั้งต้น): **แถบแนวนอนเต็มความกว้างหน้า** ตัดที่ขอบตารางและเส้นแนวนอนยาวเต็มตาราง (``table_rules``) เฉพาะแถวที่ **ว่างตลอดความกว้างหน้า**
@@ -194,6 +240,7 @@ def layout_sections(binary_black_on_white: np.ndarray, min_table_ratio: float = 
       กรอบของฟอร์มที่ครอบตารางอื่นถูกตัดออกก่อน (``drop_frames``) ไม่งั้นกลายเป็นทั้งหน้า
       - ส่วนที่สูงกว่า ``max_piece_frac`` ของหน้า (ตารางหรือข้อความ) ถูกตัดเป็นกลุ่มแถวที่แถวว่างระหว่างบรรทัด (``split_rows``) แต่ละท่อนมี
       ``part``/``parts`` บอกลำดับ ``None`` = ไม่ตัด ท่อนหลัง ๆ ไม่มีหัวคอลัมน์ของตารางเดิมซ้ำ (ยังไม่ได้ทำ)
+    - ``dotted=True``: เส้นแบ่งแถวที่เป็นเส้นประ (``dotted_rules``) นับเป็นจุดตัดด้วย (ตัดที่แถวว่างแรกใต้เส้น ``cuts_below_rules``) ยังต้องเป็นแถวที่ว่างตลอดความกว้างหน้า
     ``table_mode="cells"`` แตกเป็น **ช่อง (cell)** ตามเส้น (ไม่เจอช่องเลยเก็บทั้งตารางเป็นส่วนเดียว) ช่องแยกหัวออกจากค่า
     - นอกตาราง → **ส่วนข้อความ (text)** ทุกบริเวณที่ไม่ถูกตารางบัง รวมข้อความ **ข้างตาราง** ด้วย (``free_boxes``) ไม่ใช่แค่แถบคั่นระหว่างตาราง
       เพราะป้ายของช่องยอดรวมมักอยู่ซ้ายของตารางตัวเลข ส่วนที่ไม่มีหมึกเลยจะติดธง ``keep=False``
@@ -236,6 +283,10 @@ def layout_sections(binary_black_on_white: np.ndarray, min_table_ratio: float = 
             cands |= {ty, ty + th}
             if horiz is not None:
                 cands |= set(table_rules(horiz, (tx, ty, tw, th)))
+        if dotted:
+            joined = thin_joined(binary_black_on_white)
+            for t in tables:
+                cands |= set(cuts_below_rules(cut_ink, joined, dotted_rules(joined, t)))
         cuts = band_cuts(cut_ink, cands)
         for y0, y1 in zip(cuts, cuts[1:]):
             over = [max(0, min(y1, ty + th) - max(y0, ty)) for tx, ty, tw, th in tables]

@@ -13,7 +13,6 @@
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 from typing import Any
 
 import cv2
@@ -21,7 +20,7 @@ import numpy as np
 from PIL import Image
 
 from ..config import resolve_path
-from .typhoon_ocr import VLMResult
+from .base import VLMResult
 
 
 class OpenThaiOCR:

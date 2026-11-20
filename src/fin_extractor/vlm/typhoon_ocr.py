@@ -13,24 +13,13 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 
+from .base import VLMResult
 from .client import ChatClient
 from .prompts import TYPHOON_OCR_PROMPT
-
-
-@dataclass
-class VLMResult:
-    engine: str
-    markdown: str
-    finish_reason: str | None = None
-
-    @property
-    def truncated(self) -> bool:
-        return self.finish_reason == "length"
 
 
 def _strip_wrappers(text: str) -> str:

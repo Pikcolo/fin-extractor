@@ -6,12 +6,12 @@
   etc/benchmarks/*cer*.json                              CER ภาพสังเคราะห์ของ Paddle / Typhoon / OXR
   etc/compare/oxr_why/*.json                             ค่าที่วัดแยก: ความน่าจะเป็นของ token, จำนวน token ใน vocabulary, บรรทัดจริงที่อ่านจากภาพ
   etc/compare/english/text_recall.json                   ค่าสำคัญของเอกสารอังกฤษที่ปรากฏในข้อความของแต่ละ engine
-  04_ocr/<dataset>/oxr/visualize/<ไฟล์>_pdf/     ภาพ layout และภาพตัดบล็อก (สร้างด้วย scripts/visualize_oxr.py ก่อน)
+  04_ocr/<dataset>/oxr/visualize/<ไฟล์>_pdf/     ภาพ layout และภาพตัดบล็อก (สร้างด้วย scripts/oxr/visualize_oxr.py ก่อน)
 
 ผล: data/reports/oxr_why/index.html (มีภาพเอกสารจริง เก็บในเครื่องเท่านั้น ลบทิ้งได้)
 ไฟล์ etc/compare/oxr_why/truth_1312.json มีค่าจริงจากเอกสาร จึงไม่ฝังในโค้ดนี้
 
-    .venv/Scripts/python scripts/explain_oxr.py
+    .venv/Scripts/python scripts/oxr/explain_oxr.py
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ import sys
 from pathlib import Path
 from statistics import median
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 

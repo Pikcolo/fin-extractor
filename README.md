@@ -50,6 +50,9 @@ python -m fin_extractor preprocess data/01_input --steps           # ดูผ�
 python -m fin_extractor ocr data/01_input/BITKUB-001.jpg           # ข้อความดิบ (--engine vlm = Typhoon OCR)
 python -m fin_extractor extract data/01_input                      # pipeline เต็ม → JSON (ค่าตั้งต้น --mode ocr)
 python -m fin_extractor extract data/01_input --mode vlm           # Typhoon OCR + LLM + rules (ต้องเปิด Ollama)
+python -m fin_extractor extract data/01_input --reuse-raw --only 1306   # สกัดซ้ำจากข้อความดิบ (ไม่เรียก OCR/GPU) เฉพาะไฟล์ที่ชื่อลงท้าย 1306
+python -m fin_extractor sections data/01_input/finance_doc_scan    # flow หลักของสแกนจริง (ดูหัวข้อถัดไป)
+python -m fin_extractor compare data/01_input/finance_doc_scan     # เทียบผลสกัด luma/flat/bin ติดธงแถวที่เทียบไม่แฟร์
 python -m fin_extractor schema                                # export JSON Schema (หลังแก้ schema.py)
 pytest
 ```
@@ -59,7 +62,7 @@ pytest
 ### flow หลัก: แบ่ง section แล้วอ่านด้วย OpenThai (สแกนจริง)
 
 อินพุต → preprocess → **แบ่งเป็นส่วน (เก็บผังไว้ดู/debug)** → ภาพแต่ละส่วนที่เตรียมก่อน OCR → OCR ทีละส่วน → **ข้อความ + ที่มาของแต่ละท่อน** → สกัดเป็น schema (ข้อมูลสำคัญที่ไม่มีช่องไปอยู่ใน `remark`)
-ไม่ใช้ OCR คัดส่วน ตารางเป็นก้อนเดียว ตัดท่อนสูงไม่เกิน 0.3 ของหน้า ใช้ GPU เฉพาะขั้น 4 ([docs/14](docs/14-section-preprocess.md))
+ไม่ใช้ OCR คัดส่วน ตารางเป็นก้อนเดียว ตัดท่อนสูงไม่เกิน 0.3 ของหน้า ใช้ GPU เฉพาะขั้น 4 ([docs/13](docs/13-section-preprocess.md))
 
 ```powershell
 python -X utf8 -m fin_extractor sections data/01_input/finance_doc_scan            # รันครบ 5 ขั้น ขั้นที่ผลยังใช้ได้ถูกข้าม
@@ -74,11 +77,11 @@ python -X utf8 -m fin_extractor sections data/01_input/finance_doc_scan --from o
 | 4 ocr | `04_ocr/<ชุด>/openthai/luma/<ไฟล์>/` `.md` `.sections.json` `.chunks.json` | `chunks.json` = ท่อนข้อความ ↔ ภาพ section ↔ บรรทัดใน `.md` |
 | 5 extract | `05_extract/<ชุด>/openthai/luma/rules/<ไฟล์>_p1.json` | `field_evidence`, `remark[].source_chunk` ชี้กลับไปที่ section |
 
-- **ค่าตั้งต้นคือ `luma`**: เทียบ 3 แบบบน 18 ใบ (ไม่มีเฉลย วัดแค่ความครบ) luma ขาดฟิลด์รวม 14, flat 16, bin (ตัวขาวบนดำ) 28 ([docs/14](docs/14-section-preprocess.md)) `--variant flat|bin|color` ผลแยกโฟลเดอร์ ไม่ทับกัน
+- **ค่าตั้งต้นคือ `luma`**: เทียบ 3 แบบบน 18 ใบ (ไม่มีเฉลย วัดแค่ความครบ) luma ขาดฟิลด์รวม 14, flat 16, bin (ตัวขาวบนดำ) 28 ([docs/13](docs/13-section-preprocess.md)) `--variant flat|bin|color` ผลแยกโฟลเดอร์ ไม่ทับกัน
 - รันทีละขั้นได้ด้วยสคริปต์เดิม (`scripts/make_section_layouts.py` `make_clean_sections.py` `run_sections.py` เป็นตัวห่อบางๆ ของ `src/fin_extractor/sections/`)
+- เทียบผลสกัดข้ามวิธี: `python -m fin_extractor compare <input> [--variants luma flat bin] [--out ไฟล์.md]` ติดธงแถวที่เทียบไม่แฟร์ (ผังต่างกัน / ผลเก่ากว่าผัง / `--drop-empty-rows` / ไม่มีผล) และไม่นับในยอดรวม
 - ข้อมูลภาษีจริงไม่ถูก commit และผลวัดทั้งหมดไม่ใช่คะแนนความถูกต้อง
 - ข้อควรระวัง: ตรวจ `orientation_error` ใน `manifest.json` ของ preprocess ก่อนเชื่อผล (ตัวตรวจทิศอาจล้มเงียบ)
-- ย้ายข้อมูลจากโครงเก่า (โฟลเดอร์ `raw` `preprocess` `result_ocr`) มาโครงนี้ด้วย `python scripts/migrate_data_layout.py` (dry-run ก่อน `--apply`)
 
 ### ผลลัพธ์อยู่ที่ไหน
 
@@ -105,27 +108,38 @@ data/
 ```
 fin_extractor/
 ├── configs/default.yaml        ค่าตั้งต้นทั้งหมด (preprocess, engine, endpoint VLM/LLM, document_types)
-├── data/                       01_input … 05_extract เรียงตามขั้น (ไม่ commit ยกเว้น .gitkeep)
+├── assets/fonts/               ฟอนต์ Sarabun (SIL OFL) ใช้วาดชุดสังเคราะห์/ป้ายภาพ
+├── data/                       01_input … 05_extract + etc/ + reports/ (ไม่ commit ยกเว้น .gitkeep)
+├── docs/                       เอกสารอธิบายทีละขั้น
+├── models/                     โมเดลที่ library โหลดเอง (paddlex/, OpenThai2.0-OCR-Markdown/) ไม่ commit
+├── notebooks/preprocess_lab/   labkit.py + notebook เช็ค preprocess (สร้างด้วย make_preprocess_notebooks.py ไม่ commit .ipynb)
 ├── schemas/                    JSON Schema (Data Contract) — generate จาก schema.py
-├── scripts/                    migrate_data_layout (ย้ายข้อมูลโครงเก่า) · make_section_layouts / make_clean_sections / run_sections (ตัวห่อบางๆ ของ flow หลัก) · make_synthetic_samples + benchmark_preprocessing + benchmark_cer (ชุดสังเคราะห์) ·
-│                               benchmark_real_scans + organize_preprocess_results + compare_modes (สแกนจริง ไม่ใช้เฉลย) ·
-│                               benchmark (ชุดมีเฉลย วัดความถูกต้องรายฟิลด์)
+├── scripts/                    make_section_layouts / make_clean_sections / run_sections (ตัวห่อบางๆ ของ flow หลัก) · make_synthetic_samples + benchmark_preprocessing + benchmark_cer (ชุดสังเคราะห์) ·
+│                               benchmark_real_scans + organize_preprocess_results + compare_modes + compare_file (สแกนจริง ไม่ใช้เฉลย) ·
+│                               benchmark (ชุดมีเฉลย วัดความถูกต้องรายฟิลด์) · make_preprocess_notebooks · visualize_bbox ·
+│                               oxr/ (OXR): extract_oxr / benchmark_oxr / visualize_oxr / explain_oxr
 ├── src/fin_extractor/
 │   ├── schema.py               ★ Data Contract (pydantic)
 │   ├── config.py
 │   ├── pipeline.py             orchestrator
-│   ├── cli.py                  python -m fin_extractor ...
-│   ├── runs.py                 โครงเก็บผล + manifest
+│   ├── cli.py                  python -m fin_extractor ... (preprocess · ocr · extract · sections · compare · schema)
+│   ├── paths.py                ที่เดียวที่กำหนดว่าแต่ละขั้นเขียนข้อมูลที่ไหน (data/01_input … 05_extract)
+│   ├── stages.py               preprocess ที่เก็บไว้ใช้ร่วมกัน + ข้อความดิบ
+│   ├── doctypes.py             โปรไฟล์ชนิดเอกสาร (ฟิลด์/required/checks ต่อชนิด)
+│   ├── runs.py                 manifest ของการรัน
 │   ├── io/loader.py
-│   ├── preprocessing/
-│   │   ├── enhance.py          gray, upscale, denoise, CLAHE
-│   │   ├── geometry.py         orientation (Paddle doc-orientation), deskew (projection profile), crop
+│   ├── preprocessing/          หนึ่งไฟล์ต่อหนึ่งขั้น (แบบ learning/preprocess_finance) ลำดับตาม pipeline.py
+│   │   ├── clean.py            ลบเส้นสกปรกจากสแกน (ก่อนหมุน) · denoise
+│   │   ├── enhance.py          gray, upscale, CLAHE
+│   │   ├── orient.py           ทิศทั้งหน้า 0/90/180/270 (Paddle doc-orientation)
+│   │   ├── deskew.py           แก้เอียง (projection profile)
+│   │   ├── crop.py             ตัดขอบ
 │   │   ├── binarize.py         Otsu / adaptive / Sauvola
-│   │   └── pipeline.py         รวมขั้นตอนตาม config
+│   │   └── pipeline.py         รวมขั้นตอนตาม config: clean(streaks) → upscale → orient → deskew → crop → denoise → CLAHE → binarize
 │   ├── ocr/                    base.py (interface กลาง) + paddle_engine.py
-│   ├── sections/               ★ flow หลัก: layout.py (ผัง) · images.py (luma/flat/bin) · crops.py · build.py (ขั้น 2–3) · read.py (ขั้น 4 OCR รายส่วน + chunks.json) · flow.py (กติกาข้ามขั้น)
-│   ├── vlm/                    client.py (Ollama/OpenAI-compatible), typhoon_ocr.py, openthai_ocr.py, oxr_local.py, prompts.py
-│   ├── extraction/             patterns.py (regex), rule_extractor.py, llm_extractor.py, hybrid.py
+│   ├── sections/               ★ flow หลัก: layout.py (ผัง) · images.py (luma/flat/bin) · crops.py · build.py (ขั้น 2–3) · read.py (ขั้น 4 OCR รายส่วน + chunks.json) · flow.py (กติกาข้ามขั้น) · compare.py (คำสั่ง compare)
+│   ├── vlm/                    base.py (VLMResult), client.py (Ollama/OpenAI-compatible), typhoon_ocr.py, openthai_ocr.py, oxr_local.py, prompts.py
+│   ├── extraction/             patterns.py (regex), rule_extractor.py, profile_extractor.py, core_labels.py, llm_extractor.py, hybrid.py
 │   └── validation/             tax_id.py, checks.py, scoring.py, evidence.py
 └── tests/
 ```

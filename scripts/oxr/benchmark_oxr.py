@@ -10,7 +10,7 @@
 
 ผลดิบจาก API เก็บแคชที่ 04_ocr/synthetic/oxr/page/<tag>/ รันซ้ำไม่เรียก API อีก (ใส่ --refresh เพื่อเรียกใหม่)
 
-    .venv/Scripts/python scripts/benchmark_oxr.py [--preprocess] [--refresh]
+    .venv/Scripts/python scripts/oxr/benchmark_oxr.py [--preprocess] [--refresh]
 """
 
 from __future__ import annotations
@@ -25,9 +25,9 @@ from pathlib import Path
 import cv2
 import httpx
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import benchmark_cer as bc  # noqa: E402
 from fin_extractor.config import load_config  # noqa: E402

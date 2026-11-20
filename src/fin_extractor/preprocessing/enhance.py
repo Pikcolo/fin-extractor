@@ -1,4 +1,4 @@
-"""ปรับคุณภาพภาพ: grayscale, upscale, denoise, contrast."""
+"""ปรับโทนภาพ: grayscale, upscale, contrast (CLAHE) — ขั้นลบสิ่งรบกวนอยู่ใน clean.py."""
 
 from __future__ import annotations
 
@@ -17,26 +17,6 @@ def upscale(img: np.ndarray, min_long_side: int) -> tuple[np.ndarray, float]:
         return img, 1.0
     scale = min_long_side / long_side
     return cv2.resize(img, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC), scale
-
-
-def denoise(img: np.ndarray, method: str = "median") -> np.ndarray:
-    """ลด noise จากการสแกน (จุดดำ/เกรน JPEG).
-
-    - median    : เร็ว เหมาะกับ salt-and-pepper
-    - nlmeans   : คุณภาพดีสุด แต่ช้ากว่า
-    - bilateral : ลด noise แต่รักษาขอบตัวอักษร
-    """
-    if method in (None, "none"):
-        return img
-    if method == "median":
-        return cv2.medianBlur(img, 3)
-    if method == "nlmeans":
-        if img.ndim == 3:
-            return cv2.fastNlMeansDenoisingColored(img, None, 7, 7, 7, 21)
-        return cv2.fastNlMeansDenoising(img, None, h=10, templateWindowSize=7, searchWindowSize=21)
-    if method == "bilateral":
-        return cv2.bilateralFilter(img, 9, 50, 50)
-    raise ValueError(f"unknown denoise method: {method}")
 
 
 def clahe(img: np.ndarray, clip_limit: float = 2.0, tile: int = 8) -> np.ndarray:

@@ -31,8 +31,9 @@
 |---|---|---|
 | 4A Rules | `extraction/rule_extractor.py`, `patterns.py` | ทุกครั้ง |
 | 4A+ ชนิดเอกสาร | `doctypes.py`, `extraction/profile_extractor.py` | ทุกครั้ง: จำแนกโปรไฟล์ แล้วสกัด `document_fields`, `remark` และชื่อลูกค้า `buyer.name` จากป้าย (`extraction/core_labels.py`) (ดู [08 หัวข้อ 3.6](08-solution-and-roadmap.md)) |
-| 4B LLM | `extraction/llm_extractor.py` | `--mode vlm` (ค่าตั้งต้น) หรือ `--llm on` |
-| 4C เลือกผล | `pipeline.py → extract`, `fill_missing` | เมื่อมีทั้ง 4A และ 4B |
+| 4B LLM | `extraction/llm_extractor.py` | `--llm auto` ในโหมด `--mode vlm` (ค่าตั้งต้น) หรือ `--llm on` / `--llm hybrid` (`--llm off` = rules อย่างเดียว) |
+| 4C เลือกผล | `pipeline.py → extract_traced`, `fill_missing` | เมื่อมีทั้ง 4A และ 4B (`--llm auto` หรือ `on`) |
+| 4D hybrid | `extraction/hybrid.py` | `--llm hybrid` (ดูหัวข้อ 4D) |
 
 ## 4A: Rule-based (regex + keyword)
 
@@ -126,7 +127,7 @@ LLM ขนาดเล็กมักสลับ field ยอดเงิน �
 
 ## 4D: แบบ hybrid (ทดลอง, `--llm hybrid`)
 
-ทางเลือกแทน 4C: rules กับ LLM ทำงานต่อกันในขั้นสกัดเดียว ไม่เลือกผู้ชนะทั้งชุด (โค้ด `extraction/hybrid.py`, ผลลง `final/hybrid/`)
+ทางเลือกแทน 4C: rules กับ LLM ทำงานต่อกันในขั้นสกัดเดียว ไม่เลือกผู้ชนะทั้งชุด (โค้ด `extraction/hybrid.py`, ผลลง `data/05_extract/<dataset>/<engine>/<วิธี>/hybrid/`)
 
 1. rules สกัดก่อน
 2. หา "ช่องที่ยังไม่เสร็จ" = ฟิลด์ที่ชนิดเอกสารต้องมีแต่ว่าง + ฟิลด์ที่อยู่ใน check ที่ไม่ผ่าน (ไม่มีเกณฑ์ตัวเลขที่ตั้งเอง) ถ้าไม่มีก็ไม่เรียก LLM

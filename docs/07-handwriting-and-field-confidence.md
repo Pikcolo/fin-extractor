@@ -1,34 +1,18 @@
 # แผนรองรับลายมือและ confidence รายฟิลด์
 
-เอกสารนี้สรุปภาพรวมระบบ ปัญหาที่พบเมื่อเอกสารเป็นฟอร์มพิมพ์ที่กรอกมือ แผน implement เป็นเฟส
-และแนวทางทำ confidence รายฟิลด์ ส่วน flow ปัจจุบันของระบบอยู่ใน [README.md](README.md)
+เอกสารนี้สรุปปัญหาที่พบเมื่อเอกสารเป็นฟอร์มพิมพ์ที่กรอกมือ แผน implement เป็นเฟส
+และแนวทางทำ confidence รายฟิลด์ที่ยังเหลือ ส่วน flow ปัจจุบันของระบบอยู่ใน [README.md](README.md)
+และระดับหลักฐานรายฟิลด์ที่ทำแล้ว (`field_evidence`) อยู่ใน [08 หัวข้อ 4.3](08-solution-and-roadmap.md)
 
-> สถานะ: เป็นแผน ยังไม่ได้ implement ยกเว้นข้อที่ระบุว่า "ทำแล้ว" ในหัวข้อ 4
+> สถานะ: เป็นแผน ยังไม่ได้ implement ยกเว้นข้อที่ระบุว่า "ทำแล้ว" ในหัวข้อ 4 และ 5
 
 ## 1. ภาพรวมระบบปัจจุบัน
 
 รับภาพหรือ PDF คืน JSON ตาม schema เดียวกันทุกครั้ง โดยตัดสินความน่าเชื่อถือจากการตรวจตัวเลขกันเอง
 (checksum เลขภาษี, ผลรวมรายการ, ก่อน VAT + VAT = รวม) ไม่ได้ตัดสินจาก confidence ของ OCR
-
-### Flow ปัจจุบัน
-
-```mermaid
-flowchart TD
-    A["ไฟล์ .jpg .png .pdf"] --> B["โหลด → ภาพทีละหน้า"]
-    B --> C["Preprocess<br/>ตะแคง/เอียง · คงสี"]
-    C --> D{"โหมด"}
-    D -- ocr --> E1["OCR: Paddle<br/>คำ + bbox + confidence"]
-    D -- vlm --> E2["Typhoon OCR → Markdown<br/>ไม่มี bbox ไม่มี confidence"]
-    E1 --> X1["⚠ เหลือแค่ข้อความ<br/>confidence หายตรงนี้"]
-    E2 --> X1
-    X1 --> F["Rules (regex + keyword)"]
-    X1 --> G["LLM → JSON (ถ้าเปิด)"]
-    F --> H["เลือกผลที่ตัวเลขสอดคล้องกว่า + เติม field ที่ขาด"]
-    G --> H
-    H --> I["Validation (checks)"]
-    I --> J["สถานะ: failed / needs_review / auto_approved"]
-    J --> K["บันทึก JSON"]
-```
+ภาพ flow ของระบบอยู่ใน [README.md](README.md) จุดที่เกี่ยวกับเอกสารนี้คือ
+**ขั้นอ่านข้อความส่งต่อแค่ข้อความให้ขั้นสกัด** (`pipeline.read_prepared` คืน `lines` ที่เป็นสตริงล้วน) confidence ต่อคำและ bbox ของ Paddle จึงหายตรงนั้น
+ส่วน VLM (Typhoon, OpenThai, OXR) ไม่มี confidence ต่อคำตั้งแต่ต้น
 
 ### confidence ตอนนี้ทำงานอย่างไร
 
@@ -36,7 +20,7 @@ flowchart TD
 |---|---|
 | `ocr_confidence` | ค่าเฉลี่ยของ confidence ต่อคำที่ engine รายงาน (`OCRResult.mean_confidence`) VLM ไม่มีค่านี้ จึงเป็น `None` |
 | ใช้ตัดสิน status ไหม | ไม่ใช้ แค่รายงานไว้ใน output |
-| status ตัดสินจาก | field สำคัญ 5 ตัวครบไหม และผล check ตัวเลข (`validation/scoring.py`) |
+| status ตัดสินจาก | field ที่ `required` ของโปรไฟล์ชนิดเอกสารครบไหม และผล check ตัวเลข (`validation/scoring.py`) |
 | ความหมายของค่า | แต่ละ engine นิยาม confidence ต่างกัน เทียบข้ามกันไม่ได้ และยังไม่ผ่านการ calibrate |
 
 ## 2. ปัญหาเมื่อเจอเอกสารลายมือ
@@ -54,7 +38,7 @@ flowchart TD
 | P7 | ลายเซ็น/ขีดเขียนทับอาจถูกอ่านเป็นข้อความขยะ | ยังไม่มีตัวอย่างยืนยัน | ต่ำ-กลาง |
 | P8 | ไม่มีข้อมูลเฉลย จึงตั้งเกณฑ์หรือเลือก engine ไม่ได้ | ไม่มีตัวอย่าง | บล็อกทุกอย่างที่ต้องมี threshold |
 | P9 | เลขลายมือสับสนกัน (1/7, 0/6, 4/9), เลขไทย, พ.ศ./ค.ศ. | ลักษณะของลายมือ | กลาง |
-| P10 | confidence รายฟิลด์ทำไม่ได้ เพราะถูกทิ้งก่อนถึงขั้น extract | `pipeline.read_page` ส่งต่อแค่ข้อความ | กลาง |
+| P10 | confidence ต่อคำของ OCR ถูกทิ้งก่อนถึงขั้น extract จึงใส่ `model_conf` ไม่ได้ | `pipeline.read_prepared` ส่งต่อแค่ข้อความ | กลาง |
 
 ## 3. Flow เป้าหมาย
 
@@ -93,18 +77,18 @@ flowchart TD
   - `handwritten_fields` ใน `ExtractionResult` (`schema.py`)
   - กฎใน `validation/scoring.py` ที่ field ลายมือต้องมี check ยืนยันและไม่มี check ที่ไม่ผ่านจึง auto-approve ได้ (`CORROBORATING_CHECKS`, `uncorroborated`)
   - เทสต์ใน `tests/test_extraction_validation.py`
-- **เหลือ:** ให้ `pipeline.py` ส่ง `handwritten_fields` เข้า `decide_status` (ต้องมีตัวตรวจจากเฟส 3 ก่อน)
+  - `field_evidence` ต่อฟิลด์ (`validation/evidence.py`, schema 3.0) ดู [08 หัวข้อ 4.3](08-solution-and-roadmap.md)
+- **เหลือ:** ให้ `pipeline.py` ส่ง `handwritten_fields` เข้า `decide_status` (ต้องมีตัวตรวจจากเฟส 3 ก่อน; ตอนนี้ไม่มีโค้ดส่วนไหนเติมค่านี้)
 - แก้: P3, P6 (บางส่วน)
 
 ### เฟส 1.5: ติดตามต้นทางของค่า (ไม่ต้องใช้ข้อมูลเฉลย)
-- ให้ extractor คืนต้นทางของแต่ละค่า (บรรทัดและช่วงตัวอักษร)
-- ส่งคำที่มี confidence ไปถึง extractor แทนข้อความล้วน
-- `fill_missing` บันทึกว่าค่ามาจากแหล่งไหน
+- **ทำแล้ว:** ต้นทางระดับตัวสกัด (`rules` หรือ `llm` ต่อฟิลด์ ใน `pipeline.extract_traced` / `FieldEvidence.source`)
+- **เหลือ:** ให้ extractor คืนต้นทางของแต่ละค่า (บรรทัดและช่วงตัวอักษร) และส่งคำที่มี confidence ไปถึง extractor แทนข้อความล้วน
 - แก้: P10
 
 ### เฟส 2: Baseline และ error analysis (ต้องมีข้อมูลจากเฟส 0)
-- ขยาย `scripts/benchmark.py` ให้เทียบกับเฉลยแยก field และแยกตัวพิมพ์/ลายมือ
-- รัน Paddle เทียบ Typhoon OCR บนชุดเดียวกัน
+- ขยาย `scripts/benchmark.py` (ตอนนี้เทียบกับเฉลยของชุด benchmark ภาษาอังกฤษที่ดาวน์โหลดมา ไม่ใช่เอกสารไทยหรือลายมือ ยังไม่แยกตัวพิมพ์/ลายมือ) ให้เทียบกับเฉลยแยก field และแยกตัวพิมพ์/ลายมือ
+- รัน Paddle เทียบ Typhoon OCR (และ OpenThai/OXR ที่เพิ่มมา ดู [12](12-openthai-ocr.md), [10](10-oxr.md)) บนชุดเดียวกัน
 - ผ่านเมื่อ: มีตารางอัตราผิดต่อ field ต่อ engine จากข้อมูลจริง
 - แก้: P1, P8
 
@@ -148,17 +132,18 @@ flowchart TD
 
 ## 5. Confidence รายฟิลด์
 
-### ทำไมตอนนี้ทำไม่ได้
+### ทำไม `model_conf` ยังเป็น null
 
 ```
 OCRResult (คำ + bbox + conf)
-  └─ read_page: [ln.text for ln in res.lines]   ← เหลือแค่ข้อความ
-      └─ extract_fields(lines) → InvoiceData      ← ไม่รู้ว่าค่ามาจากคำไหน
+  └─ read_prepared: [ln.text for ln in res.lines]   ← เหลือแค่ข้อความ
+      └─ extract_traced(lines) → InvoiceData          ← ไม่รู้ว่าค่ามาจากคำไหน
 ```
 
 เส้นทาง LLM เขียนค่าใหม่จากข้อความ และเส้นทาง VLM ไม่มี confidence ต่อคำตั้งแต่ต้น
+`FieldEvidence.model_conf` มีอยู่ใน schema แล้วแต่เป็น `null` เสมอ
 
-### แนวทาง
+### แนวทางที่ยังไม่ทำ
 
 1. **ติดตามต้นทาง:** extractor คืนค่าพร้อมช่วงที่จับได้ แล้วรวม confidence ของคำที่ทับช่วงนั้น
 2. **วิธีรวม:** ข้อเสนอคือใช้ค่าต่ำสุด (min) กับ field ตัวเลขและเลขที่ เพราะผิดหลักเดียวก็ผิดทั้งค่า
@@ -166,25 +151,10 @@ OCRResult (คำ + bbox + conf)
 3. **เส้นทางที่ไม่มี confidence ต่อคำ**
    - LLM: จับคู่ค่ากลับหาคำใน OCR ด้วยการค้นสตริง ถ้าหาไม่เจอให้เป็น `None` ไม่ใช่ 0 หรือค่าที่เดา
    - VLM: ขอ `logprobs` ถ้า endpoint รองรับ (ต้องเช็คว่า Ollama และ Typhoon API รองรับจริงไหม) หรือใช้ความสอดคล้องระหว่าง engine หรือปล่อยเป็น `None`
-4. **หลักฐานจาก validation:** ใช้ `CORROBORATING_CHECKS` ต่อ field ซึ่งน่าเชื่อกว่า confidence ของ OCR สำหรับ field ที่ตรวจได้
+4. **หลักฐานจาก validation:** ทำแล้วใน `field_evidence` (`checks_passed` / `checks_failed`) ซึ่งน่าเชื่อกว่า confidence ของ OCR สำหรับ field ที่ตรวจได้
 
-### รูปแบบ output ที่เสนอ
-
-ไม่รวมเป็นตัวเลขเดียว เพราะการรวมต้องมีน้ำหนักซึ่งยังไม่มีข้อมูลหา เก็บเป็นหลักฐานแยกส่วนต่อ field:
-
-```json
-"field_evidence": {
-  "total_amount": {
-    "ocr_conf": 0.93,
-    "source": "paddle",
-    "handwritten": false,
-    "corroborated_by": ["items_sum", "before_vat_plus_vat"],
-    "engines_agree": true
-  }
-}
-```
-
-(ค่าตัวเลขในตัวอย่างเป็นเพียงรูปแบบ ไม่ใช่ผลวัดจริง)
+รูปแบบ output (`field_evidence` แยกสัญญาณต่อ field ไม่รวมเป็นตัวเลขเดียว เพราะการรวมต้องมีน้ำหนักซึ่งยังไม่มีข้อมูลหา) อยู่ใน [08 หัวข้อ 4.3](08-solution-and-roadmap.md)
+ฟิลด์ `engines_agree` ที่เสนอไว้ยังไม่มีใน schema (ดู [11](11-decision-engine-confidence-plan.md))
 
 ### Calibration (เมื่อมีข้อมูลเฉลย)
 
@@ -193,16 +163,15 @@ OCRResult (คำ + bbox + conf)
 3. ถ้าสัมพันธ์กัน ค่อยแปลงเป็นความน่าจะเป็น (isotonic regression หรือ binning)
 4. ถ้าไม่สัมพันธ์ ซึ่งเป็นไปได้กับลายมือ ให้เลิกใช้ค่านี้แล้วพึ่ง corroboration และ engine agreement
 
-### ไฟล์ที่ต้องเปลี่ยน
+### ไฟล์ที่ต้องเปลี่ยน (ส่วนที่ยังเหลือ)
 
 | ไฟล์ | การเปลี่ยน |
 |---|---|
-| `schema.py` | เพิ่ม `FieldEvidence` และ `field_evidence` |
 | `extraction/rule_extractor.py`, `patterns.py` | คืนช่วงต้นทางของค่า |
-| `pipeline.py` | ส่งคำที่มี confidence ไปถึง extractor, `fill_missing` บันทึกแหล่งที่มา |
+| `pipeline.py` | ส่งคำที่มี confidence ไปถึง extractor |
 | `extraction/llm_extractor.py` | จับคู่ค่ากลับหา OCR |
 | `vlm/client.py` | (ถ้าเลือก logprobs) ขอและเก็บ logprobs |
-| `validation/scoring.py` | ใช้ evidence ระดับ field แทนกฎกว้างๆ |
+| `validation/evidence.py` | ใส่ `model_conf` (และ `engines_agree` ถ้าทำ) |
 | `scripts/benchmark.py` | เพิ่มการวัด calibration |
 
 ## 6. จุดตัดสินใจที่ยังเปิดอยู่

@@ -1,6 +1,6 @@
 """รวมขั้นตอน preprocess ตามค่าใน config (``preprocessing``).
 
-ลำดับ: upscale → orientation (0/90/180/270) → deskew → crop → denoise → CLAHE → binarize
+ลำดับ: (remove_streaks) → upscale → orientation (0/90/180/270) → deskew → crop → denoise → CLAHE → binarize
 ค่าตั้งต้นเปิดแค่ upscale / orientation / deskew และคงสีไว้ (วัดแล้วใน docs/02-preprocessing.md)
 เก็บภาพทุกขั้นไว้ใน ``steps`` เพื่อ debug ว่าขั้นไหนทำให้ภาพแย่ลง
 """
@@ -15,7 +15,8 @@ import numpy as np
 
 from ..io import save_image
 from . import binarize as bin_ops
-from . import enhance, geometry
+from . import clean, crop, enhance, orient
+from .deskew import deskew
 
 
 @dataclass
@@ -51,6 +52,11 @@ def preprocess(img: np.ndarray, cfg: dict[str, Any], keep_steps: bool = False, o
     out = img if cfg.get("keep_color") else enhance.to_gray(img)
     out = record("gray" if out.ndim == 2 else "color", out)
 
+    if cfg.get("remove_streaks"):  # ต้องก่อนหมุน/deskew: เกณฑ์ "แตะทั้งสองขอบ" ใช้ได้กับภาพดิบเท่านั้น
+        out, meta["streaks_removed"] = clean.remove_streaks(out)
+        if meta["streaks_removed"]:
+            record("streaks", out)
+
     out, meta["scale"] = enhance.upscale(out, cfg.get("min_long_side", 0))
     if meta["scale"] != 1.0:
         record("upscale", out)
@@ -58,23 +64,23 @@ def preprocess(img: np.ndarray, cfg: dict[str, Any], keep_steps: bool = False, o
     if orientation is not None:
         meta["orientation"], meta["orientation_source"] = orientation, "manual"
     elif cfg.get("fix_orientation"):
-        meta["orientation"], err = geometry.detect_orientation_checked(out)
+        meta["orientation"], err = orient.detect_orientation_checked(out)
         if err:
             meta["orientation_error"] = err
     if orientation is not None or cfg.get("fix_orientation"):
         if meta["orientation"]:
-            out = record("orientation", geometry.rotate_orthogonal(out, meta["orientation"]))
+            out = record("orientation", orient.rotate_orthogonal(out, meta["orientation"]))
 
     if cfg.get("deskew"):
-        out, meta["skew_angle"] = geometry.deskew(out, cfg.get("max_skew_angle", 15.0))
+        out, meta["skew_angle"] = deskew(out, cfg.get("max_skew_angle", 15.0))
         if meta["skew_angle"]:
             record("deskew", out)
 
     if cfg.get("remove_borders"):
-        out = record("crop", geometry.crop_to_content(out))
+        out = record("crop", crop.crop_to_content(out))
 
     if cfg.get("denoise", "none") != "none":
-        out = record("denoise", enhance.denoise(out, cfg["denoise"]))
+        out = record("denoise", clean.denoise(out, cfg["denoise"]))
 
     if cfg.get("clahe"):
         out = record("clahe", enhance.clahe(out))

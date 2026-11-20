@@ -11,6 +11,8 @@
 > รันเต็ม pipeline เทียบกัน (หัวข้อ 6.3 บน 15 ใบที่ทุก engine มีผล): OXR `failed` 12/15 ใบ เทียบ Paddle 2 และ Typhoon 0 และได้ `total_amount` 3 ใบ (Paddle 10, Typhoon 12)
 > ตรวจแล้วว่าไม่ใช่เพราะใช้ผิดวิธี (หัวข้อ 6.4): บรรทัดไทยสะอาดบรรทัดเดียวส่งเข้าโมเดลตรง ๆ ก็ยังอ่านไม่ได้ และไม่มีตัวเลือกภาษา
 
+> **สถานะในโค้ดตอนนี้:** OXR ไม่ใช่ `--engine` ของ `ocr`/`extract` มีสองทางใช้ (1) `python -m fin_extractor sections --engine oxr` อ่านทีละภาพย่อย (section) ด้วย `OXRLocal` (`src/fin_extractor/vlm/oxr_local.py`, ค่าตั้ง `oxr_local:`) ขั้น extract ของ `sections` ยังไม่รองรับ OXR (ข้าม) (2) สคริปต์วัด `scripts/oxr/benchmark_oxr.py`, `extract_oxr.py`, `explain_oxr.py`, `visualize_oxr.py` ที่ใช้ OXR แบบ service (free API หรือ container)
+
 ## 1. OXR คืออะไร
 
 - OXR = Optical Everything Recognition โมเดลเปิดจากทีม SoMark แปลง PDF/ภาพเอกสารเป็น **Markdown หรือ JSON พร้อมพิกัดกรอบ (bbox) และลำดับการอ่าน**
@@ -36,9 +38,9 @@ flowchart LR
 3. **RSI loop** (Recursive Self-Improvement) เป็นเทคนิคตอนฝึก: ให้โมเดลหาตัวอย่างที่ตัวเองตอบผิดหรืออ่อน แล้วเสริมข้อมูลตรงนั้นโดยไม่ต้องมีคนทำ label โค้ดฝึกไม่เปิดเผย
    (ไม่ใช่การเรียนรู้จากเอกสารของเราตอนใช้งาน)
 
-**ดูภาพแต่ละขั้น** (นำเข้า → preprocess → กรอบ layout → ลำดับการอ่าน → ข้อความของแต่ละบล็อก): `scripts/visualize_oxr.py <เลขไฟล์>` สร้างรายงาน HTML ในเครื่องจากผลดิบที่เก็บไว้ (ไม่รัน OXR ใหม่) ที่ `data/04_ocr/<dataset>/oxr/visualize/<เลขไฟล์>_<pdf|preprocessed>/index.html`
+**ดูภาพแต่ละขั้น** (นำเข้า → preprocess → กรอบ layout → ลำดับการอ่าน → ข้อความของแต่ละบล็อก): `scripts/oxr/visualize_oxr.py <เลขไฟล์>` สร้างรายงาน HTML ในเครื่องจากผลดิบที่เก็บไว้ (ไม่รัน OXR ใหม่) ที่ `data/04_ocr/<dataset>/oxr/visualize/<เลขไฟล์>_<pdf|preprocessed>/index.html`
 
-**รายงานภาพเรื่องความไม่แม่นของ OXR กับภาษาไทย** (กราฟความน่าจะเป็นของ token, จำนวน token แยกภาษา, ภาพเทียบบล็อกเดียวกันของแต่ละ engine, ภาษากับอักษรจีนที่หลุด): `scripts/explain_oxr.py` สร้างที่ `data/reports/oxr_why/index.html`
+**รายงานภาพเรื่องความไม่แม่นของ OXR กับภาษาไทย** (กราฟความน่าจะเป็นของ token, จำนวน token แยกภาษา, ภาพเทียบบล็อกเดียวกันของแต่ละ engine, ภาษากับอักษรจีนที่หลุด): `scripts/oxr/explain_oxr.py` สร้างที่ `data/reports/oxr_why/index.html`
 
 ตัวโมเดลไม่ **สกัด field** (วันที่ ยอดเงิน เลขที่) เอง ต้องเอาผลไปให้ LLM หรือ rules ทำต่อ เหมือนที่ Typhoon ในโปรเจกต์นี้ต้องมีขั้นที่ 4
 
@@ -117,7 +119,7 @@ curl.exe --fail-with-body http://127.0.0.1:8000/v1/parse/sync `
 ทำเมื่อ 2026-11-14 ไม่ต้อง build image 19.3GB ใช้แค่ weights ~3GB (`hf download SoMarkAI/OXR-1.0 --local-dir <ที่เก็บ>` วางนอก repo ได้)
 กับ `torch` + `transformers` ที่มีอยู่ใน `.venv` โค้ดอยู่ที่ `src/fin_extractor/vlm/oxr_local.py` (`OXRLocal.recognize(ภาพ BGR)`) ค่าตั้งใน `oxr_local:` ของ `configs/default.yaml`
 
-- **อ่านทีละภาพย่อย (section) ไม่ใช่ทั้งหน้า** ตัวตรวจ layout ของ OXR ไม่ได้ใช้ เพราะเรามีตัวแบ่ง section ของเราเอง (`notebooks/preprocess_lab/`)
+- **อ่านทีละภาพย่อย (section) ไม่ใช่ทั้งหน้า** ตัวตรวจ layout ของ OXR ไม่ได้ใช้ เพราะเรามีตัวแบ่ง section ของเราเอง (`src/fin_extractor/sections/` ดู [13-section-preprocess.md](13-section-preprocess.md)) เรียกผ่าน `sections --engine oxr`
 - **ต้องระบุ eos เอง** `generation_config` ของโมเดลตั้ง eos เป็น `<|endoftext|>` (151643) แต่โมเดลจบคำตอบด้วย `<|im_end|>` (151645) ถ้าไม่ระบุ จะสร้าง token ไปจนครบ `max_new_tokens` ทุกภาพ
   (วัดกับภาพย่อย `3,975.00`: ~18 วินาที เหลือ 0.35 วินาที เมื่อระบุ) ตัวอ่านใส่ให้แล้ว
 - **โหลดผ่าน `AutoModel` ตรง ๆ ล้ม** (Transformers คัดลอกโค้ดของโมเดลสองชุดคนละ hash แล้วคลาส config ไม่ตรงกัน) จึงโหลดโค้ดจากโฟลเดอร์เป็นแพ็กเกจเดียว
@@ -149,13 +151,13 @@ curl.exe --fail-with-body https://free-oxr.somark.ai/api/v1/parse/sync `
 ### วัดซ้ำในโปรเจกต์
 
 ```powershell
-.venv\Scripts\python scripts\benchmark_oxr.py --preprocess   # ผ่าน preprocess ของโปรเจกต์ก่อน (เทียบ Paddle/Typhoon ได้ตรง)
-.venv\Scripts\python scripts\benchmark_oxr.py                # ส่งภาพดิบ
+.venv\Scripts\python scripts\oxr\benchmark_oxr.py --preprocess   # ผ่าน preprocess ของโปรเจกต์ก่อน (เทียบ Paddle/Typhoon ได้ตรง)
+.venv\Scripts\python scripts\oxr\benchmark_oxr.py                # ส่งภาพดิบ
 ```
 
-สคริปต์นี้ชี้ไป **free API** (ค่าคงที่ `API` ในไฟล์) ใช้กับภาพสังเคราะห์เท่านั้น ผลดิบแคชที่ `data/04_ocr/synthetic/oxr/page/<raw|preprocessed>/` สรุปที่ `data/etc/benchmarks/oxr_synthetic_*.json`
+สคริปต์นี้ชี้ไป **free API** (ค่าคงที่ `API` ในไฟล์) ใช้กับภาพสังเคราะห์เท่านั้น (ค่าตั้งต้น `--samples data/01_input/synthetic` สร้างด้วย `scripts/make_synthetic_samples.py` ไม่มีในเครื่องนี้ตอนนี้) ผลดิบแคชที่ `data/04_ocr/synthetic/oxr/page/<raw|preprocessed>/` สรุปที่ `data/etc/benchmarks/oxr_synthetic_*.json`
 ผลกับสแกนจริงในหัวข้อ 6.2 ได้จากการส่ง PDF ไปที่ container ในเครื่อง (`http://127.0.0.1:8000`) ทีละไฟล์ เก็บที่ `data/04_ocr/finance_doc_scan/oxr/page/*.pdf.oxr.json` (ถูก gitignore)
-ส่วนหัวข้อ 6.3 รันด้วย `.venv/Scripts/python scripts/extract_oxr.py data/01_input/finance_doc_scan` (ปฏิเสธโฮสต์ที่ไม่ใช่ localhost รันต่อจากที่ค้างได้) ได้ผลตาม schema ของโปรเจกต์ที่ `data/05_extract/finance_doc_scan/oxr/page/rules/` และข้อความ/ผลเต็มของ OXR ที่ `raw_data/`
+ส่วนหัวข้อ 6.3 รันด้วย `.venv/Scripts/python scripts/oxr/extract_oxr.py data/01_input/finance_doc_scan` (ปฏิเสธโฮสต์ที่ไม่ใช่ localhost รันต่อจากที่ค้างได้) ได้ผลตาม schema ของโปรเจกต์ที่ `data/05_extract/finance_doc_scan/oxr/page/rules/` และข้อความ/ผลเต็มของ OXR (`.md`, `.oxr.json`) ที่ `data/04_ocr/finance_doc_scan/oxr/page/`
 
 ## 6. ผลวัดกับภาษาไทย (ตัวอย่างประกอบ)
 
@@ -235,8 +237,8 @@ OXR คืน (ตัดมาบางส่วน):
 
 ### 6.3 รันเต็ม pipeline: OXR เทียบ Paddle และ Typhoon (อินพุตและขั้นสกัดเดียวกัน)
 
-`scripts/extract_oxr.py` ส่งภาพที่ผ่าน loader + preprocess ของโปรเจกต์ไปที่ OXR ในเครื่อง แล้วเข้าขั้นสกัด rules + validation เดิม (ทางเดียวกับ Typhoon)
-เทียบกับ Paddle+rules (`data/05_extract/finance_doc_scan/paddle/page/rules/`) และ Typhoon+rules (`.../typhoon/finance_doc_scan/final/rules/`) ผลอยู่ที่ `data/05_extract/finance_doc_scan/oxr/page/rules/`
+`scripts/oxr/extract_oxr.py` ส่งภาพที่ผ่าน loader + preprocess ของโปรเจกต์ไปที่ OXR ในเครื่อง แล้วเข้าขั้นสกัด rules + validation เดิม (ทางเดียวกับ Typhoon)
+เทียบกับ Paddle+rules (`data/05_extract/finance_doc_scan/paddle/page/rules/`) และ Typhoon+rules (`data/05_extract/finance_doc_scan/typhoon/page/rules/`) ผลอยู่ที่ `data/05_extract/finance_doc_scan/oxr/page/rules/` (โฟลเดอร์ผลของ OXR/Paddle/Typhoon ชุดนี้ไม่มีใน `data/` ตอนนี้ ตัวเลขด้านล่างเป็นผลที่วัดไว้ก่อนหน้า)
 
 > **เทียบบน 15 ใบเดียวกัน:** รัน OXR ถูกระบบหยุดที่ 15 จาก 18 ใบเพราะหน่วยความจำต่ำ (ไม่มี 001321, 001322, 001323) ทุกตัวเลขข้างล่างจึงนับเฉพาะ 15 ใบที่ทุก engine มีผล
 > Paddle และ Typhoon รันใหม่เมื่อ 2026-11-11 ด้วยโค้ดปัจจุบัน (รวมการอ่านชื่อลูกค้าจากป้าย, check ตามโปรไฟล์, แก้ป้ายสำเนา) ส่วน OXR รันก่อนหน้านั้น (ยังไม่มีสามอย่างนี้)

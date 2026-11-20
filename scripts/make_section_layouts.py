@@ -38,12 +38,13 @@ def main() -> None:
                     help="rows (ค่าตั้งต้น) = แถบเต็มความกว้างตัดที่ขอบตารางและเส้นแนวนอนในตารางด้วย · whole = ตารางทั้งก้อนเป็นส่วนเดียว · cells = แตกเป็นช่องตามเส้น · bands = แถบเต็มความกว้างตัดที่ขอบตารางเท่านั้น")
     ap.add_argument("--max-piece-frac", type=float, default=MAX_PIECE_FRAC,
                     help="ส่วนที่สูงกว่านี้ (สัดส่วนของความสูงหน้า) ถูกตัดเป็นกลุ่มแถวที่แถวว่างระหว่างบรรทัด · 0 = ไม่ตัด")
-    ap.add_argument("--fill-aware", action="store_true", help="นับตัวอักษรบนพื้นสีเป็นหมึกและไม่ตัดผ่านแถบสี (ไม่ใช่ค่าตั้งต้น ดู docs/14)")
+    ap.add_argument("--fill-aware", action="store_true", help="นับตัวอักษรบนพื้นสีเป็นหมึกและไม่ตัดผ่านแถบสี (ไม่ใช่ค่าตั้งต้น ดู docs/13)")
+    ap.add_argument("--dotted-rules", action="store_true", help="ตัดตามเส้นแบ่งแถวที่เป็นเส้นประด้วย (ไม่ใช่ค่าตั้งต้น ดู docs/13)")
     ap.add_argument("--config", help="ไฟล์ config ทับ default.yaml (เปลี่ยน paths.data_dir ได้)")
     args = ap.parse_args()
 
     try:
-        build_layouts(DataPaths(load_config(args.config)), dataset_of(args.input), args.profile, args.only, args.table_mode, args.max_piece_frac, args.fill_aware)
+        build_layouts(DataPaths(load_config(args.config)), dataset_of(args.input), args.profile, args.only, args.table_mode, args.max_piece_frac, args.fill_aware, args.dotted_rules)
     except FileNotFoundError as e:
         sys.exit(str(e))
 

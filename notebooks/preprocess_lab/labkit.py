@@ -25,7 +25,7 @@ from fin_extractor.config import load_config  # noqa: E402
 from fin_extractor.io import load_pages  # noqa: E402
 from fin_extractor.paths import DataPaths, dataset_of  # noqa: E402
 from fin_extractor.preprocessing import binarize as bin_ops  # noqa: E402
-from fin_extractor.preprocessing import enhance, geometry  # noqa: E402
+from fin_extractor.preprocessing import clean, deskew, enhance  # noqa: E402
 
 from matplotlib import font_manager  # noqa: E402
 
@@ -63,23 +63,23 @@ def load(path: str | Path, dpi: int = 300, straighten: bool = True) -> tuple[np.
 
     ``straighten``: ปรับภาพให้ตรงก่อนวิเคราะห์ (แก้ทิศ 0/90/180/270 + deskew) ใช้ภาพที่ pipeline preprocess เก็บไว้ถ้ามี
     (ผ่านทั้งสองขั้นแล้ว) ไม่งั้นทำเอง และบันทึกมุมเอียงก่อน/หลังไว้ใน ``STATE``
-    หมายเหตุ: ตัวจำแนกทิศของ Paddle ในเครื่องนี้โหลด cuDNN ไม่ได้ จึงคืนมุม 0 เงียบ ๆ (ดู warning ของ geometry) ภาพที่ทำเองจะไม่ถูกหมุนทิศ
+    หมายเหตุ: ตัวจำแนกทิศของ Paddle ในเครื่องนี้โหลด cuDNN ไม่ได้ จึงคืนมุม 0 เงียบ ๆ (ดู warning ของ preprocessing.orient) ภาพที่ทำเองจะไม่ถูกหมุนทิศ
     """
     raw = load_pages(Path(path), dpi)[0]
     raw_work, _ = _resize_to_work(raw)
     STATE.clear()
     STATE["dataset"] = dataset_of(path)
-    STATE["skew_before_deg"] = geometry.estimate_skew(raw_work)
+    STATE["skew_before_deg"] = deskew.estimate_skew(raw_work)
     full, STATE["source"] = raw, "ภาพดิบ (ไม่ปรับ)"
     if straighten:
         cached = load_cached_preprocessed(Path(path).stem)
         if cached is not None:
             full, STATE["source"] = cached, "ภาพที่ pipeline preprocess เก็บไว้ (แก้ทิศ + deskew แล้ว)"
         else:
-            full, angle = geometry.deskew(raw)
+            full, angle = deskew.deskew(raw)
             STATE["source"] = f"ปรับเอง: deskew {angle:+.1f}° (ไม่ได้แก้ทิศ)"
     work, scale = _resize_to_work(full)
-    STATE["skew_after_deg"] = geometry.estimate_skew(work)
+    STATE["skew_after_deg"] = deskew.estimate_skew(work)
     return full, work, scale
 
 
@@ -150,7 +150,7 @@ def features(work: np.ndarray) -> dict[str, float]:
         "background_median": float(np.median(gray)), "contrast_p95_p5": float(p95 - p5),
         "otsu_threshold": otsu_t, "ink_ratio": float((inv > 0).mean()),
         "color_saturation": sat, "noise_median_diff": noise,
-        "skew_deg": STATE.get("skew_after_deg", geometry.estimate_skew(work)),
+        "skew_deg": STATE.get("skew_after_deg", deskew.estimate_skew(work)),
         **({"skew_before_deg": STATE["skew_before_deg"]} if "skew_before_deg" in STATE else {}),
         "components": int(n - 1), "speck_components_le4px": int((areas <= 4).sum()),
         "border_touching_ink_ratio": float(areas[touch].sum() / max(areas.sum(), 1)),
@@ -291,9 +291,9 @@ def variants(crop: np.ndarray) -> tuple[dict[str, np.ndarray], dict[str, dict]]:
     gray = enhance.to_gray(crop)
     imgs = {
         "สีเดิม": crop, "เทา": gray,
-        "เทา + median": enhance.denoise(gray, "median"),
-        "เทา + nlmeans": enhance.denoise(gray, "nlmeans"),
-        "เทา + bilateral": enhance.denoise(gray, "bilateral"),
+        "เทา + median": clean.denoise(gray, "median"),
+        "เทา + nlmeans": clean.denoise(gray, "nlmeans"),
+        "เทา + bilateral": clean.denoise(gray, "bilateral"),
         "เทา + CLAHE": enhance.clahe(gray),
     }
     stats = {}
