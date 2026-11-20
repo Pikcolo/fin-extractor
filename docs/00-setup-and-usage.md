@@ -133,6 +133,7 @@ data/
 | `python -m fin_extractor extract <input> [--engine openthai\|typhoon\|paddle\|oxr] [--variant luma\|flat\|bin\|color] [--llm off\|on\|auto\|hybrid] [--only 1309 …]` | 5 (สกัดซ้ำจากข้อความรายส่วนที่มี ไม่อ่านภาพ) | `data/05_extract/<dataset>/<engine>/<วิธี>/<extractor>/` |
 | `python -m fin_extractor ocr …` | ปิดแล้ว (ห้ามอ่านทั้งหน้า) หยุดพร้อมบอกให้ใช้ `sections --to ocr` | — |
 | `python -m fin_extractor sections <input> [--variant luma\|flat\|bin\|color] [--engine openthai\|typhoon\|paddle\|oxr] [--from ขั้น] [--to ขั้น] [--only 1309 …] [--redo] [--table-mode whole\|cells\|bands\|rows] [--max-piece-frac F] [--fill-aware] [--drop-empty-rows] [--profile P]` | flow หลัก: preprocess → layout → images → ocr → extract (ชื่อขั้นใน `--from`/`--to`: `preprocess` `layout` `images` `ocr` `extract`) | `data/02_preprocess` … `data/05_extract` ตามขั้น |
+| `python -m fin_extractor regions <input> [--only 1307 …] [--no-debug-images] [--profile P]` | ขั้น 3 แบบทางเลือก: region (template 50 ทวิ / แถบตามเส้น) + ตาราง → ช่อง + key/value + ระบาย QR จากภาพ final (CPU ไม่ OCR ไม่แตะผังเดิม) ตั้งค่าที่ `configs/regions/` ดู [03-regions.md](03-regions.md) | `data/03_sections/<dataset>/<profile>/regions/` |
 | `python -m fin_extractor compare <input> [--engine openthai] [--variants luma flat bin] [--out ไฟล์.md]` | — | ตารางเทียบผลสกัดข้ามวิธี พิมพ์ที่หน้าจอ (ใส่ `--out` เขียน .md ด้วย) แถวที่เทียบไม่แฟร์ถูกติดธงและไม่นับในยอดรวม |
 | `python -m fin_extractor schema` | — | `schemas/invoice.schema.json` (generate จาก `schema.py` ห้ามแก้ไฟล์ตรง ๆ) |
 | `pytest` | รันเทสต์ | |
@@ -189,6 +190,7 @@ python scripts/eval/compare_file.py 001312                                      
 ```
 fin_extractor/
 ├── configs/default.yaml        ค่าตั้งต้นทั้งหมด
+├── configs/regions/            ค่าของคำสั่ง regions: pipeline.yaml, doc_types.yaml (lookup ชื่อไฟล์), templates/ (50 ทวิ)
 ├── assets/fonts/               ฟอนต์ Sarabun (SIL OFL)
 ├── data/                       01_input/ (เอกสารต้นฉบับ) · 02_preprocess/ · 03_sections/ · 04_ocr/ · 05_extract/ · etc/{benchmarks,compare,experiments} · reports/ ไม่ถูก commit ยกเว้น .gitkeep
 ├── docs/                       เอกสารนี้ (เรียงตาม flow ดู docs/README.md)
@@ -214,7 +216,7 @@ fin_extractor/
 │   ├── preprocessing/          ขั้นที่ 2 (02)
 │   ├── ocr/                    ขั้นที่ 4A (04)
 │   ├── vlm/                    ขั้นที่ 4B (Typhoon, OpenThai, OXR) + client สำหรับ LLM
-│   ├── sections/               ขั้นที่ 3 (03): ผัง → ภาพรายส่วน → OCR รายส่วน + compare
+│   ├── sections/               ขั้นที่ 3 (03): ผัง → ภาพรายส่วน → OCR รายส่วน + compare · regions/ = คำสั่ง regions (region/ตาราง/ช่อง/key-value)
 │   ├── extraction/             ขั้นที่ 5 (05)
 │   └── validation/             ขั้นที่ 5 ต่อ (05): validation + สถานะ + evidence รายฟิลด์
 └── tests/

@@ -1,0 +1,65 @@
+# หนังสือรับรองการหักภาษี ณ ที่จ่าย ตามมาตรา 50 ทวิ
+# Ratios [x0, y0, x1, y1] are fractions of the CONTENT bbox of the normalized page
+# (top = "ฉบับที่ 1" line, bottom = "หมายเหตุ" footnote). Measured on 001307/001321,
+# checked on 001311/001323. Re-measure with: python scripts/ratio_grid.py --doc <id>
+#
+# Note: the outer form border is often broken in scans, so anchor "frame" is unreliable here.
+
+options:
+  mode: template
+  anchor: content
+
+regions:
+  - name: doc_header          # เล่มที่ / เลขที่ (certificate number)
+    box: [0.00, 0.000, 1.00, 0.085]
+    hint: book_no, cert_no
+  - name: payer               # ผู้มีหน้าที่หักภาษี ณ ที่จ่าย
+    box: [0.00, 0.085, 1.00, 0.160]
+    hint: payer_tax_id, payer_name, payer_address
+  - name: payee               # ผู้ถูกหักภาษี ณ ที่จ่าย
+    box: [0.00, 0.160, 1.00, 0.245]
+    hint: payee_tax_id, payee_name, payee_address
+  - name: form_type           # ลำดับที่ + ภ.ง.ด. checkboxes
+    box: [0.00, 0.240, 1.00, 0.290]
+    hint: pnd_form (checked box)
+
+  # Income table: one crop per column, so numbers are not mixed with the long Thai descriptions
+  - name: income_desc
+    box: [0.00, 0.285, 0.565, 0.765]
+    tile: false        # keep each column whole so rows stay aligned across columns
+    trim: false        # ... and untrimmed, so all four columns keep the same top edge
+    hint: income type rows 1-6
+  - name: income_date
+    box: [0.555, 0.285, 0.705, 0.765]
+    tile: false        # keep each column whole so rows stay aligned across columns
+    trim: false        # ... and untrimmed, so all four columns keep the same top edge
+    hint: pay_date per row
+  - name: income_amount
+    box: [0.690, 0.285, 0.850, 0.765]
+    tile: false        # keep each column whole so rows stay aligned across columns
+    trim: false        # ... and untrimmed, so all four columns keep the same top edge
+    hint: amount_paid per row + total
+  - name: income_tax
+    box: [0.835, 0.285, 1.00, 0.765]
+    tile: false        # keep each column whole so rows stay aligned across columns
+    trim: false        # ... and untrimmed, so all four columns keep the same top edge
+    hint: tax_withheld per row + total
+
+  - name: total_text          # รวมเงินภาษีที่หักนำส่ง (ตัวอักษร)
+    box: [0.00, 0.760, 1.00, 0.795]
+    hint: total_tax_in_words
+  - name: fund_contrib        # เงินที่จ่ายเข้า กบข./ประกันสังคม/กองทุนสำรองฯ
+    box: [0.00, 0.790, 1.00, 0.818]
+  - name: payer_method        # ผู้จ่ายเงิน: หัก ณ ที่จ่าย / ออกให้ตลอดไป / ...
+    box: [0.00, 0.812, 1.00, 0.842]
+    hint: payment condition checkbox
+  - name: issue_date          # วัน เดือน ปี ที่ออกหนังสือรับรอง (below the signature line)
+    box: [0.42, 0.915, 0.75, 0.960]
+    hint: issue_date
+
+# Areas blanked before export: not needed for field extraction and they confuse OCR.
+ignore:
+  - name: signature           # ลงชื่อ ... ผู้จ่ายเงิน
+    box: [0.42, 0.875, 0.78, 0.915]
+  - name: stamp               # ตราประทับบริษัท
+    box: [0.77, 0.850, 0.99, 0.935]

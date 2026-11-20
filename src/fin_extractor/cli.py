@@ -3,6 +3,7 @@
   preprocess  ปรับภาพแล้วเก็บภาพสุดท้ายไว้ให้ทุก engine ใช้ร่วมกัน (ดูผลทีละขั้นด้วย --steps)
   sections    flow หลัก: preprocess → แบ่ง section → ภาพรายส่วน → อ่านทีละส่วน → สกัด (ทุก engine อ่านทีละ section เท่านั้น)
   extract     สกัดซ้ำจากข้อความรายส่วนที่เก็บไว้ (ไม่อ่านภาพ) · ocr ปิดแล้ว (ห้ามอ่านทั้งหน้า)
+  regions     ขั้น 3 แบบทางเลือก: แบ่ง region (template/แถบตามเส้น) + ตาราง → ช่อง + key/value + ระบาย QR (CPU ไม่ OCR)
   compare     เทียบผลสกัดข้ามวิธี luma/flat/bin
   schema      export JSON Schema
 
@@ -176,6 +177,14 @@ def cmd_sections(args, cfg) -> None:
     print(f"\nผลอยู่ที่ {paths.raw_data(args.engine, dataset, args.variant)} และ {paths.final(args.engine, dataset, 'rules', args.variant)}")
 
 
+def cmd_regions(args, cfg) -> None:
+    """แบ่ง region/ตารางจากภาพ final (ไม่แตะผัง section เดิมและผล OCR) ผลที่ 03_sections/<dataset>/<profile>/regions/ ดู sections/regions/run.py."""
+    from .sections.regions.run import run_dataset
+
+    paths = DataPaths(cfg)
+    run_dataset(paths, dataset_of(args.input), cfg, args.profile, args.only, debug_images=not args.no_debug_images)
+
+
 def cmd_compare(args, cfg) -> None:
     """เทียบผลสกัดข้ามวิธี (luma/flat/bin) แถวที่เทียบไม่แฟร์ถูกติดธงและไม่นับในยอดรวม (ดู sections/compare.py)."""
     from .sections.compare import compare_variants, to_markdown
@@ -258,6 +267,13 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--drop-empty-rows", action="store_true", help="แบบ bin เท่านั้น: ลบแถวตารางที่ช่องตัวเลขว่าง (ดู docs/03-sections.md)")
     profile_arg(s)
     s.set_defaults(func=cmd_sections)
+
+    s = sub.add_parser("regions", help="แบ่ง region + ตาราง/ช่อง/key-value จากภาพ final (ทางเลือกของขั้น 3 ไม่ส่งเข้า OCR) ตั้งค่าที่ configs/regions/")
+    s.add_argument("input", help="ไฟล์หรือโฟลเดอร์อินพุต (ใช้เอาชื่อชุดข้อมูล ต้อง preprocess แล้ว: sections <input> --to preprocess)")
+    s.add_argument("--only", nargs="*", help="เลขท้ายชื่อไฟล์ เช่น 1307 (ไม่ใส่ = ทุกไฟล์ และเขียน summary.json + contact_sheet.png)")
+    s.add_argument("--no-debug-images", action="store_true", help="ไม่เขียนภาพแต่ละขั้น (เหลือ crops/ + manifest.json)")
+    profile_arg(s)
+    s.set_defaults(func=cmd_regions)
 
     s = sub.add_parser("compare", help="เทียบผลสกัดข้ามวิธี luma/flat/bin (ติดธงแถวที่เทียบไม่แฟร์)")
     s.add_argument("input", help="โฟลเดอร์อินพุต (ใช้เอาชื่อชุดข้อมูล)")

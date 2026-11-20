@@ -49,6 +49,18 @@ def remove_streaks(img: np.ndarray) -> tuple[np.ndarray, int]:
     return out, int(n)
 
 
+def suppress_color(img: np.ndarray, sat_min: int = 20, val_min: int = 150) -> np.ndarray:
+    """ทาขาวพิกเซลสีอ่อนที่อิ่มสี (ลายน้ำสี พื้นฟอร์มสี) เก็บหมึกเข้ม (V ต่ำ) และตัวเทา/ดำ (S ต่ำ) ไว้ คืนสำเนา
+
+    ค่าจาก learning/preprocess_finance (preprocess/clean.py) ใช้กับลายน้ำ "Advice" ของ 1308/1309 ได้
+    **ห้ามใช้กับ 1317–1319**: ค่าในฟิลด์พิมพ์หมึกน้ำเงินจะหายไปด้วย (ตรวจใน preprocess_finance) ใช้ผ่าน configs/regions/doc_types.yaml รายไฟล์
+    """
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    out = img.copy()
+    out[(hsv[..., 1] >= sat_min) & (hsv[..., 2] >= val_min)] = 255
+    return out
+
+
 def denoise(img: np.ndarray, method: str = "median") -> np.ndarray:
     """ลด noise จากการสแกน (จุดดำ/เกรน JPEG).
 

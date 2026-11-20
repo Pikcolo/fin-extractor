@@ -1,0 +1,38 @@
+# ชนิดเอกสารของโหมด regions: ชื่อไฟล์ (doc_id) → ชนิด ซึ่งเลือก template ใน templates/<ชนิด>.yaml
+# **เป็นตาราง lookup ตามชื่อไฟล์ของสแกน 18 ใบนี้ ไม่ใช่ตัวจำแนก** (คัดลอกจาก learning/preprocess_finance/configs/doc_types.yaml)
+# ไฟล์ที่ไม่อยู่ในตาราง = default_type (generic: แบ่งตามเส้น ไม่ต้องตั้งค่า) — เอกสารใหม่จึงยังทำงานได้ แค่ไม่ได้ชื่อฟิลด์จาก template
+# ค่าแทนรายไฟล์ได้ทุกคีย์ใน pipeline.yaml `defaults` (clean, mode, anchor, ...)
+
+default_type: generic
+
+documents:
+  # หนังสือรับรองการหักภาษี ณ ที่จ่าย (50 ทวิ) — fixed government form
+  BRWAC50DE3689DA_001307: wht_50tawi
+  BRWAC50DE3689DA_001311: wht_50tawi_v2   # same form, different print layout
+  BRWAC50DE3689DA_001321: wht_50tawi
+  BRWAC50DE3689DA_001323: wht_50tawi
+
+  # ใบสำคัญรับเงิน (handwritten payment voucher) — Word-generated, so the layout floats on
+  # the page (title at y=0.00 on one scan, 0.10 on another): no ratio template, generic split.
+  BRWAC50DE3689DA_001320: payment_voucher
+  BRWAC50DE3689DA_001322: payment_voucher
+
+  # Vendor receipts / tax invoices — layouts differ per vendor -> generic
+  BRWAC50DE3689DA_001306: invoice
+  BRWAC50DE3689DA_001308: {type: invoice, clean: suppress_color}   # "Advice" watermark
+  BRWAC50DE3689DA_001309: {type: invoice, clean: suppress_color}
+  BRWAC50DE3689DA_001310: invoice
+  BRWAC50DE3689DA_001312: invoice
+  BRWAC50DE3689DA_001313: invoice          # UPS tax invoice
+  BRWAC50DE3689DA_001314: invoice
+  # 317-319: tinted background BUT the field values are printed in blue ink, which
+  # suppress_color erases -> do NOT clean these (checked: customer/date fields vanish).
+  BRWAC50DE3689DA_001317: invoice
+  BRWAC50DE3689DA_001318: invoice
+  BRWAC50DE3689DA_001319: invoice
+
+  # Customs (กรมศุลกากร) documents
+  BRWAC50DE3689DA_001315: customs_receipt  # scanned sideways
+  BRWAC50DE3689DA_001316: customs_receipt
+
+patterns: {}   # e.g. "VENDORX_*": invoice

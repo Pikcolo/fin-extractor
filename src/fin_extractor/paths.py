@@ -11,6 +11,7 @@
     03_sections/<dataset>/<profile>/             แบ่งหน้าเป็นส่วน (section) จาก final/ ไว้ดู/debug
         layout/<ไฟล์>.json         ผังการแบ่ง (bbox, ชนิด, keep) + ลักษณะภาพ ·  <ไฟล์>_layout.png ภาพตรวจด้วยตา
         images/<วิธี>/<ไฟล์>/      ภาพส่วนที่เตรียมก่อน OCR: sNN.png + index.json  (วิธี = luma | flat | bin)
+        regions/<ไฟล์>/            โหมดแบ่ง region/ตาราง (คำสั่ง regions): ภาพแต่ละขั้น, crops/ (region), crops/tables/ (ช่อง), manifest.json
     04_ocr/<dataset>/<engine>/                   ข้อความจาก OCR ของตัวอ่านหนึ่งตัว (paddle, typhoon, openthai, oxr)
         <วิธี>/<ไฟล์>/   ``page`` = อ่านทั้งหน้า · ``luma|flat|bin|color`` = อ่านทีละ section (มี .sections.json .md .chunks.json)
         visualize/       ภาพให้ดูว่าอ่านอย่างไร
@@ -54,6 +55,7 @@ FINAL_DIR = "final"  # ภาพ preprocess สุดท้ายใต้ 02_pr
 STEPS_DIR = "steps"  # ภาพ preprocess ทีละขั้น
 LAYOUT_DIR = "layout"  # ผังแบ่ง section ใต้ 03_sections/<dataset>/<profile>/
 IMAGES_DIR = "images"  # ภาพส่วนที่เตรียมก่อน OCR (images/<วิธี>/<ไฟล์>/)
+REGIONS_DIR = "regions"  # โหมดแบ่ง region/ตาราง (regions/<ไฟล์>/ ภาพแต่ละขั้น + crops/ + manifest.json)
 PAGE = "page"  # "วิธี" ของผลที่อ่านทั้งหน้า (ไม่แบ่ง section) ใต้ 04_ocr/…/<engine>/ และ 05_extract/…/<engine>/
 
 
@@ -162,6 +164,11 @@ class DataPaths:
         base = self.sections(dataset, profile) / IMAGES_DIR
         if variant:
             base = base / variant
+        return base / slug(stem) if stem else base
+
+    def section_regions(self, dataset: str, stem: str | None = None, profile: str = DEFAULT_PROFILE) -> Path:
+        """โหมดแบ่ง region/ตาราง ``regions/<ไฟล์>/`` (ดู sections/regions/run.py) ไม่มี ``stem`` = โฟลเดอร์รวม (summary.json, contact_sheet.png)"""
+        base = self.sections(dataset, profile) / REGIONS_DIR
         return base / slug(stem) if stem else base
 
     # ชื่อเดิม (ใช้ในสคริปต์/notebook ที่ยังไม่ย้าย)
