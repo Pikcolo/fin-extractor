@@ -7,6 +7,7 @@
 
 ผลที่ ``03_sections/<dataset>/<profile>/regions/<ไฟล์>/`` (ล้างก่อนเขียนทุกครั้ง ไฟล์จึงตรงกับ manifest เสมอ)
     01_normalize.png … 05_tables.png         ภาพแต่ละขั้น (บนสำเนา ref_dpi) 02/03 มีเฉพาะเมื่อขั้นนั้นทำอะไรจริง
+    06_pieces.png                            กรอบภาพที่ส่งเข้า OCR จริง (หลังหดขอบ + ตัดท่อน) contact_sheet.png ใช้ภาพนี้
     crops/<ลำดับ>_<region>[_tNN]__<วิธี>.png  ภาพแต่ละ region (ท่อน tNN เมื่อสูงเกิน max_piece_frac)
     crops/tables/t<T>_r<RR>_c<CC>__<วิธี>.png ช่องตาราง r00 = หัวตาราง (key)
     manifest.json                            ทุกค่าที่ตรวจได้ + รายการไฟล์ (กล่องทั้งพิกัดสำเนาและพิกัดภาพ final) + kv_pairs + QR ที่ถอดได้
@@ -220,9 +221,14 @@ def run_page(full: np.ndarray, stem: str, src_dpi: float, rc: RegionConfig, page
                                "header_key_crop": header.get(c["key_col"]), "left_key_crop": by_col.get(c["left_col"])})
     m["stages"]["export"] = {"n_files": len(files), "files": files, "skipped_regions": skipped, "kv_pairs": kv}
     write_ocr_index(page_dir, files)
+    # ภาพที่ส่งเข้า OCR จริง (หลังหดขอบ + ตัดท่อน) ต่างจาก 04_regions ซึ่งเป็นกรอบ region ก่อนตัด
+    shown = [{"name": Path(f["path"]).name.removesuffix(f"__{f['variant']}.png"), "box": f["box"]}
+             for f in files if "region" in f and f["variant"] == ex["variants"][0]]
+    pieces_overlay = draw.draw_regions(img, shown)
+    snap("06_pieces", pieces_overlay)
     m["elapsed_s"] = round(time.perf_counter() - t0, 3)
     (page_dir / "manifest.json").write_text(json.dumps(m, ensure_ascii=False, indent=2, default=_json_default), encoding="utf-8")
-    m["_overlay"] = overlay
+    m["_overlay"] = pieces_overlay
     return m
 
 

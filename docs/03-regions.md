@@ -20,7 +20,7 @@ python -m fin_extractor compare  data/01_input/finance_doc_scan --variants luma 
 
 ```
 data/03_sections/<dataset>/<profile>/regions/
-├── contact_sheet.png                  overlay ทุกใบในภาพเดียว (เริ่มดูที่นี่)
+├── contact_sheet.png                  06_pieces ของทุกใบในภาพเดียว (เริ่มดูที่นี่)
 ├── summary.json                       ต่อไฟล์: ชนิดเอกสาร, โหมด, ชื่อ region, จำนวนตาราง/ช่อง/kv, QR ที่ถอดได้
 └── <ไฟล์>/
     ├── 01_normalize.png               หน้าที่ตัดเหลือขอบเขตเนื้อหา (สำเนา 200 dpi)
@@ -28,6 +28,7 @@ data/03_sections/<dataset>/<profile>/regions/
     ├── 03_clean.png                   ลบลายน้ำสี (มีเฉพาะไฟล์ที่ตั้ง clean)
     ├── 04_regions.png                 region (สีละกล่อง) + เส้นนอนที่เจอ (ม่วง)
     ├── 05_tables.png                  เส้นตั้ง (ส้ม) หัวตาราง (แดง) ช่องค่า (เขียว)
+    ├── 06_pieces.png                  กรอบภาพที่ส่งเข้า OCR จริง หลังหดขอบและตัดท่อน (04 คือกรอบ region ก่อนตัด)
     ├── crops/<ลำดับ>_<region>[_tNN]__<วิธี>.png         ภาพแต่ละ region (tNN = ท่อนเมื่อสูงเกิน)
     ├── crops/tables/t<T>_r<RR>_c<CC>__<วิธี>.png        ช่องตาราง: ตาราง T แถว RR (r00 = หัว) คอลัมน์ CC
     ├── manifest.json                  ค่าที่ตรวจได้ทุกขั้น + files[] + kv_pairs
