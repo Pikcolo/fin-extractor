@@ -66,6 +66,7 @@ export:
   # ค่าตั้งต้น luma เพราะวัดแล้วดีสุดกับ OpenThai บน 18 ใบ (docs/03-sections.md) ส่วน preprocess_finance ใช้ raw/gray/binary (ยังไม่ได้วัดกับ OCR)
   variants: [luma]
   cell_variants: [luma]
-  # region ที่สูงเกินสัดส่วนนี้ของความสูงหน้าถูกตัดเป็นท่อนที่แถวว่าง (sections.layout.split_rows / MAX_PIECE_FRAC ที่วัดกับ OCR แล้ว)
+  # region ที่สูงเกินสัดส่วนนี้ของความสูงหน้าถูกตัดเป็นท่อนที่แถวว่าง (sections.layout.split_rows) ยืมค่า MAX_PIECE_FRAC
+  # ที่วัดกับ OCR ของผัง section เดิม — ยังไม่ได้วัดกับโหมด regions
   # แทน tile_max_h 900 px ของ preprocess_finance ซึ่งไม่ได้วัดกับ OCR — 0 = ไม่ตัด
   max_piece_frac: 0.3
