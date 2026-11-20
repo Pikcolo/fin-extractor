@@ -26,6 +26,23 @@ ENGINES = ("openthai", "typhoon", "paddle", "oxr")  # ทุก engine อ่า
 TORCH_ENGINES = ("openthai", "oxr")  # ตัวที่ใช้ torch ในเครื่อง (typhoon เรียก Ollama, paddle ห้ามอยู่ร่วม process กับ torch)
 
 
+REGIONS_VARIANT = "regions-luma"  # อ่านภาพ region ของคำสั่ง regions (03_sections/…/regions/<ไฟล์>/crops/) แทนภาพ section ผลแยกโฟลเดอร์ 04_ocr/…/regions-luma/
+
+
+def layout_file(paths: DataPaths, dataset: str, stem: str, variant: str) -> Path:
+    """ผังที่ขั้น OCR ใช้: ผัง section (``layout/<ไฟล์>.json``) หรือผัง region (``regions/<ไฟล์>/sections.json``)."""
+    if variant == REGIONS_VARIANT:
+        return paths.section_regions(dataset, stem) / "sections.json"
+    return paths.section_layout(dataset) / f"{stem}.json"
+
+
+def images_dir(paths: DataPaths, dataset: str, stem: str, variant: str) -> Path:
+    """โฟลเดอร์ภาพที่มี ``index.json`` ของไฟล์นั้น."""
+    if variant == REGIONS_VARIANT:
+        return paths.section_regions(dataset, stem) / "crops"
+    return paths.section_images(dataset, stem, variant)
+
+
 def kept_layout(layout: list[dict]) -> list[tuple[str, list[int]]]:
     return [(s["id"], list(s["bbox"])) for s in layout if s["keep"]]
 
@@ -128,7 +145,7 @@ def chunks_of(doc: dict, image_of) -> dict:
     not_read = [{"section": s["id"], "kind": s["kind"], "reason": s.get("skipped") or ("error" if "error" in s else "no text")}
                 for s in doc["sections"] if not s.get("text")]
     return {"source": doc["source"], "engine": doc.get("engine"), "variant": doc.get("variant"),
-            "note": "text คือข้อความที่ได้จากภาพนั้น (ชุดเดียวกับในท่อนของ .md) · page_bbox_xywh อยู่บนสำเนาด้านยาว 1600 px · md_lines คือบรรทัดของท่อนนั้นใน .md · image คือภาพที่ส่งเข้าตัวอ่าน (variant=color ไม่มีไฟล์ ตัดจาก final ตาม page_bbox_xywh) · "
+            "note": "text คือข้อความที่ได้จากภาพนั้น (ชุดเดียวกับในท่อนของ .md) · page_bbox_xywh อยู่บนสำเนาด้านยาว 1600 px (regions-luma: บนภาพ final ความละเอียดเต็ม) · md_lines คือบรรทัดของท่อนนั้นใน .md · image คือภาพที่ส่งเข้าตัวอ่าน (variant=color ไม่มีไฟล์ ตัดจาก final ตาม page_bbox_xywh) · "
                     "script_mix นับจากข้อความที่ตัวอ่านตอบ OpenThai ไม่มีขั้นเลือกภาษา (โมเดลเดียวอ่านทุกภาษา)",
             "chunks": chunks, "not_read": not_read}
 
@@ -147,8 +164,8 @@ def image_locator(paths: DataPaths, dataset: str, stem: str, variant: str):
     """ฟังก์ชันที่บอกที่อยู่ภาพของ section (สัมพัทธ์กับ data_dir) ใช้ใน .chunks.json."""
     if variant == "color":
         return lambda s: None
-    entries = {e["id"]: e for e in json.loads((paths.section_images(dataset, stem, variant) / "index.json").read_text(encoding="utf-8"))["sections"]}
-    base = paths.section_images(dataset, stem, variant)
+    base = images_dir(paths, dataset, stem, variant)
+    entries = {e["id"]: e for e in json.loads((base / "index.json").read_text(encoding="utf-8"))["sections"]}
     data_dir = paths.root
 
     def locate(s: dict):
@@ -179,7 +196,6 @@ def read_dataset(paths: DataPaths, cfg: dict, dataset: str, stems: list[str], en
                  redo: bool = False, markdown_only: bool = False) -> list[dict]:
     """ขั้น 4: OCR ทีละภาพ section ของ ``stems`` เก็บข้อความ + ที่มา (``.sections.json`` ``.md`` ``.chunks.json``) ที่ 04_ocr/<dataset>/<engine>/<วิธี>/<ไฟล์>/
     คืนสรุปต่อไฟล์ที่รันรอบนี้ ใช้ GPU เฉพาะส่วนนี้ (``markdown_only`` = สร้าง .md/.chunks.json จากผลที่มี ไม่โหลดโมเดล)."""
-    layout_dir = paths.section_layout(dataset)
     raw_dir = paths.raw_data(engine, dataset, variant)  # variant: luma | flat | bin = ไฟล์ใน images/<วิธี>/ · color = ตัดจากภาพ final สีในหน่วยความจำ
     if markdown_only:
         for stem in stems:
@@ -191,13 +207,16 @@ def read_dataset(paths: DataPaths, cfg: dict, dataset: str, stems: list[str], en
         return []
     # ตรวจอินพุตของทุกไฟล์ก่อนโหลดโมเดล (ภาพย่อยล้าสมัย/ไม่มี = หยุดโดยไม่เสียการโหลด GPU)
     for stem in stems:
-        lay = json.loads((layout_dir / f"{stem}.json").read_text(encoding="utf-8"))["layout_sections"]
+        lf = layout_file(paths, dataset, stem, variant)
+        if not lf.exists():
+            sys.exit(f"{stem[-4:]}: ไม่มีผัง {lf} — " + ("รัน: python -m fin_extractor regions <input>" if variant == REGIONS_VARIANT else "รัน sections --to layout ก่อน"))
+        lay = json.loads(lf.read_text(encoding="utf-8"))["layout_sections"]
         if variant == "color":
             if load_final_image(paths, dataset, stem) is None:
                 sys.exit(f"{stem[-4:]}: ไม่พบภาพ preprocess (final) — รัน fin_extractor preprocess ก่อน")
         else:
-            clean_index(paths.section_images(dataset, stem, variant), lay, stem)
-    if not redo and all(_is_done(doc_dir(raw_dir, s, nest=True) / f"{s}_p1.sections.json", layout_dir / f"{s}.json") for s in stems):
+            clean_index(images_dir(paths, dataset, stem, variant), lay, stem)
+    if not redo and all(_is_done(doc_dir(raw_dir, s, nest=True) / f"{s}_p1.sections.json", layout_file(paths, dataset, s, variant)) for s in stems):
         print(f"ข้ามขั้น OCR: ทุกไฟล์ ({len(stems)}) มีผลที่ตรงกับผังปัจจุบันแล้ว ไม่โหลดโมเดล → {raw_dir}", flush=True)
         return []
     reader = make_reader(engine, cfg)
@@ -216,7 +235,7 @@ def read_dataset(paths: DataPaths, cfg: dict, dataset: str, stems: list[str], en
     for n, stem in enumerate(stems, start=1):
         out = doc_dir(raw_dir, stem, nest=True) / f"{stem}_p1.sections.json"
         done: dict[str, dict] = {}
-        layout = json.loads((layout_dir / f"{stem}.json").read_text(encoding="utf-8"))["layout_sections"]
+        layout = json.loads(layout_file(paths, dataset, stem, variant).read_text(encoding="utf-8"))["layout_sections"]
         if out.exists() and not redo:
             prev = json.loads(out.read_text(encoding="utf-8"))
             if prev.get("layout") != fingerprint(layout):  # ผังเปลี่ยน (หรือผลเก่าไม่มีลายนิ้วมือ) ใช้ต่อไม่ได้ ทำใหม่ทั้งไฟล์
@@ -231,7 +250,7 @@ def read_dataset(paths: DataPaths, cfg: dict, dataset: str, stems: list[str], en
             full = load_final_image(paths, dataset, stem)
             work, _ = resize_to_work(full)
         else:
-            clean_dir = paths.section_images(dataset, stem, variant)
+            clean_dir = images_dir(paths, dataset, stem, variant)
             entries = clean_index(clean_dir, layout, stem)
         rows, t_file = [], time.perf_counter()
         out.parent.mkdir(parents=True, exist_ok=True)

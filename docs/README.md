@@ -10,7 +10,7 @@
 | 1 | เตรียมและโหลดไฟล์ | `io/loader.py` | [01-input.md](01-input.md) |
 | 2 | Preprocess ภาพทั้งหน้า (ทิศ เอียง ขอบ) | `preprocessing/` | [02-preprocessing.md](02-preprocessing.md) |
 | 3 | แบ่งหน้าเป็น section ก่อน OCR (flow หลัก, ข้ามได้ถ้าอ่านทั้งหน้า) | `sections/` | [03-sections.md](03-sections.md) |
-| 3 | ทางเลือก: แบ่ง region / ตาราง → ช่อง → key/value + ระบาย QR (คำสั่ง `regions` ยังไม่ต่อเข้า OCR) | `sections/regions/`, `configs/regions/` | [03-regions.md](03-regions.md) |
+| 3 | ทางเลือก: แบ่ง region / ตาราง → ช่อง → key/value + ระบาย QR (คำสั่ง `regions` · OCR ผ่าน `sections --layout regions` วัดแล้วแย่กว่าผัง section) | `sections/regions/`, `configs/regions/` | [03-regions.md](03-regions.md) |
 | 4 | อ่านข้อความ: 4A PaddleOCR · 4B VLM (Typhoon / OpenThai) | `ocr/`, `vlm/`, `sections/read.py` | [04-ocr.md](04-ocr.md) |
 | 4 | OpenThai 2.0 OCR: ตัวอ่านของ flow หลัก (หลักการ การต่อเข้า ผลวัด 18 ใบ) | `vlm/openthai_ocr.py` | [04-openthai-ocr.md](04-openthai-ocr.md) |
 | 5 | สกัด field: 5A rules · 5B LLM · 5C เลือกผล · 5D hybrid | `extraction/`, `pipeline.py` | [05-extraction.md](05-extraction.md) |

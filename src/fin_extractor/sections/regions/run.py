@@ -216,10 +216,37 @@ def run_page(full: np.ndarray, stem: str, src_dpi: float, rc: RegionConfig, page
                     kv.append({"table": t["id"], "layout": t["layout"], "row": ri, "col": c["col"], "value_crop": c["crop"],
                                "header_key_crop": header.get(c["key_col"]), "left_key_crop": by_col.get(c["left_col"])})
     m["stages"]["export"] = {"n_files": len(files), "files": files, "skipped_regions": skipped, "kv_pairs": kv}
+    write_ocr_index(page_dir, files)
     m["elapsed_s"] = round(time.perf_counter() - t0, 3)
     (page_dir / "manifest.json").write_text(json.dumps(m, ensure_ascii=False, indent=2, default=_json_default), encoding="utf-8")
     m["_overlay"] = overlay
     return m
+
+
+OCR_VARIANT = "luma"  # ภาพ region ที่ขั้น OCR อ่าน (ตัวอ่านรายส่วนอ่านภาพเทาช่องเดียว ดู sections/read.read_clean_image)
+
+
+def write_ocr_index(page_dir: Path, files: list[dict]) -> None:
+    """ผังในรูปเดียวกับ ``layout/<ไฟล์>.json`` (``sections.json``) + ``crops/index.json`` ให้ขั้น OCR รายส่วนอ่าน region ได้เหมือน section
+    อ่านเฉพาะ region (ตามลำดับ ท่อน tNN เป็น part) ไม่อ่านช่องตาราง: ข้อความของช่องอยู่ใน region แถบเดียวกันแล้ว อ่านซ้ำจะได้ข้อความซ้อนสองชุด
+    bbox = กล่องบนภาพ final ความละเอียดเต็ม (x, y, w, h) ไม่มีภาพ ``luma`` = ไม่เขียน (ขั้น OCR จะหยุดพร้อมบอก)."""
+    regions = [f for f in files if "region" in f and f["variant"] == OCR_VARIANT]
+    for p in (page_dir / "sections.json", page_dir / "crops" / "index.json"):
+        p.unlink(missing_ok=True)
+    if not regions:
+        return
+    parts = {}
+    for f in regions:
+        parts[f["region"]] = parts.get(f["region"], 0) + 1
+    secs, index = [], []
+    for k, f in enumerate(regions):
+        x0, y0, x1, y1 = f["box_page"]
+        s = {"id": f"s{k:02d}", "kind": f["region"], "bbox": [x0, y0, x1 - x0, y1 - y0], "table": None, "keep": True,
+             **({"part": f["tile"] + 1, "parts": parts[f["region"]]} if parts[f["region"]] > 1 else {})}
+        secs.append(s)
+        index.append({**{k2: v for k2, v in s.items() if k2 != "keep"}, "file": Path(f["path"]).name})
+    (page_dir / "sections.json").write_text(json.dumps({"source": "regions", "layout_sections": secs}, ensure_ascii=False, indent=1), encoding="utf-8")
+    (page_dir / "crops" / "index.json").write_text(json.dumps({"variant": OCR_VARIANT, "sections": index}, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
 def _json_default(o):

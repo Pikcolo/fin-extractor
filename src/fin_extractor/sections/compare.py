@@ -2,6 +2,7 @@
 
 ตารางเทียบรอบก่อนปนกัน (ผลเก่าของบางวิธี, bin ของ 1307 ใช้ ``--drop-empty-rows``) คำสั่งนี้จึงติดธงแถวที่
 - ``ผังต่างกัน``: ลายนิ้วมือผัง (id + bbox ที่เก็บ) ใน ``.sections.json`` ของแต่ละวิธีไม่ตรงกัน
+  (เทียบเฉพาะวิธีที่ใช้ผังชุดเดียวกัน: ``regions-luma`` ใช้ผัง region ซึ่งต่างจากผัง section โดยตั้งใจ จึงเทียบกับวิธีอื่นได้ตรง ๆ)
 - ``ผลเก่ากว่าผัง``: ``.sections.json`` เก่ากว่าไฟล์ผังปัจจุบัน
 - ``drop-empty-rows``: ภาพวิธีนั้นถูกลบแถวตารางที่ช่องค่าว่าง (ไม่ใช่ภาพเต็มของส่วน)
 - ``ไม่มีผล``: วิธีนั้นไม่มีผลของไฟล์นี้
@@ -14,6 +15,7 @@ import json
 from pathlib import Path
 
 from ..paths import DataPaths, doc_dir
+from .read import REGIONS_VARIANT, images_dir, layout_file
 
 
 def _manifest_rows(paths: DataPaths, engine: str, dataset: str, variant: str, extractor: str) -> dict[str, dict]:
@@ -32,7 +34,7 @@ def _raw_info(paths: DataPaths, engine: str, dataset: str, variant: str, stem: s
 
 
 def _drops_rows(paths: DataPaths, dataset: str, variant: str, stem: str) -> bool:
-    index = paths.section_images(dataset, stem, variant) / "index.json"
+    index = images_dir(paths, dataset, stem, variant) / "index.json"
     return index.exists() and any("rows" in s for s in json.loads(index.read_text(encoding="utf-8"))["sections"])
 
 
@@ -44,18 +46,18 @@ def compare_variants(paths: DataPaths, dataset: str, engine: str, variants: tupl
     for stem in stems:
         flags, per = [], {}
         raws = {v: _raw_info(paths, engine, dataset, v, stem) for v in variants}
-        layout_file = paths.section_layout(dataset) / f"{stem}.json"
         for v in variants:
+            lf = layout_file(paths, dataset, stem, v)
             m = manifests[v].get(stem)
             if m is None or raws[v] is None:
                 flags.append(f"ไม่มีผล:{v}")
                 continue
             per[v] = {"status": m["status"], "missing": len(m["missing_fields"]), "checks_failed": m["checks_failed"]}
-            if layout_file.exists() and raws[v]["mtime"] < layout_file.stat().st_mtime:
+            if v != REGIONS_VARIANT and lf.exists() and raws[v]["mtime"] < lf.stat().st_mtime:  # ผัง region เขียนใหม่ทุกรอบ (ผลเหมือนเดิม) ใช้ลายนิ้วมือแทนเวลา
                 flags.append(f"ผลเก่ากว่าผัง:{v}")
             if _drops_rows(paths, dataset, v, stem):
                 flags.append(f"drop-empty-rows:{v}")
-        prints = {json.dumps(r["layout"]) for r in raws.values() if r}
+        prints = {json.dumps(r["layout"]) for v, r in raws.items() if r and v != REGIONS_VARIANT}
         if len(prints) > 1:
             flags.append("ผังต่างกัน")
         rows.append({"file": stem, "flags": flags, "per_variant": per})

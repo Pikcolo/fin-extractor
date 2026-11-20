@@ -135,3 +135,15 @@ def test_run_page_clears_previous_results(tmp_path):
     run_page(_invoice_page(), "X_0001", 300.0, RegionConfig(), page_dir, debug_images=False)
     assert not (page_dir / "crops" / "99_old__luma.png").exists() and not (page_dir / "07_old.png").exists()
     assert not (page_dir / "01_normalize.png").exists()  # --no-debug-images
+
+
+def test_run_page_writes_a_layout_the_section_reader_accepts(tmp_path):
+    from fin_extractor.sections.read import clean_index, kept_layout
+
+    page_dir = tmp_path / "X_0001"
+    run_page(_invoice_page(), "X_0001", 300.0, RegionConfig(), page_dir, debug_images=False)
+    layout = json.loads((page_dir / "sections.json").read_text(encoding="utf-8"))["layout_sections"]
+    entries = clean_index(page_dir / "crops", layout, "X_0001")  # หยุด (sys.exit) ถ้า index ไม่ตรงผัง
+    assert [i for i, _b in kept_layout(layout)] == list(entries)
+    assert all((page_dir / "crops" / e["file"]).exists() and e["file"].endswith("__luma.png") for e in entries.values())
+    assert not any("tables/" in e["file"] for e in entries.values())  # อ่านเฉพาะ region ไม่อ่านช่องตารางซ้ำ

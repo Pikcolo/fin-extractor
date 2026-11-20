@@ -116,9 +116,13 @@ def cmd_sections(args, cfg) -> None:
     from .sections.build import build_images, build_layouts
     from .sections.flow import STAGES, images_are_current, layout_is_current, orientation_flags, stems_needing
     from .sections.layout import MAX_PIECE_FRAC
-    from .sections.read import read_dataset
+    from .sections.read import REGIONS_VARIANT, read_dataset
 
     paths, dataset = DataPaths(cfg), dataset_of(args.input)
+    if args.layout == "regions":  # ผังจากคำสั่ง regions: ภาพ region อ่านแบบ luma เท่านั้น ผลแยกโฟลเดอร์ <engine>/regions-luma/
+        if args.variant != "luma":
+            sys.exit("--layout regions ใช้ได้กับ --variant luma เท่านั้น (ภาพ region สำหรับ OCR เป็นภาพเทา)")
+        args.variant = REGIONS_VARIANT
     if args.max_piece_frac is None:
         args.max_piece_frac = MAX_PIECE_FRAC
     first, last = STAGES.index(args.start), STAGES.index(args.stop)
@@ -146,13 +150,18 @@ def cmd_sections(args, cfg) -> None:
     stems = final_stems(paths, dataset, only, args.profile)
     if not stems and set(todo) - {"preprocess"}:
         sys.exit(f"ไม่พบภาพ final ใน {paths.preprocess_final(dataset, args.profile)} — เริ่มจาก --from preprocess")
-    if "layout" in todo:
+    if "layout" in todo and args.layout == "regions":
+        banner("layout")
+        from .sections.regions.run import run_dataset
+
+        run_dataset(paths, dataset, cfg, args.profile, only)  # CPU ไม่กี่วินาที ทำใหม่ทุกครั้ง (ผลเหมือนเดิม ผล OCR เดิมจึงยังใช้ได้ ตรวจด้วยลายนิ้วมือผัง)
+    elif "layout" in todo:
         banner("layout")
         stale = stems_needing(lambda s: not args.redo and layout_is_current(paths, dataset, s, args.table_mode, args.max_piece_frac, args.profile, args.fill_aware, args.dotted_rules), stems)
         print(f"ผังใช้ได้อยู่แล้ว {len(stems) - len(stale)} ไฟล์ · ทำใหม่ {len(stale)}", flush=True)
         if stale:
             build_layouts(paths, dataset, args.profile, stale, args.table_mode, args.max_piece_frac, args.fill_aware, args.dotted_rules)
-    variants = () if args.variant == "color" else (args.variant,)  # ค่าตั้งต้นเขียนเฉพาะวิธีที่ใช้ (flat/bin ทดลองผ่าน scripts/sections/make_clean_sections.py ซึ่งเขียนครบทั้งสามวิธี)
+    variants = () if args.variant in ("color", REGIONS_VARIANT) else (args.variant,)  # ค่าตั้งต้นเขียนเฉพาะวิธีที่ใช้ (flat/bin ทดลองผ่าน scripts/sections/make_clean_sections.py ซึ่งเขียนครบทั้งสามวิธี)
     if "images" in todo and variants:
         banner("images")
         stale = stems_needing(lambda s: not args.redo and not args.drop_empty_rows and images_are_current(paths, dataset, s, variants, args.profile), stems)
@@ -237,7 +246,7 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("extract", help="สกัด field → JSON จากข้อความที่อ่านทีละ section แล้ว (ไม่อ่านภาพ)")
     s.add_argument("input")
     s.add_argument("--engine", choices=SECTION_ENGINES, default="openthai", help="อ่านข้อความจาก 04_ocr/<dataset>/<engine>/<วิธี>/")
-    s.add_argument("--variant", choices=["luma", "flat", "bin", "color"], default="luma", help="ภาพรายส่วนแบบไหนที่ใช้ตอนอ่าน (โฟลเดอร์ <วิธี>)")
+    s.add_argument("--variant", choices=["luma", "flat", "bin", "color", "regions-luma"], default="luma", help="ภาพรายส่วนแบบไหนที่ใช้ตอนอ่าน (โฟลเดอร์ <วิธี>) regions-luma = อ่านจากภาพ region")
     s.add_argument("--llm", choices=["auto", "on", "off", "hybrid"], default="off",
                    help="off = rules อย่างเดียว | on/auto = rules และ LLM สกัดแยก เลือกชุดที่ check ดีกว่า | "
                         "hybrid = rules นำ LLM เติมเฉพาะช่องที่ยังไม่เสร็จ ค่าต้องผ่านด่านก่อนรับ (ผลลง <extractor>/hybrid/)")
@@ -257,6 +266,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--to", dest="stop", choices=["preprocess", "layout", "images", "ocr", "extract"], default="extract", help="จบที่ขั้นนี้")
     s.add_argument("--only", nargs="*", help="เลขท้ายชื่อไฟล์ เช่น 1309")
     s.add_argument("--redo", action="store_true", help="ทำใหม่ทุกขั้นที่รัน แม้ผลเดิมยังใช้ได้")
+    s.add_argument("--layout", choices=["sections", "regions"], default="sections",
+                   help="ผังที่ใช้อ่าน: sections = ผัง section (ค่าตั้งต้น) · regions = region จากคำสั่ง regions (ไม่มีขั้น images ผลที่ <engine>/regions-luma/ ดู docs/03-regions.md)")
     s.add_argument("--table-mode", choices=["whole", "cells", "bands", "rows"], default="rows", help="วิธีแบ่งตาราง (ดู docs/03-sections.md)")
     s.add_argument("--max-piece-frac", type=float, default=None,
                    help="ส่วนที่สูงกว่านี้ (สัดส่วนความสูงหน้า) ถูกตัดเป็นท่อน 0 = ไม่ตัด (ไม่ใส่ = ค่าใน sections/layout.py)")
@@ -278,7 +289,7 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("compare", help="เทียบผลสกัดข้ามวิธี luma/flat/bin (ติดธงแถวที่เทียบไม่แฟร์)")
     s.add_argument("input", help="โฟลเดอร์อินพุต (ใช้เอาชื่อชุดข้อมูล)")
     s.add_argument("--engine", default="openthai")
-    s.add_argument("--variants", nargs="+", default=["luma", "flat", "bin"], choices=["luma", "flat", "bin", "color"])
+    s.add_argument("--variants", nargs="+", default=["luma", "flat", "bin"], choices=["luma", "flat", "bin", "color", "regions-luma"])
     s.add_argument("--out", help="เขียนตารางเป็นไฟล์ .md ด้วย")
     s.set_defaults(func=cmd_compare)
 

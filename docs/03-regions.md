@@ -5,13 +5,15 @@
 
 - ภาพล้วน ใช้ CPU ไม่เรียก OCR (18 ใบ: รวม `elapsed_s` ใน manifest = 8.7 วินาที ไม่นับเวลาโหลดภาพ final)
 - **ไม่แตะผังเดิมและผล OCR ที่มีอยู่**: ผลอยู่ในโฟลเดอร์ `regions/` แยกต่างหาก ผัง section เดิมยังเป็นค่าตั้งต้นของ flow หลัก
-- **ยังไม่ต่อเข้าขั้น OCR** และยังไม่ได้วัดว่า OCR อ่าน crop แบบนี้ได้ดีกว่าผังเดิมหรือไม่ (ดูหัวข้อ "ยังไม่ได้ทำ")
+- ต่อเข้า OCR ได้ด้วย `sections --layout regions` (ไม่ใช่ค่าตั้งต้น) **วัดแล้วแย่กว่าผัง section เดิม** (ดูหัวข้อ "ผลวัดกับ OCR")
 
 ```bash
 python -m fin_extractor sections data/01_input/finance_doc_scan --to preprocess   # ต้องมีภาพ final ของขั้น 2 ก่อน
 python -m fin_extractor regions  data/01_input/finance_doc_scan                   # ทุกไฟล์ + summary.json + contact_sheet.png
 python -m fin_extractor regions  data/01_input/finance_doc_scan --only 1307 1313  # บางไฟล์
 python -m fin_extractor regions  data/01_input/finance_doc_scan --no-debug-images # เหลือแค่ crops/ + manifest.json
+python -m fin_extractor sections data/01_input/finance_doc_scan --layout regions --from layout   # OCR + สกัดจากภาพ region → <engine>/regions-luma/
+python -m fin_extractor compare  data/01_input/finance_doc_scan --variants luma regions-luma     # เทียบกับผัง section
 ```
 
 ## ผลอยู่ที่ไหน
@@ -28,7 +30,9 @@ data/03_sections/<dataset>/<profile>/regions/
     ├── 05_tables.png                  เส้นตั้ง (ส้ม) หัวตาราง (แดง) ช่องค่า (เขียว)
     ├── crops/<ลำดับ>_<region>[_tNN]__<วิธี>.png         ภาพแต่ละ region (tNN = ท่อนเมื่อสูงเกิน)
     ├── crops/tables/t<T>_r<RR>_c<CC>__<วิธี>.png        ช่องตาราง: ตาราง T แถว RR (r00 = หัว) คอลัมน์ CC
-    └── manifest.json                  ค่าที่ตรวจได้ทุกขั้น + files[] + kv_pairs
+    ├── manifest.json                  ค่าที่ตรวจได้ทุกขั้น + files[] + kv_pairs
+    ├── sections.json                  ผังในรูปเดียวกับ layout/<ไฟล์>.json ให้ขั้น OCR รายส่วนอ่าน (เฉพาะ region ไม่รวมช่องตาราง)
+    └── crops/index.json               ภาพ region แบบ luma ที่ส่งเข้า OCR (เหมือน images/<วิธี>/<ไฟล์>/index.json)
 ```
 
 ทุกครั้งที่รัน ภาพขั้นและ `crops/` ของไฟล์นั้นถูกล้างก่อนเขียนใหม่ ไฟล์ในโฟลเดอร์จึงตรงกับ `manifest.json` เสมอ
@@ -118,9 +122,30 @@ data/03_sections/<dataset>/<profile>/regions/
   - ดูด้วยตาสองอันที่ต่างมากสุดแล้ว ข้อความของฟิลด์ยังอยู่ในกรอบครบทั้งคู่: 1311 กรอบของที่นี่แคบกว่า (ไม่มีแถบว่างใต้วันที่) ส่วน 1321 ขอบล่างสูงกว่าเล็กน้อย แต่ยังครอบบรรทัดที่อยู่
   - 1307/1321: `doc_header`/`payer` ดูดขอบเข้าหาเส้นต่างจากที่นั่น (`snapped` ไม่ตรงกัน)
 
+## ผลวัดกับ OCR (OpenThai, 18 ใบ, rules ล้วน ไม่มีเฉลย)
+
+`sections --layout regions` อ่าน **เฉพาะภาพ region** (ไม่อ่านช่องตาราง เพราะข้อความของช่องอยู่ในแถบเดียวกันแล้ว) ตามลำดับ
+region ที่สูงเกิน 0.3 ของหน้าถูกตัดเป็นท่อน ผลอยู่ที่ `04_ocr/…/openthai/regions-luma/` และ `05_extract/…/openthai/regions-luma/rules/`
+OCR ทั้งชุด 3.8 นาที VRAM 1.4 GB
+
+| | ผัง section (`luma`) | region (`regions-luma`) |
+|---|---|---|
+| ฟิลด์ที่ขาด | **14** | 26 |
+| เช็คไม่ผ่าน | 10 | 10 |
+| failed | **2** (1312, 1315) | 6 (1306, 1307, 1311, 1312, 1321, 1323) |
+
+(`fin_extractor compare … --variants luma regions-luma` เทียบได้ครบ 18/18 ไฟล์ วัดความครบ ไม่ใช่ความถูก)
+
+- **แย่ลงชัดที่ 50 ทวิทั้ง 4 ใบ** (1307/1311/1321/1323 จาก needs_review เป็น failed)
+  - template แยกตารางรายได้เป็น 4 คอลัมน์ ภาพคอลัมน์ตัวเลขไม่มีป้ายกำกับ OpenThai จึงตอบเป็นตารางว่างหลายสิบแถว (1321 `income_tax` ยาวราว 200 บรรทัด)
+  - ยอดรวมในแถบ `total_text` อ่านได้เป็น `106,250 .00` (มีช่องว่างกลางตัวเลข) rules จึงหายอดรวมไม่เจอ
+- **1306** failed: กล่องยอดรวมอ่านแยกป้ายกับตัวเลขออกจากกัน (ป้ายเป็นบรรทัด ตัวเลขเป็นตาราง) rules จับคู่ไม่ได้
+- **ดีขึ้น**: 1315 (failed → needs_review ขาด 2 → 0), 1308 และ 1309 (ขาด 1 → 0)
+- **สรุป:** ไม่เปลี่ยนค่าตั้งต้น ผัง section เดิมยังดีกว่า ถ้าจะใช้ต่อ จุดที่ควรแก้ก่อนคือไม่แยกคอลัมน์ตารางของ template ตอนส่ง OCR (ยังเก็บไว้ใช้เป็นตำแหน่งฟิลด์ได้)
+
 ## ยังไม่ได้ทำ / ข้อจำกัด
 
-- **ไม่ได้ต่อเข้าขั้น 4 (OCR)**: `sections --engine …` ยังอ่านจากผัง section เดิม การให้ OCR อ่าน crop ของ region (หรือช่องตาราง) ต้องเพิ่มตัวเลือกให้ `read_dataset` แล้ววัดกับผลเดิม ซึ่งต้องใช้ GPU รันใหม่
+- วัดกับ OCR แค่ OpenThai และอ่านเฉพาะ region ยังไม่ได้ลองอ่านทีละช่องตาราง หรือใช้ Typhoon
 - ข้อจำกัดที่ preprocess_finance บันทึกไว้ยังอยู่:
   - เส้นตารางสีอ่อนของ 1317–1319 หาไม่เจอ ตารางสินค้าจึงยังไม่ถูกแบ่งเป็นช่อง
   - ลายเซ็นในโหมด generic ไม่ถูกตัด

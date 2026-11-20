@@ -6,7 +6,7 @@
 
 ขั้นเตรียมภาพใช้ภาพล้วน ไม่เรียก OCR ไม่ทิ้งส่วนที่มีหมึก (สายงานคัดส่วนด้วย OCR รุ่นก่อนถูกถอดออกจากโค้ดแล้ว)
 
-> ทางเลือกของขั้นนี้: คำสั่ง `regions` แบ่งเป็น region / ตาราง → ช่อง → key/value แบบ learning/preprocess_finance ผลแยกโฟลเดอร์ `regions/` ไม่แตะผังนี้ ดู [03-regions.md](03-regions.md)
+> ทางเลือกของขั้นนี้: คำสั่ง `regions` แบ่งเป็น region / ตาราง → ช่อง → key/value แบบ learning/preprocess_finance ผลแยกโฟลเดอร์ `regions/` ไม่แตะผังนี้ ส่งเข้า OCR ได้ด้วย `--layout regions` แต่วัดแล้วฟิลด์ขาด 26 เทียบกับ 14 ของผังนี้ ดู [03-regions.md](03-regions.md)
 
 ## ลำดับและไฟล์ (flow หลัก)
 
