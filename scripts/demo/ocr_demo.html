@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OCR ทีละขั้น</title>
+<style>
+@font-face { font-family: Sarabun; src: url(/font/Sarabun-Regular.ttf); font-weight: 400; }
+@font-face { font-family: Sarabun; src: url(/font/Sarabun-Bold.ttf); font-weight: 700; }
+:root {
+  --bg:#f5f5f2; --panel:#ffffff; --panel2:#fafaf7; --ink:#1d1d1b; --muted:#6b6b66; --line:#deddd6; --accent:#2f5d8a; --accent-soft:#e5edf6;
+  --ok:#2e7d4f; --ok-soft:#e1f1e7; --bad:#b3261e; --bad-soft:#fbe5e3; --warn:#a15c00; --warn-soft:#fcefd9; --na:#8a8a84; --na-soft:#efefeb;
+  --text-sec:#e07a00; --table-sec:#2f6fb5; --blank-sec:#c62828; --sel:#8e24aa; --code:#f1f0ea; --shadow:0 1px 3px rgba(0,0,0,.12);
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg:#17181a; --panel:#202124; --panel2:#26272b; --ink:#e8e8e3; --muted:#a2a29b; --line:#3a3b3f; --accent:#8db4e2; --accent-soft:#25344a;
+  --ok:#7fcf9c; --ok-soft:#1e3527; --bad:#f2948c; --bad-soft:#41211f; --warn:#f0b866; --warn-soft:#3d2e17; --na:#8f8f88; --na-soft:#2c2d30;
+  --text-sec:#ffa53d; --table-sec:#6aa6ee; --blank-sec:#ff6b6b; --sel:#d07ae6; --code:#2a2b2f; --shadow:0 1px 3px rgba(0,0,0,.5);
+} }
+:root[data-theme="dark"] {
+  --bg:#17181a; --panel:#202124; --panel2:#26272b; --ink:#e8e8e3; --muted:#a2a29b; --line:#3a3b3f; --accent:#8db4e2; --accent-soft:#25344a;
+  --ok:#7fcf9c; --ok-soft:#1e3527; --bad:#f2948c; --bad-soft:#41211f; --warn:#f0b866; --warn-soft:#3d2e17; --na:#8f8f88; --na-soft:#2c2d30;
+  --text-sec:#ffa53d; --table-sec:#6aa6ee; --blank-sec:#ff6b6b; --sel:#d07ae6; --code:#2a2b2f; --shadow:0 1px 3px rgba(0,0,0,.5);
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.6 Sarabun, system-ui, "Segoe UI", Tahoma, sans-serif; }
+code, pre, .mono { font-family: ui-monospace, Consolas, "Cascadia Mono", monospace; font-size:12.5px; }
+code { background:var(--code); padding:0 4px; border-radius:3px; }
+a { color:var(--accent); }
+header { padding:22px 16px 8px; max-width:1240px; margin:0 auto; }
+header h1 { margin:0; font-size:26px; letter-spacing:.2px; }
+header p { margin:4px 0 0; color:var(--muted); }
+main { max-width:1240px; margin:0 auto; padding:0 16px 120px; }
+.card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px 18px; margin:14px 0; box-shadow:var(--shadow); }
+.card h2 { margin:0 0 4px; font-size:19px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.card h3 { margin:18px 0 6px; font-size:15.5px; }
+.num { display:inline-grid; place-items:center; width:28px; height:28px; border-radius:50%; background:var(--accent); color:var(--panel); font-size:14px; font-weight:700; flex:none; }
+.muted { color:var(--muted); } .small { font-size:13px; }
+.explain { background:var(--panel2); border-left:3px solid var(--accent); padding:8px 12px; margin:8px 0 12px; border-radius:0 6px 6px 0; font-size:14px; }
+.explain b { color:var(--ink); }
+.grid2 { display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:14px; align-items:start; }
+.grid3 { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px; }
+figure { margin:0; } figcaption { font-size:13px; color:var(--muted); margin-top:4px; }
+figure img, .fig img { width:100%; display:block; border:1px solid var(--line); border-radius:4px; background:#fff; }
+.zoomable { cursor:zoom-in; }
+.fig { position:relative; align-self:start; }
+.fig svg.ov { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+.fig svg.ov .hit { pointer-events:all; cursor:pointer; }
+table { border-collapse:collapse; width:100%; font-size:13.5px; }
+th, td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+th { color:var(--muted); font-weight:600; font-size:12.5px; }
+.tablewrap { overflow-x:auto; }
+.badge { display:inline-block; padding:0 8px; border-radius:10px; font-size:12px; line-height:20px; white-space:nowrap; background:var(--na-soft); color:var(--na); }
+.b-ok { background:var(--ok-soft); color:var(--ok); } .b-bad { background:var(--bad-soft); color:var(--bad); }
+.b-warn { background:var(--warn-soft); color:var(--warn); } .b-acc { background:var(--accent-soft); color:var(--accent); }
+.sec { display:inline-block; padding:0 6px; border-radius:4px; font-size:12px; line-height:19px; cursor:pointer; border:1px solid var(--line); font-family:ui-monospace, Consolas, monospace; background:var(--panel); }
+.sec.k-text { border-color:var(--text-sec); color:var(--text-sec); } .sec.k-table { border-color:var(--table-sec); color:var(--table-sec); }
+.sec.sel, tr.sel td { outline:2px solid var(--sel); outline-offset:-1px; }
+tr.sel td { background:color-mix(in srgb, var(--sel) 8%, transparent); outline:none; }
+.status-pill { font-size:12.5px; padding:1px 10px; border-radius:12px; }
+.st-pending { background:var(--na-soft); color:var(--na); } .st-running { background:var(--warn-soft); color:var(--warn); }
+.st-done { background:var(--ok-soft); color:var(--ok); } .st-error { background:var(--bad-soft); color:var(--bad); }
+.spin { display:inline-block; width:12px; height:12px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation:sp .8s linear infinite; vertical-align:-1px; }
+@keyframes sp { to { transform:rotate(360deg); } }
+pre { background:var(--code); padding:10px 12px; border-radius:6px; overflow:auto; white-space:pre-wrap; word-break:break-word; margin:6px 0; max-height:520px; }
+.error { background:var(--bad-soft); color:var(--bad); padding:10px 12px; border-radius:6px; white-space:pre-wrap; font-family:ui-monospace, Consolas, monospace; font-size:12.5px; }
+button, select, input[type=file] { font:inherit; }
+button { padding:6px 14px; border:1px solid var(--line); border-radius:6px; background:var(--panel); color:var(--ink); cursor:pointer; }
+button.primary { background:var(--accent); color:var(--panel); border-color:var(--accent); font-weight:700; }
+button:disabled { opacity:.5; cursor:not-allowed; }
+select { padding:5px 8px; border:1px solid var(--line); border-radius:6px; background:var(--panel); color:var(--ink); }
+/* upload */
+#drop { border:2px dashed var(--line); border-radius:10px; padding:22px; text-align:center; color:var(--muted); cursor:pointer; transition:.15s; }
+#drop.over { border-color:var(--accent); background:var(--accent-soft); color:var(--accent); }
+#drop b { color:var(--ink); }
+.opts { display:flex; flex-wrap:wrap; gap:14px 22px; align-items:center; margin-top:12px; }
+.opts label { display:flex; gap:6px; align-items:center; font-size:14px; }
+/* stepper */
+#stepper { position:sticky; top:0; z-index:5; background:color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter:blur(4px); padding:8px 0; border-bottom:1px solid var(--line); }
+#stepper .in { max-width:1240px; margin:0 auto; padding:0 16px; display:flex; gap:6px; overflow-x:auto; }
+#stepper a { flex:none; text-decoration:none; color:var(--muted); font-size:13px; padding:3px 10px; border-radius:14px; border:1px solid var(--line); background:var(--panel); white-space:nowrap; }
+#stepper a.done { color:var(--ok); border-color:var(--ok); } #stepper a.running { color:var(--warn); border-color:var(--warn); }
+#stepper a.error { color:var(--bad); border-color:var(--bad); }
+/* preprocess steps */
+.chips { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 10px; }
+.chip { padding:3px 10px; border-radius:14px; border:1px solid var(--line); font-size:13px; cursor:pointer; background:var(--panel); color:var(--ink); }
+.chip.on { background:var(--accent); color:var(--panel); border-color:var(--accent); }
+.chip.skip { color:var(--muted); border-style:dashed; cursor:default; }
+.arrow { color:var(--muted); align-self:center; }
+.stepview { display:grid; grid-template-columns:minmax(0, 1.4fr) minmax(260px, 1fr); gap:16px; align-items:start; }
+@media (max-width:820px) { .stepview { grid-template-columns:1fr; } }
+/* layout cuts */
+.cutwrap { display:grid; grid-template-columns:minmax(0, 1fr) 140px; gap:8px; align-items:stretch; max-width:820px; }
+.profile { border:1px solid var(--line); border-radius:4px; background:var(--panel2); position:relative; }
+.profile svg { position:absolute; inset:0; width:100%; height:100%; display:block; }  /* นอก flow: ไม่ให้ความสูงของกราฟยืดแถว (สูง = ภาพหน้า) */
+.legend { display:flex; flex-wrap:wrap; gap:14px; font-size:13px; color:var(--muted); margin:6px 0; }
+.legend i { display:inline-block; width:22px; height:0; border-top:3px solid; vertical-align:middle; margin-right:5px; }
+/* crops & ocr */
+.crop { border:1px solid var(--line); border-radius:8px; padding:8px; background:var(--panel2); cursor:pointer; }
+.crop.sel { outline:2px solid var(--sel); }
+.crop img { width:100%; max-height:150px; object-fit:contain; background:#fff; border-radius:3px; border:1px solid var(--line); }
+.ocr-row { display:grid; grid-template-columns:minmax(160px, 300px) minmax(0, 1fr); gap:12px; padding:10px 0; border-bottom:1px solid var(--line); }
+.ocr-row.sel { background:color-mix(in srgb, var(--sel) 7%, transparent); }
+.ocr-row img { width:100%; max-height:200px; object-fit:contain; background:#fff; border:1px solid var(--line); border-radius:3px; }
+.ocr-row.pending { opacity:.45; }
+@media (max-width:640px) { .ocr-row { grid-template-columns:1fr; } }
+.rendered table { border:1px solid var(--line); margin:4px 0; } .rendered td, .rendered th { border:1px solid var(--line); font-size:12.5px; padding:2px 6px; }
+.bar { height:8px; background:var(--na-soft); border-radius:4px; overflow:hidden; margin:6px 0; } .bar > div { height:100%; background:var(--accent); transition:width .3s; }
+/* text */
+.md-line { white-space:pre-wrap; word-break:break-word; padding:0 6px; border-left:3px solid transparent; }
+.md-line.cmt { color:var(--muted); cursor:pointer; margin-top:6px; }
+.md-line.sel { background:color-mix(in srgb, var(--sel) 9%, transparent); }
+.scrollbox { max-height:520px; overflow:auto; border:1px solid var(--line); border-radius:6px; background:var(--code); padding:6px 0; }
+.lines td:first-child { color:var(--muted); width:40px; text-align:right; }
+tr.flash td { animation:fl 1.6s; } @keyframes fl { from { background:var(--warn-soft); } }
+/* status */
+.flow { display:flex; flex-direction:column; gap:6px; margin:8px 0; }
+.flow div { display:flex; gap:10px; align-items:center; padding:6px 10px; border-radius:6px; background:var(--panel2); border:1px solid var(--line); font-size:14px; }
+.flow div.fired { border-color:var(--bad); background:var(--bad-soft); }
+.bigstatus { font-size:22px; font-weight:700; padding:4px 16px; border-radius:8px; display:inline-block; }
+/* inspector */
+#insp { position:fixed; right:12px; bottom:12px; width:min(440px, calc(100vw - 24px)); max-height:min(72vh, 680px); overflow:auto; background:var(--panel); border:1px solid var(--line); border-radius:10px; box-shadow:0 6px 24px rgba(0,0,0,.25); padding:12px 14px; z-index:20; display:none; }
+#insp.on { display:block; }
+#insp .x { position:sticky; top:0; float:right; }
+#lightbox { position:fixed; inset:0; background:rgba(0,0,0,.82); display:none; z-index:30; overflow:auto; cursor:zoom-out; padding:20px; }
+#lightbox.on { display:block; } #lightbox img { display:block; margin:auto; max-width:none; background:#fff; }
+.kv { display:grid; grid-template-columns:max-content 1fr; gap:3px 14px; font-size:14px; align-content:start; } .kv div:nth-child(odd) { color:var(--muted); }
+.note { font-size:13px; color:var(--warn); background:var(--warn-soft); padding:6px 10px; border-radius:6px; margin-top:10px; }
+.toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:6px 0; }
+</style></head><body>
+<header>
+  <h1>OCR ทีละขั้น</h1>
+  <p>อัปโหลดเอกสาร 1 ไฟล์ แล้วดูว่าแต่ละขั้นของ fin_extractor ทำอะไรกับมัน ตั้งแต่ภาพดิบจนได้ JSON สุดท้าย · คลิกกรอบ/รหัสส่วน (เช่น <span class="sec">s03</span>) ที่ไหนก็ได้เพื่อตามส่วนนั้นข้ามทุกขั้น</p>
+</header>
+<div id="stepper"><div class="in" id="steps"></div></div>
+<main>
+  <section class="card" id="upload">
+    <h2>เริ่ม: เลือกเอกสาร</h2>
+    <div id="drop"><b>ลากไฟล์มาวาง</b> หรือคลิกเพื่อเลือก · jpg / png / tif / pdf (PDF ใช้หน้าแรก)<input type="file" id="file" hidden></div>
+    <div class="opts">
+      <label>ตัวอ่าน OCR <select id="engine"></select></label>
+      <button class="primary" id="run" disabled>รัน</button>
+      <button id="cancel" hidden>หยุด</button>
+      <span id="msg" class="small muted"></span>
+    </div>
+    <p class="small muted" style="margin:10px 0 0">ปรับภาพและแบ่งส่วนด้วยค่าตั้งต้นของ flow หลัก (<code>sections</code>) ให้อัตโนมัติ: ตรวจทิศหน้าเอง · แก้เอียง · คงสี · ระบาย QR/บาร์โค้ด · แบ่งแถบแบบ <code>rows</code></p>
+    <div class="note">ขั้น OCR ใช้ GPU (openthai โหลดโมเดลในเครื่อง · typhoon ต้องเปิด Ollama · paddle) รันได้ทีละงาน และอ่านทีละส่วนเหมือน flow จริง ไฟล์ 1 หน้ามักมี 10–25 ส่วน</div>
+  </section>
+  <div id="stages"></div>
+</main>
+<aside id="insp"></aside>
+<div id="lightbox"><img alt=""></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let job = null, jobId = null, rev = -1, file = null, selSec = null, preStep = null, layView = "sections", rendered = {}, timer = null;
+const img = name => `/job/${jobId}/${name}`;
+const stage = key => job && job.stages.find(s => s.key === key);
+const data = key => (stage(key) || {}).data;
+
+const STEP_INFO = {
+  original: ["ภาพต้นฉบับ", "ภาพที่โหลดจากไฟล์ (PDF ถูก render เป็นภาพที่ pdf_dpi) ยังไม่ได้แตะอะไร"],
+  color: ["คงสีไว้", "<code>keep_color: true</code> ไม่แปลงเป็นเทาตรงนี้ เพราะตัวอ่านแบบ VLM (OpenThai/Typhoon) อ่านภาพสีได้ดีกว่า และตัวตรวจจับข้อความของ Paddle ไม่เจอบางบรรทัดในภาพเทา (docs/02)"],
+  gray: ["แปลงเป็นเทา", "<code>keep_color: false</code> จึงแปลงเป็นภาพเทาช่องเดียว"],
+  streaks: ["ลบเส้นสกปรก", "ลบเส้นยาวจากเครื่องสแกนที่แตะทั้งสองขอบภาพ (ต้องทำก่อนหมุน)"],
+  upscale: ["ขยายภาพ", "ภาพเล็กกว่า <code>min_long_side</code> ถูกขยายให้ด้านยาวถึงเกณฑ์ ตัวอักษรเล็ก ๆ จะได้มีพิกเซลพอให้ OCR อ่าน"],
+  orientation: ["หมุนให้ตั้งตรง", "ตัวจำแนกทิศทั้งหน้า <code>PP-LCNet_x1_0_doc_ori</code> ของ Paddle ทายว่าหน้าถูกหมุนไป 0/90/180/270° แล้วหมุนกลับ (<code>preprocessing/orient.py</code>)"],
+  deskew: ["แก้เอียง", "ลองหมุนทีละนิดในช่วง ±<code>max_skew_angle</code> แล้วเลือกมุมที่ทำให้ปริมาณหมึกต่อแถวมี 'พีคคม' ที่สุด (บรรทัดตรง = หมึกรวมเป็นแถบชัด) — projection profile (<code>preprocessing/deskew.py</code>)"],
+  crop: ["ตัดขอบ", "ตัดขอบว่างรอบเนื้อหา"], denoise: ["ลดสัญญาณรบกวน", "denoise"], clahe: ["เพิ่มคอนทราสต์ (CLAHE)", "ปรับคอนทราสต์เฉพาะที่"],
+  binarize: ["ขาวดำ", "แปลงเป็นภาพสองค่า"],
+};
+const CHECK_INFO = {
+  vendor_tax_id_checksum: "เลขผู้เสียภาษีผู้ขาย 13 หลัก ผ่านสูตร checksum ของกรมสรรพากร",
+  buyer_tax_id_checksum: "เลขผู้เสียภาษีผู้ซื้อ 13 หลัก ผ่านสูตร checksum",
+  items_sum: "ผลรวมจำนวนเงินทุกรายการ = ยอดรวม (รวมเงิน / ก่อน VAT / ยอดสุทธิ อย่างใดอย่างหนึ่ง)",
+  discount: "รวมเงิน − ส่วนลด = ก่อน VAT หรือ ยอดสุทธิ",
+  before_vat_plus_vat: "มูลค่าก่อน VAT + VAT = ยอดสุทธิ",
+  vat_rate: "VAT ≈ อัตรา × ฐาน (ค่าตั้งต้น 7%)",
+  date_range: "วันที่อยู่ระหว่าง 2000-01-01 ถึงวันนี้ (ไม่นับเป็นตัวยืนยันค่า)",
+  reader_complete: "ตัวอ่านตอบจบทุกส่วน (ไม่ชนเพดาน token)",
+};
+const FIELD_LABEL = {
+  "document_type": "ชนิดเอกสาร (rules)", "vendor.name": "ผู้ขาย: ชื่อ", "vendor.tax_id": "ผู้ขาย: เลขผู้เสียภาษี", "vendor.branch": "ผู้ขาย: สาขา", "vendor.address": "ผู้ขาย: ที่อยู่",
+  "buyer.name": "ผู้ซื้อ: ชื่อ", "buyer.tax_id": "ผู้ซื้อ: เลขผู้เสียภาษี", "buyer.branch": "ผู้ซื้อ: สาขา", "buyer.address": "ผู้ซื้อ: ที่อยู่",
+  "book_no": "เล่มที่", "invoice_no": "เลขที่เอกสาร", "date": "วันที่ (ค.ศ.)", "currency": "สกุลเงิน", "subtotal": "รวมเงินก่อนส่วนลด", "discount": "ส่วนลด",
+  "amount_before_vat": "มูลค่าก่อน VAT", "vat_rate": "อัตรา VAT", "vat_amount": "VAT", "total_amount": "ยอดสุทธิรวม VAT",
+};
+const LEVEL = { verified: ["ยืนยันแล้ว", "b-ok"], unverified: ["ไม่มีตัวยืนยัน", ""], conflict: ["ขัดแย้ง", "b-bad"], missing: ["หาไม่เจอ", "b-warn"], not_applicable: ["ไม่มีในชนิดนี้", ""] };
+const STATUS = { auto_approved: ["อนุมัติอัตโนมัติได้", "b-ok"], needs_review: ["ต้องให้คนตรวจ", "b-warn"], failed: ["ล้มเหลว", "b-bad"] };
+
+// ------------------------------------------------------------------ upload
+async function init() {
+  const info = await (await fetch("/api/info")).json();
+  const LABEL = { openthai: "OpenThai 2.0 Markdown (GPU) · ค่าตั้งต้น", openthai21: "OpenThai 2.1 Markdown (GPU)", "openthai-text": "OpenThai 2.1 Text (CPU)",
+                  typhoon: "Typhoon (Ollama)", paddle: "PaddleOCR", oxr: "OXR (อ่านไทยไม่ได้)" };
+  $("#engine").innerHTML = info.engines.map(e => `<option value="${e}">${e}${LABEL[e] ? " — " + LABEL[e] : ""}</option>`).join("");
+  $("#file").accept = info.exts.join(",");
+  if (info.busy) $("#msg").textContent = "มีงานกำลังรันอยู่";
+  const m = location.hash.match(/^#job=([\w-]+)$/);  // รีเฟรชแล้วกลับมาดูงานเดิมได้ (ระหว่างที่เซิร์ฟเวอร์ยังเปิดอยู่)
+  if (m) { jobId = m[1]; $("#msg").textContent = "งาน " + jobId; poll(); }
+}
+const drop = $("#drop");
+drop.onclick = () => $("#file").click();
+drop.ondragover = e => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove("over"); pick(e.dataTransfer.files[0]); };
+$("#file").onchange = e => pick(e.target.files[0]);
+function pick(f) { if (!f) return; file = f; drop.innerHTML = `<b>${esc(f.name)}</b> · ${(f.size / 1024).toFixed(0)} KB — คลิกเพื่อเปลี่ยนไฟล์`; $("#run").disabled = false; }
+$("#run").onclick = async () => {
+  const q = new URLSearchParams({ engine: $("#engine").value });
+  $("#run").disabled = true; $("#msg").textContent = "กำลังอัปโหลด…";
+  const r = await fetch("/api/run?" + q, { method: "POST", headers: { "X-Filename": encodeURIComponent(file.name) }, body: file });
+  const j = await r.json();
+  if (!r.ok) { $("#msg").textContent = j.error; $("#run").disabled = false; return; }
+  jobId = j.id; rev = -1; rendered = {}; selSec = null; preStep = null; layView = "sections"; $("#stages").innerHTML = ""; $("#insp").classList.remove("on");
+  history.replaceState(null, "", "#job=" + jobId); $("#msg").textContent = "งาน " + jobId; $("#cancel").hidden = false; poll();
+};
+$("#cancel").onclick = () => fetch(`/api/job/${jobId}/cancel`, { method: "POST" });
+
+async function poll() {
+  clearTimeout(timer);
+  try {
+    const r = await fetch("/api/job/" + jobId);
+    if (r.status === 404) { $("#msg").textContent = "ไม่พบงานนี้ (เซิร์ฟเวอร์รีสตาร์ตแล้ว?) อัปโหลดใหม่"; return; }
+    const j = await r.json();
+    if (j.rev !== rev) { job = j; rev = j.rev; render(); }
+    if (j.finished) { $("#run").disabled = !file; $("#cancel").hidden = true; return; }
+  } catch (e) { /* เซิร์ฟเวอร์ปิด/รีสตาร์ต: ลองใหม่ */ }
+  timer = setTimeout(poll, 600);
+}
+
+// ------------------------------------------------------------------ render
+function render() {
+  $("#steps").innerHTML = job.stages.map((s, i) => `<a href="#st-${s.key}" class="${s.status}">${i + 1}. ${esc(s.title)}</a>`).join("");
+  const box = $("#stages");
+  job.stages.forEach((s, i) => {
+    let el = document.getElementById("st-" + s.key);
+    if (!el) { el = document.createElement("section"); el.className = "card"; el.id = "st-" + s.key; box.appendChild(el); }
+    const sig = JSON.stringify([s.status, s.error, s.seconds, s.data && s.key === "ocr" ? [s.data.sections.length, s.data.current, s.data.reader] : !!s.data]);
+    if (rendered[s.key] === sig) return;
+    rendered[s.key] = sig;
+    const pill = { pending: "รอ", running: '<span class="spin"></span> กำลังทำ', done: "เสร็จ", error: "ผิดพลาด" }[s.status];
+    let body = "";
+    if (s.status === "error") body = `<div class="error">${esc(s.error)}</div>` + (s.key === "ocr" ? OCR_HELP : s.key === "preprocess" ? PRE_HELP : "");
+    else if (s.data && (s.status === "done" || s.key === "ocr")) body = RENDER[s.key](s.data, s);
+    else if (s.status === "pending") body = `<div class="muted small">${INTRO[s.key]}</div>`;
+    else body = `<div class="muted small">${INTRO[s.key]}</div>`;
+    el.innerHTML = `<h2><span class="num">${i + 1}</span>${esc(s.title)} <span class="status-pill st-${s.status}">${pill}</span>
+      ${s.seconds != null ? `<span class="small muted">${s.seconds}s</span>` : ""}</h2>${body}`;
+    (AFTER[s.key] || (() => {}))(el, s.data);
+  });
+  applySel();
+}
+const OCR_HELP = `<div class="explain">openthai / openthai21: ต้องมีโมเดลที่ <code>models/OpenThai2.0-OCR-Markdown</code> / <code>models/OpenThai2.1-OCR-Markdown-20261118</code> + torch/CUDA · openthai-text: <code>models/OpenThai2.1-OCR-Text-20261118</code> + onnxruntime · typhoon: เปิด Ollama และ <code>ollama pull scb10x/typhoon-ocr1.5-3b</code> · paddle: ลง paddleocr ไว้ รายละเอียดเต็มอยู่ในไฟล์ <code>worker_ocr.log</code> ของโฟลเดอร์งาน</div>`;
+const ENGINE_INFO = {
+  openthai: "OpenThai 2.0 OCR Markdown (Nemotron-Parse 0.63B บน GPU) อ่านภาษาไทยและตารางเป็น HTML ไม่มีค่าความมั่นใจ — ค่าตั้งต้นของ flow",
+  openthai21: "OpenThai 2.1 OCR Markdown (รุ่นเดียวกับ 2.0 weights ใหม่ บน GPU) บน 18 ใบผลใกล้เคียง 2.0 ดีขึ้นบางฟิลด์ แย่ลงบางฟิลด์",
+  "openthai-text": "OpenThai 2.1 OCR Text (PP-OCRv6-tiny ONNX บน CPU ไม่ใช้ GPU) คืนข้อความทีละบรรทัดพร้อมความมั่นใจ ไม่มีตาราง (ช่องซ้าย/ขวามักรวมเป็นบรรทัดเดียว) อ่านลายมือได้แย่",
+  typhoon: "Typhoon OCR ผ่าน Ollama/API (ใช้ GPU ผ่าน Ollama)",
+  paddle: "PaddleOCR ตรวจจับบรรทัดแล้วอ่านทีละบรรทัด มีความมั่นใจรายคำ (เฉลี่ยให้ดู)",
+  oxr: "OXR-1.0 — <b>อ่านภาษาไทยไม่ได้</b> (ฝึกจีน+อังกฤษ) ส่วนที่มีไทยจะได้ข้อความมั่วและอักษรจีน ใช้ดูเฉพาะตัวเลข/อังกฤษ",
+};
+const PRE_HELP = `<div class="explain">รายละเอียดเต็มอยู่ใน <code>worker_preprocess.log</code> ของโฟลเดอร์งาน (ตัวตรวจทิศของ Paddle ที่ล้มจะไม่ทำให้ขั้นนี้ล้ม: ใช้ 0° แล้วแจ้งเตือนในผล)</div>`;
+const INTRO = {
+  input: "โหลดไฟล์ → ภาพ (PDF render ทีละหน้า)",
+  preprocess: "ขยาย → หมุนให้ตั้งตรง → แก้เอียง (คงสี) รันใน worker แยก process",
+  layout: "แบ่งหน้าเป็นแถบ/ส่วนด้วยภาพล้วน (เส้นตาราง + แถวว่าง) ไม่ใช้ OCR",
+  crops: "ตัดภาพแต่ละส่วนจากภาพเต็มความละเอียด แล้วแปลงเป็นภาพเทา (luma)",
+  ocr: "ส่งภาพทีละส่วนเข้าตัวอ่าน ได้ข้อความ Markdown ของแต่ละส่วน",
+  text: "ต่อข้อความทุกส่วนเป็นเอกสาร .md แล้วแปลงเป็นบรรทัดล้วน",
+  extract: "หาค่าแต่ละฟิลด์ด้วย keyword + regex ทีละบรรทัด",
+  validate: "ตรวจตัวเลข/เลขภาษีให้สอดคล้องกัน แล้วตัดสินสถานะ",
+  result: "ผลตาม schema 3.0",
+};
+
+// ------------------------------------------------------------------ ภาพซ้อนกรอบ (พิกัดบนสำเนาทำงาน)
+function fig(src, w, h, svgInner, cls = "") {
+  return `<div class="fig ${cls}"><img src="${src}" class="zoomable" alt=""><svg class="ov" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">${svgInner}</svg></div>`;
+}
+const kindColor = s => !s.keep ? "var(--blank-sec)" : s.kind === "table" ? "var(--table-sec)" : s.kind === "cell" ? "var(--ok)" : "var(--text-sec)";
+function secRects(secs, labels = true) {
+  return secs.map(s => { const [x, y, w, h] = s.bbox;
+    return `<g data-sec="${s.id}" class="secbox"><rect class="hit" x="${x}" y="${y}" width="${w}" height="${h}" fill="${kindColor(s)}" fill-opacity=".07" stroke="${kindColor(s)}" stroke-width="${s.keep ? 2.5 : 3}" ${s.keep ? "" : 'stroke-dasharray="10 6"'} vector-effect="non-scaling-stroke" onclick="selectSec('${s.id}')"/>
+      ${labels ? `<text x="${x + 6}" y="${y + 20}" font-size="17" font-weight="700" fill="${kindColor(s)}" paint-order="stroke" stroke="#fff" stroke-width="4">${s.id}</text>` : ""}</g>`; }).join("");
+}
+const secChip = (id, kind) => id ? `<span class="sec k-${kind || secKind(id)}" data-sec="${id}" onclick="selectSec('${id}')">${id}</span>` : `<span class="muted small">—</span>`;
+function secKind(id) { const l = data("layout"); const s = l && l.sections.find(s => s.id === id); return s ? s.kind : ""; }
+
+// ------------------------------------------------------------------ แต่ละขั้น
+const RENDER = {};
+const AFTER = {};
+
+RENDER.input = d => `
+  <div class="explain"><b>ขั้นนี้:</b> อ่านไฟล์เป็นภาพสี BGR (ใช้ <code>np.fromfile + cv2.imdecode</code> เพราะ <code>cv2.imread</code> บน Windows อ่านพาธภาษาไทยไม่ได้) · PDF ถูก render ด้วย pypdfium2 ที่ ${d.dpi || 300} dpi ทีละหน้า — <b>demo นี้ใช้หน้าแรก</b> (<code>io/loader.py</code>)</div>
+  <div class="stepview"><figure><img src="${img(d.image)}" class="zoomable" alt=""><figcaption>หน้า 1</figcaption></figure>
+  <div class="kv"><div>ไฟล์</div><div>${esc(d.file)}</div><div>ชนิด</div><div>${esc(d.ext)}</div><div>ขนาดไฟล์</div><div>${(d.bytes / 1024).toFixed(0)} KB</div>
+  <div>จำนวนหน้า</div><div>${d.pages}${d.pages > 1 ? ' <span class="badge b-warn">ใช้หน้าแรกเท่านั้น</span>' : ""}</div>
+  <div>ขนาดภาพ</div><div>${d.size[0]} × ${d.size[1]} px</div>${d.dpi ? `<div>DPI ตอน render</div><div>${d.dpi}</div>` : ""}</div></div>`;
+
+const PRE_ORDER = ["original", "colorgray", "streaks", "upscale", "orientation", "deskew", "crop", "denoise", "clahe", "binarize"];
+function preSkipReason(name, d) {
+  const m = d.meta, st = d.settings;
+  if (name === "upscale") return m.scale === 1 ? `ภาพยาว ≥ ${st.min_long_side}px อยู่แล้ว ไม่ต้องขยาย` : null;
+  if (name === "orientation") return m.orientation_error ? `ตรวจทิศไม่ได้ (${m.orientation_error.slice(0, 80)}) จึงใช้ 0°` : !st.fix_orientation && m.orientation_source !== "manual" ? "ปิดอยู่ (fix_orientation: false)" : !m.orientation ? `หน้าตั้งตรงอยู่แล้ว (0°${m.orientation_source === "manual" ? " สั่งเอง" : ""})` : null;
+  if (name === "deskew") return !st.deskew ? "ปิดอยู่" : !m.skew_angle ? "ไม่เอียง (มุม 0°)" : null;
+  if (name === "streaks") return "ปิดอยู่ (ไม่ได้ตั้ง remove_streaks)";
+  if (name === "crop") return "ปิดอยู่ (remove_borders: false)";
+  if (name === "denoise") return st.denoise === "none" ? "ปิดอยู่ (denoise: none) — วัดแล้วช้าและไม่ช่วยให้อ่านได้มากขึ้น" : null;
+  if (name === "clahe") return !st.clahe ? "ปิดอยู่ (clahe: false)" : null;
+  if (name === "binarize") return st.binarize === "none" ? "ปิดอยู่ (binarize: none) — คงภาพสีให้ตัวอ่าน" : null;
+  return null;
+}
+RENDER.preprocess = d => {
+  const have = Object.fromEntries(d.steps.map(s => [s.name, s]));
+  if (!preStep || !have[preStep]) preStep = d.steps[d.steps.length - 1].name;
+  const chips = PRE_ORDER.map(n => {
+    const real = n === "colorgray" ? (have.color ? "color" : have.gray ? "gray" : null) : n;
+    if (real && have[real]) return `<span class="chip ${preStep === real ? "on" : ""}" onclick="preStep='${real}';rendered.preprocess=null;render()">${STEP_INFO[real][0]}</span>`;
+    const why = preSkipReason(n, d);
+    return why ? `<span class="chip skip" title="${esc(why)}">${STEP_INFO[n === "colorgray" ? "color" : n][0]} · ข้าม</span>` : "";
+  }).filter(Boolean).join('<span class="arrow">→</span>');
+  const s = have[preStep], [t, info] = STEP_INFO[preStep] || [preStep, ""];
+  const m = d.meta;
+  let detail = "";
+  if (preStep === "upscale") detail = `ขยาย ×${m.scale}`;
+  if (preStep === "orientation") detail = `หมุน ${m.orientation}° ตามเข็ม (${m.orientation_source === "manual" ? "สั่งเอง" : "ตัวจำแนกทาย"})`;
+  if (preStep === "deskew") detail = `มุมเอียงที่พบ ${m.skew_angle}° → หมุนกลับ`;
+  const skipped = PRE_ORDER.map(n => [n, preSkipReason(n, d)]).filter(([n, w]) => w && !(have[n]));
+  return `<div class="explain"><b>ขั้นนี้:</b> ทำภาพให้ตรงและคมพอ ก่อนส่งต่อ — ใช้ชุดเดียวกับทุก engine (<code>preprocessing/pipeline.py</code>, ค่าใน <code>configs/default.yaml → preprocessing</code>)
+    ค่าตั้งต้นเปิดแค่ <b>ขยาย → หมุน → แก้เอียง</b> และ<b>คงสี</b> ไว้ ขั้นอื่นปิดเพราะวัดแล้วไม่ช่วย (docs/02-preprocessing.md) คลิกชื่อขั้นเพื่อดูภาพหลังขั้นนั้น</div>
+    <div class="chips">${chips}</div>
+    <div class="stepview"><figure><img src="${img(s.image)}" class="zoomable" alt=""><figcaption>หลังขั้น "${esc(t)}" · ${s.size[0]} × ${s.size[1]} px</figcaption></figure>
+    <div><h3 style="margin-top:0">${esc(t)}</h3><div class="small">${info}</div>${detail ? `<p><span class="badge b-acc">${esc(detail)}</span></p>` : ""}
+      <h3>สรุปทุกขั้น</h3><div class="kv small">
+        <div>ขยาย</div><div>×${m.scale}</div>
+        <div>หมุน</div><div>${m.orientation ?? 0}° ${m.orientation_source === "manual" ? "(สั่งเอง)" : m.orientation_error ? '<span class="badge b-bad">ตรวจทิศไม่ได้</span>' : "(อัตโนมัติ)"}</div>
+        <div>มุมเอียง</div><div>${m.skew_angle ?? "—"}°</div>
+        <div>ภาพสุดท้าย</div><div>${d.final_size[0]} × ${d.final_size[1]} px · ${d.settings.keep_color ? "สี" : "เทา"}</div></div>
+      ${skipped.length ? `<h3>ขั้นที่ข้าม</h3><ul class="small">${skipped.map(([n, w]) => `<li><b>${STEP_INFO[n === "colorgray" ? "color" : n][0]}</b>: ${esc(w)}</li>`).join("")}</ul>` : ""}
+      ${m.orientation_error ? `<div class="note">ตัวตรวจทิศล้ม ภาพอาจตะแคงอยู่โดยไม่มีสัญญาณ — ถ้าภาพตะแคง สั่งทิศเองได้ทาง command line: <code>fin_extractor preprocess &lt;ไฟล์&gt; --orientation 90|180|270 --force</code></div>` : ""}
+    </div></div>`;
+};
+
+RENDER.layout = d => {
+  const [W, H] = d.work_size;
+  const keep = d.sections.filter(s => s.keep), blank = d.sections.filter(s => !s.keep);
+  const tables = d.raw_tables.map(t => { const kept = d.tables.some(u => u.join() === t.join());
+    return `<rect x="${t[0]}" y="${t[1]}" width="${t[2]}" height="${t[3]}" fill="var(--table-sec)" fill-opacity="${kept ? .12 : 0}" stroke="${kept ? "var(--table-sec)" : "var(--na)"}" stroke-width="3" ${kept ? "" : 'stroke-dasharray="12 8"'} vector-effect="non-scaling-stroke"/>`; }).join("");
+  const cutSet = new Set(d.cuts);
+  const candLines = d.candidates.map(([y, k]) => { const ok = cutSet.has(y);
+    return `<line class="hit" x1="0" x2="${W}" y1="${y}" y2="${y}" stroke="${ok ? "var(--bad)" : "var(--warn)"}" stroke-width="${ok ? 2.5 : 2}" ${ok ? "" : 'stroke-dasharray="8 6"'} vector-effect="non-scaling-stroke"><title>y=${y} · ${k === "edge" ? "ขอบตาราง" : k === "rule" ? "เส้นแบ่งแถวของตาราง" : "ใต้เส้นประ"} · ${ok ? "ตัดได้ (แถวว่างตลอดหน้า)" : "ไม่ตัด (แถวนี้มีหมึก)"}</title></line>`; }).join("")
+    + d.cuts.filter(y => !d.candidates.some(c => c[0] === y)).map(y => `<line x1="0" x2="${W}" y1="${y}" y2="${y}" stroke="var(--bad)" stroke-width="2.5" vector-effect="non-scaling-stroke"><title>ขอบหน้า</title></line>`).join("");
+  const xmax = d.empty_row * 10;
+  const pts = d.profile.map((v, y) => `${(Math.min(v / xmax, 1) * 100).toFixed(2)},${y}`).join(" ");
+  const emptyBands = []; let st = null;
+  d.profile.forEach((v, y) => { if (v < d.empty_row && st === null) st = y; if ((v >= d.empty_row || y === H - 1) && st !== null) { emptyBands.push([st, y]); st = null; } });
+  const prof = `<svg viewBox="0 0 100 ${H}" preserveAspectRatio="none">
+      ${emptyBands.map(([a, b]) => `<rect x="0" y="${a}" width="100" height="${b - a}" fill="var(--ok)" fill-opacity=".14"/>`).join("")}
+      <polygon points="0,0 ${pts} 0,${H - 1}" fill="var(--accent)" fill-opacity=".35" stroke="var(--accent)" stroke-width="1" vector-effect="non-scaling-stroke"/>
+      <line x1="10" x2="10" y1="0" y2="${H}" stroke="var(--ok)" stroke-width="1.5" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"/>
+      ${d.cuts.map(y => `<line x1="0" x2="100" y1="${y}" y2="${y}" stroke="var(--bad)" stroke-width="2" vector-effect="non-scaling-stroke"/>`).join("")}</svg>`;
+  const parts = d.sections.filter(s => s.part && s.part > 1);
+  const byKind = k => d.sections.filter(s => s.kind === k && s.keep).length;
+  const views = { sections: "ผลสุดท้าย", work: "สำเนาทำงาน", bw: "ขาวดำ (Otsu)", lines: "เส้นตาราง", ink: "หมึกข้อความ", ...(d.fill ? { fill: "พื้นสี" } : {}) };
+  return `<div class="explain"><b>ขั้นนี้:</b> ตัดหน้าเป็น "ส่วน" (section) เล็ก ๆ เพื่อส่งเข้า OCR ทีละส่วน — <b>ใช้การประมวลผลภาพล้วน ไม่ได้ใช้ OCR</b> (<code>sections/layout.py → layout_sections</code>, table_mode = <code>rows</code>)
+    <br><b>ทำไมต้องแบ่ง:</b> ตัวอ่าน VLM อ่านทั้งหน้าแล้วข้าม/หลอนข้อความ และชนเพดาน token ง่าย ส่วนเล็ก ๆ อ่านแม่นกว่า และรู้ได้ว่าข้อความแต่ละท่อนมาจากตรงไหนของหน้า
+    <br>ทำงานบน<b>สำเนาด้านยาว ${d.work_side}px</b> (ย่อ ×${d.scale}) พิกัดทุกกรอบด้านล่างอยู่บนสำเนานี้ แล้วค่อยตัดภาพจริงจากภาพเต็มในขั้นถัดไป</div>
+
+  <h3>3.0 ระบาย QR/บาร์โค้ด</h3>
+  ${!d.codes_on ? '<p class="small muted">ปิดอยู่</p>' : `<div class="grid2"><div>${fig(img(d.images.before), W, H, d.codes.map(c => `<rect x="${c.box[0]}" y="${c.box[1]}" width="${c.box[2] - c.box[0]}" height="${c.box[3] - c.box[1]}" fill="var(--bad)" fill-opacity=".25" stroke="var(--bad)" stroke-width="3" vector-effect="non-scaling-stroke"/>`).join(""))}</div>
+  <div class="small"><p>หาบล็อกหมึกที่ <b>เกือบจัตุรัสและหมึกหนาแน่น</b> (QR: หมึก ≥ 45% ของกรอบ ข้อความพิมพ์ได้ราว 25–37%) หรือ <b>กว้างและมีขอบแนวตั้งเด่น</b> (บาร์โค้ด) บนสำเนาที่ย่อเป็น 200 dpi แล้วถอดรหัสด้วย OpenCV จากนั้น<b>ระบายขาว</b>ก่อนแบ่งส่วน รหัสจึงไม่ถูกส่งเข้า OCR (<code>sections/graphics.py</code> ใช้ตัวตรวจของ <code>regions/codes.py</code> ค่าใน <code>configs/regions/pipeline.yaml → mask</code>)</p>
+    ${d.codes.length ? `<p>เจอ <b>${d.codes.length}</b> ก้อน (กรอบแดง):</p><table><tr><th>ชนิด</th><th>ข้อความในรหัส (ถอดได้ตรงตัว ไม่ผ่าน OCR)</th></tr>${d.codes.map(c => `<tr><td>${c.kind}</td><td class="mono" style="word-break:break-all">${esc(c.data) || '<span class="muted">ถอดไม่ได้ (อาจเป็นภาพ/ตรา)</span>'}</td></tr>`).join("")}</table>` : "<p>ไม่เจอ QR/บาร์โค้ดในหน้านี้</p>"}
+    <p class="muted">โลโก้/ตรายางทั่วไปยังไม่ถูกตัด: ชิ้นหมึกของโลโก้มีขนาดและสีช่วงเดียวกับลายมือปากกา (ข้อมูล) จึงยังไม่มีเกณฑ์ที่ปลอดภัย</p></div></div>`}
+
+  <h3>3.1 เตรียมภาพสำหรับวิเคราะห์</h3>
+  <div class="grid3">
+    <figure><img src="${img(d.images.gray)}" class="zoomable" alt=""><figcaption><b>เทา</b> — ย่อเป็น ${W}×${H} แล้วแปลงเป็นเทา</figcaption></figure>
+    <figure><img src="${img(d.images.bw)}" class="zoomable" alt=""><figcaption><b>ขาวดำด้วย Otsu</b> — เลือกเกณฑ์เดียวทั้งภาพอัตโนมัติ (ได้ ${Math.round(d.otsu)}) ที่แยกสองกลุ่มความสว่างได้ดีที่สุด: เข้มกว่า = หมึก</figcaption></figure>
+    <figure><img src="${img(d.images.lines)}" class="zoomable" alt=""><figcaption><b>เส้นตาราง</b> — morphological opening ด้วยแท่งยาว ${d.line_kernel[0]}px (แนวนอน, <span style="color:#dc2828">แดง</span>) และ ${d.line_kernel[1]}px (แนวตั้ง, <span style="color:#145adc">น้ำเงิน</span>) = 1/30 ของด้านภาพ: เหลือเฉพาะหมึกที่ยาวต่อเนื่องเท่าแท่ง ตัวอักษรหายไป</figcaption></figure>
+    <figure><img src="${img(d.images.ink)}" class="zoomable" alt=""><figcaption><b>หมึกข้อความ</b> — ขาวดำ ลบเส้นตารางออก${d.fill ? " + ตัวอักษรบนพื้นสี" : ""} ใช้ตัดสินว่าแถวไหน "ว่าง" (กรอบฟอร์มที่ต่อกันทั้งหน้าจะไม่บังแถวว่าง)</figcaption></figure>
+    ${d.fill ? `<figure><img src="${img(d.images.fill)}" class="zoomable" alt=""><figcaption><b>พื้นสี</b> (fill-aware) — บริเวณแถบสี ห้ามตัดผ่า</figcaption></figure>` : ""}
+  </div>
+
+  <h3>3.2 หาตาราง</h3>
+  <div class="grid2"><div>${fig(img(d.images.work), W, H, tables)}</div>
+  <div class="small"><p>รวมเส้นแนวนอน+แนวตั้งที่แตะกันเป็นก้อน ก้อนที่มีทั้งสองทิศและใหญ่ ≥ 2% ของหน้า = <b>ตาราง</b> (<code>table_regions</code>)</p>
+    <p>พบ <b>${d.raw_tables.length}</b> ก้อน · ทิ้ง <b>${d.raw_tables.length - d.tables.length}</b> ก้อนที่เป็น "กรอบครอบ" ตารางอื่น (<code>drop_frames</code> — กรอบฟอร์มทั้งใบจะทำให้ได้ทั้งหน้าซ้ำ) เหลือ <b>${d.tables.length}</b> ตาราง</p>
+    <div class="legend"><span><i style="border-color:var(--table-sec)"></i>ตารางที่ใช้</span><span><i style="border-color:var(--na);border-top-style:dashed"></i>กรอบครอบ (ทิ้ง)</span></div></div></div>
+
+  <h3>3.3 หาจุดตัดแนวนอน</h3>
+  <p class="small">ผู้สมัครจุดตัด = <b>ขอบบน/ล่างของตาราง</b> + <b>เส้นแบ่งแถว</b>ที่ยาว ≥ 80% ของความกว้างตาราง${d.dotted ? " + <b>ใต้เส้นประ</b>" : ""} · ตัดได้จริงเฉพาะแถวที่ <b>หมึกน้อยกว่า ${(d.empty_row * 100).toFixed(1)}% ของความกว้างหน้า</b> (ว่างตลอดแนว) ป้ายข้างตารางจึงอยู่ภาพเดียวกับตัวเลขของแถวนั้นเสมอ (<code>band_cuts</code>) · กราฟขวา = สัดส่วนหมึกของแต่ละแถว (แกนตัดที่ ${(xmax * 100).toFixed(0)}% ให้เห็นแถวว่างชัด) แถบเขียว = แถวว่าง</p>
+  <div class="legend"><span><i style="border-color:var(--bad)"></i>ตัดได้</span><span><i style="border-color:var(--warn);border-top-style:dashed"></i>ผู้สมัครที่ไม่ตัด (แถวนั้นมีหมึก)</span><span><i style="border-color:var(--ok);border-top-style:dashed"></i>เกณฑ์แถวว่าง</span><span class="muted">ชี้เส้นเพื่อดูรายละเอียด</span></div>
+  <div class="cutwrap">${fig(img(d.images.work), W, H, candLines)}<div class="profile">${prof}</div></div>
+  <p class="small">ผู้สมัคร ${d.candidates.length} ตำแหน่ง → ตัดได้ ${d.cuts.length - 2} ตำแหน่ง (+ ขอบบน/ล่างของหน้า) = <b>${d.cuts.length - 1} แถบ</b> · แถบที่ทับตาราง ≥ ครึ่งความสูงเป็นชนิด <span class="sec k-table">table</span> นอกนั้น <span class="sec k-text">text</span>
+    ${parts.length ? `<br>แถบที่สูงเกิน ${d.max_piece_frac} ของหน้า (${d.max_piece_px}px) ถูกตัดซ้ำที่แถวว่างระหว่างบรรทัด (<code>split_rows</code>) ได้ท่อนเพิ่ม ${parts.length} ท่อน` : `<br>ไม่มีแถบที่สูงเกิน ${d.max_piece_frac} ของหน้า (${d.max_piece_px}px) จึงไม่ต้องตัดซ้ำ`}</p>
+
+  <h3>3.4 ผังสุดท้าย</h3>
+  <p class="small">ทั้งหมด <b>${d.sections.length}</b> ส่วน: ข้อความ ${byKind("text")} · ตาราง ${byKind("table")} · <span style="color:var(--blank-sec)">ว่าง ${blank.length}</span> (ไม่มีชิ้นหมึกที่ใหญ่ ≥ 8 px หลังลบเส้นตาราง → ไม่ส่ง OCR) — ลำดับ = ลำดับอ่านบนลงล่าง <b>คลิกกรอบ</b>เพื่อตามส่วนนั้นไปทุกขั้น
+    <br>ส่วนเป็นแถบเต็มความกว้างหน้า ${d.sections.some(s => s.band) ? "(หดกรอบให้ชิดข้อความแล้ว: <code>--trim-sections</code>)" : "ไม่ได้หดให้ชิดข้อความ: วัดกับ OpenThai บน 18 ใบแล้ว หดทุกด้านหรือหดแค่ซ้าย/ขวาก็ไม่ได้ฟิลด์ครบขึ้น (โมเดลทิ้งข้อความบางก้อนเมื่อภาพถูกตัดต่างไปเล็กน้อย) จึงคงแถบเต็มไว้ — ดู docs/03-sections.md"}</p>
+  <div class="chips">${Object.entries(views).map(([k, v]) => `<span class="chip ${layView === k ? "on" : ""}" onclick="layView='${k}';rendered.layout=null;render()">${v}</span>`).join("")}</div>
+  <div class="grid2"><div>${fig(img(d.images[layView === "sections" ? "work" : layView]), W, H, secRects(d.sections))}</div>
+  <div class="tablewrap" style="max-height:620px;overflow:auto"><table><tr><th>ส่วน</th><th>ชนิด</th><th>กรอบ x,y,w,h</th><th>ชิ้นหมึก</th><th>ท่อน</th><th></th></tr>
+    ${d.sections.map(s => `<tr data-sec="${s.id}" onclick="selectSec('${s.id}')" style="cursor:pointer"><td>${secChip(s.id, s.kind)}</td><td>${s.kind}</td><td class="mono">${s.bbox.join(",")}</td><td>${s.components}</td><td>${s.part ? `${s.part}/${s.parts}` : ""}</td><td>${s.keep ? "" : '<span class="badge b-bad">ว่าง</span>'}${s.masked ? ` <span class="badge b-warn">ระบาย ${s.masked.join(",")}</span>` : ""}</td></tr>`).join("")}</table></div></div>
+  <div class="legend"><span><i style="border-color:var(--text-sec)"></i>ข้อความ (text)</span><span><i style="border-color:var(--table-sec)"></i>ตาราง (table)</span><span><i style="border-color:var(--blank-sec);border-top-style:dashed"></i>ว่าง (ทิ้ง)</span></div>`;
+};
+
+RENDER.crops = d => `
+  <div class="explain"><b>ขั้นนี้:</b> คูณพิกัดของแต่ละส่วนกลับเป็นพิกัดภาพเต็ม (<code>crop_full</code>) ตัดจากภาพ preprocess ความละเอียดเต็ม แล้วแปลงเป็น<b>ภาพเทาแบบ luma</b> (<code>0.299R + 0.587G + 0.114B</code>) — นี่คือภาพที่ส่งเข้า OCR จริง
+    <br><b>ทำไม luma:</b> เทียบ 3 แบบบนสแกนจริง 18 ใบ (ไม่มีเฉลย วัดความครบของฟิลด์) luma ขาดฟิลด์รวม 14 · flat 16 · bin 28 (docs/03-sections.md) · ส่วนที่ว่าง ${d.blank.length} ส่วนไม่ถูกตัด</div>
+  <div class="toolbar small"><label><input type="checkbox" id="showColor" onchange="document.querySelectorAll('.crop img').forEach(i=>i.src=i.dataset[this.checked?'c':'g'])"> ดูภาพสีก่อนแปลงเทา</label></div>
+  <div class="grid3">${d.sections.map(s => `<div class="crop" data-sec="${s.id}" onclick="selectSec('${s.id}')">
+    <img src="${img("sections/" + s.file)}" data-g="${img("sections/" + s.file)}" data-c="${img("sections/" + s.color)}" alt="">
+    <div class="small" style="margin-top:4px">${secChip(s.id, s.kind)} ${s.kind}${s.part ? ` · ท่อน ${s.part}/${s.parts}` : ""} · <span class="muted">${s.size[0]}×${s.size[1]} px</span></div></div>`).join("")}</div>
+  ${d.blank.length ? `<p class="small muted">ข้าม (ว่าง): ${d.blank.map(b => secChip(b.id, b.kind)).join(" ")}</p>` : ""}`;
+
+function renderOcrText(t) {
+  // OpenThai/Typhoon ตอบ Markdown ที่ตารางเป็น HTML: แสดงเฉพาะแท็กตาราง ที่เหลือเป็นข้อความ
+  return esc(t).replace(/&lt;(\/?)(table|thead|tbody|tr|td|th|br)((?:\s+(?:colspan|rowspan)=&quot;\d+&quot;)*)\s*\/?&gt;/gi,
+    (m, sl, tag, attrs) => `<${sl}${tag}${attrs.replace(/&quot;/g, '"')}>`)
+    // บรรทัดใหม่ติดกับแท็กตาราง: ถ้ากลายเป็น <br> เบราว์เซอร์จะดันออกไปนอกตารางเป็นช่องว่างใหญ่
+    .replace(/\s*\n\s*(<\/?(?:table|thead|tbody|tr|td|th)\b[^>]*>)/gi, "$1").replace(/(<\/?(?:table|thead|tbody|tr|td|th)\b[^>]*>)\s*\n\s*/gi, "$1")
+    .replace(/\n/g, "<br>");
+}
+RENDER.ocr = (d, s) => {
+  const crops = data("crops").sections;
+  const got = Object.fromEntries(d.sections.map(r => [r.id, r]));
+  const done = d.sections.length, total = d.total;
+  const secs = d.sections.reduce((a, r) => a + r.seconds, 0);
+  return `<div class="explain"><b>ขั้นนี้:</b> ส่งภาพทีละส่วนเข้าตัวอ่าน <code>${esc(d.engine)}</code> (<code>readers/</code> ทุก engine ใช้ <code>recognize(ภาพ) → ReadResult</code> เหมือนกัน) ได้ข้อความ Markdown ต่อส่วน
+    · ${ENGINE_INFO[d.engine] || esc(d.engine)}
+    · ภาพทั้งหน้าไม่ถูกส่งเข้าตัวอ่านเลย (ห้ามอ่านทั้งหน้า)</div>
+  <div class="kv small"><div>ตัวอ่าน</div><div>${esc(d.reader || "กำลังโหลดโมเดล…")}</div>${d.load_seconds != null ? `<div>โหลดโมเดล</div><div>${d.load_seconds}s</div>` : ""}
+    <div>อ่านแล้ว</div><div>${done}/${total} ส่วน · รวม ${secs.toFixed(1)}s${done ? ` · เฉลี่ย ${(secs / done).toFixed(1)}s/ส่วน` : ""}</div>
+    ${d.sections.some(r => r.truncated) ? `<div>ชนเพดาน token</div><div><span class="badge b-bad">${d.sections.filter(r => r.truncated).length} ส่วน — ข้อความอาจขาด</span></div>` : ""}</div>
+  <div class="bar"><div style="width:${total ? done / total * 100 : 0}%"></div></div>
+  <div class="toolbar small"><label><input type="checkbox" id="ocrRaw" ${ocrRaw ? "checked" : ""} onchange="ocrRaw=this.checked;rendered.ocr=null;render()"> แสดงข้อความดิบ (ไม่แปลงตาราง HTML)</label></div>
+  ${crops.map(c => { const r = got[c.id], cur = d.current === c.id;
+    return `<div class="ocr-row ${r ? "" : "pending"}" data-sec="${c.id}"><div onclick="selectSec('${c.id}')" style="cursor:pointer"><img src="${img("sections/" + c.file)}" alt="">
+      <div class="small">${secChip(c.id, c.kind)} ${c.size[0]}×${c.size[1]}px</div></div>
+      <div>${r ? `<div class="small muted">${r.seconds}s · ${r.text.trim().length} ตัวอักษร${r.truncated ? ' · <span class="badge b-bad">ชนเพดาน token</span>' : ""}${r.confidence != null ? ` · ความมั่นใจเฉลี่ยที่ตัวอ่านรายงาน ${r.confidence.toFixed(3)}` : ""}</div>
+        ${r.text.trim() ? (ocrRaw ? `<pre>${esc(r.text)}</pre>` : `<div class="rendered small">${renderOcrText(r.text.trim())}</div>`) : '<span class="badge b-warn">ไม่ได้ข้อความ</span>'}`
+        : cur ? '<span class="small"><span class="spin"></span> กำลังอ่าน…</span>' : '<span class="small muted">รอคิว</span>'}</div></div>`; }).join("")}`;
+};
+let ocrRaw = false;
+
+RENDER.text = d => {
+  const mdLines = d.markdown.split("\n");
+  let cur = null;
+  const md = mdLines.map(l => { const m = l.match(/^<!--\s*(s\d+)\s+([^>]*?)\s*-->$/);
+    if (m) { cur = m[1]; return `<div class="md-line cmt" data-sec="${cur}" onclick="selectSec('${cur}')">${esc(l)}</div>`; }
+    return `<div class="md-line" data-sec="${cur || ""}" style="border-left-color:${cur ? `var(--${secKind(cur) === "table" ? "table" : "text"}-sec)` : "transparent"}">${esc(l) || "&nbsp;"}</div>`; }).join("");
+  return `<div class="explain"><b>ขั้นนี้ (ซ้าย):</b> ต่อข้อความทุกส่วนตามลำดับอ่าน คั่นด้วยบรรทัดว่าง และใส่คอมเมนต์ <code>&lt;!-- sNN ชนิด --&gt;</code> นำหน้าแต่ละท่อน เพื่อให้รู้ว่าบรรทัดไหนมาจากส่วนไหน = ไฟล์ <code>.md</code> ที่ขั้นสกัดอ่าน (<code>sections/read.py → markdown_of</code>)
+    <br><b>(ขวา)</b> แปลงเป็นบรรทัดล้วนสำหรับ rules (<code>markdown_to_lines</code>): แถวตาราง HTML 1 แถว = 1 บรรทัด ช่องคั่นด้วย <code> | </code> · ตัด <code>**ตัวหนา**</code> · แก้ "ำ" ที่ OpenThai พิมพ์เป็นนิคหิต+า · ต่อ "106,250 .00" เป็น "106,250.00" · ตัดบรรทัดว่าง และจำว่าแต่ละบรรทัดอยู่ใต้คอมเมนต์ส่วนไหน</div>
+  <div class="grid2"><div><h3 style="margin-top:0">ข้อความรวม (.md) · ${mdLines.length} บรรทัด</h3><div class="scrollbox mono small">${md}</div></div>
+  <div><h3 style="margin-top:0">บรรทัดสำหรับสกัด · ${d.lines.length} บรรทัด</h3><div class="scrollbox" style="background:var(--panel)"><table class="lines small" id="lineTable">
+    ${d.lines.map((l, i) => `<tr id="ln-${i}" data-sec="${l.section || ""}"><td>${i}</td><td>${secChip(l.section)}</td><td>${esc(l.text)}</td></tr>`).join("")}</table></div></div></div>`;
+};
+
+function lineChips(found) {
+  const lines = data("text").lines;
+  return found.length ? found.map(i => `<span class="sec" onclick="gotoLine(${i})" title="${esc(lines[i].text)}">#${i}${lines[i].section ? " " + lines[i].section : ""}</span>`).join(" ") : '<span class="muted small">ไม่พบตรง ๆ</span>';
+}
+RENDER.extract = d => {
+  const p = d.profile, ev = (data("validate") || {}).evidence || {};
+  const core = d.fields.filter(f => !f.key.startsWith("items[") && !f.key.startsWith("remark[") && !f.key.startsWith("document_fields."));
+  const docf = d.fields.filter(f => f.key.startsWith("document_fields."));
+  const row = f => { const e = ev[f.key]; const lv = e ? LEVEL[e.level] : null;
+    return `<tr><td>${esc(f.label || FIELD_LABEL[f.key] || f.key)}<div class="mono muted" style="font-size:11px">${esc(f.key)}</div></td><td><b>${esc(f.value)}</b></td><td>${lineChips(f.found)}</td><td>${lv ? `<span class="badge ${lv[1]}">${lv[0]}</span>` : ""}</td></tr>`; };
+  const missing = Object.entries(ev).filter(([k, e]) => e.level === "missing" || e.level === "not_applicable");
+  return `<div class="explain"><b>ขั้นนี้:</b> สกัดด้วย <b>rules</b> (keyword + regex ทีละบรรทัด ไม่ใช้โมเดล อธิบายได้ทุกค่า — <code>extraction/rule_extractor.py</code>) ตามลำดับ:
+    <ol style="margin:4px 0 0 18px;padding:0"><li>หาฟิลด์แกนกลาง: เลขภาษี 13 หลัก, วันที่ (แปลง พ.ศ. → ค.ศ.), เลขที่เอกสาร, ยอดเงินจากป้าย ("ก่อนภาษี" → ก่อน VAT, "รวมทั้งสิ้น" → ยอดสุทธิ, …), รายการสินค้า</li>
+    <li>จำแนก<b>ชนิดเอกสาร</b>จากป้ายที่พิมพ์บนเอกสาร (<code>configs/default.yaml → document_types</code>) แล้วอ่านฟิลด์ประจำชนิด</li>
+    <li>ข้อมูลที่ไม่มีช่อง เก็บใน <code>remark</code> พร้อมรหัสส่วนต้นทาง</li></ol>
+    คอลัมน์ "พบในบรรทัด" = บรรทัดที่มีค่านี้ปรากฏ (ค้นหลังสกัด ไว้ชี้ให้ดูเทียบ — ค่าเดียวกันอาจอยู่หลายบรรทัด) คลิกเพื่อกระโดดไปบรรทัดและส่วนนั้น</div>
+  <h3>ชนิดเอกสาร</h3>
+  <div class="kv small"><div>โปรไฟล์</div><div><b>${esc(p.name)}</b> — ${esc(p.title)} ${p.status ? `<span class="badge b-warn">${esc(p.status)}</span>` : ""}</div>
+    <div>เหตุผล</div><div>${p.matched.length ? `พบป้าย ${p.matched.map(a => `<code>${esc(a)}</code>`).join(", ")} ในข้อความ` : p.name === "generic" ? "ไม่ตรงป้ายของชนิดใดเลย → ใช้ generic (ใบกำกับภาษี/ใบเสร็จ/invoice)" : "ตรงกับชนิดที่ rules สกัดได้"}</div>
+    <div>ชนิดที่ rules อ่านได้</div><div>${esc(d.document_type || "—")}</div>
+    <div>ฟิลด์ที่ต้องมี</div><div>${p.required.map(r => `<code>${esc(r)}</code>`).join(" ")}</div>
+    <div>ยอดหลัก</div><div><code>${esc(p.primary_amount || "—")}</code></div>
+    ${p.not_applicable.length ? `<div>ไม่มีในชนิดนี้</div><div class="small">${p.not_applicable.map(r => `<code>${esc(r)}</code>`).join(" ")}</div>` : ""}</div>
+  <h3>ฟิลด์ที่สกัดได้ (${core.length})</h3>
+  <div class="tablewrap"><table><tr><th>ฟิลด์</th><th>ค่า</th><th>พบในบรรทัด</th><th>หลักฐาน</th></tr>${core.map(row).join("")}</table></div>
+  ${missing.length ? `<p class="small">ไม่พบ/ไม่มี: ${missing.map(([k, e]) => `<span class="badge ${LEVEL[e.level][1]}">${esc(FIELD_LABEL[k] || k)} · ${LEVEL[e.level][0]}</span>`).join(" ")}</p>` : ""}
+  ${p.fields.length ? `<h3>ฟิลด์ประจำชนิด (${esc(p.name)})</h3><div class="tablewrap"><table><tr><th>ฟิลด์</th><th>ค่า</th><th>พบในบรรทัด</th><th>หลักฐาน</th></tr>
+    ${p.fields.map(f => docf.find(x => x.key === "document_fields." + f.key) || { key: "document_fields." + f.key, label: f.label, value: "", found: [] }).map(row).join("")}</table></div>` : ""}
+  <h3>รายการสินค้า/บริการ (${d.items.length})</h3>
+  ${d.items.length ? `<div class="tablewrap"><table><tr><th>รายละเอียด</th><th>จำนวน</th><th>ราคา/หน่วย</th><th>จำนวนเงิน</th></tr>${d.items.map(it => `<tr><td>${esc(it.description)}</td><td>${esc(it.quantity ?? "")}</td><td>${esc(it.unit_price ?? "")}</td><td>${esc(it.amount ?? "")}</td></tr>`).join("")}</table></div>` : '<p class="small muted">ไม่พบ</p>'}
+  <h3>หมายเหตุ (remark) (${d.remark.length})</h3>
+  ${d.remark.length ? `<div class="tablewrap"><table><tr><th>ป้าย</th><th>ค่า</th><th>ชนิด</th><th>ส่วน</th></tr>${d.remark.map(r => `<tr data-sec="${r.source_chunk || ""}"><td>${esc(r.label)}</td><td>${esc(r.value)}</td><td class="small">${r.kind === "pair" ? "ป้าย: ค่า" : "มีตัวเลข/วันที่แต่ไม่มีช่อง"}</td><td>${secChip(r.source_chunk)}</td></tr>`).join("")}</table></div>` : '<p class="small muted">ไม่มี</p>'}`;
+};
+
+RENDER.validate = d => {
+  const mark = p => p === true ? '<span class="badge b-ok">✓ ผ่าน</span>' : p === false ? '<span class="badge b-bad">✗ ไม่ผ่าน</span>' : '<span class="badge">· ตรวจไม่ได้</span>';
+  const fired = d.rules.findIndex(r => !r.ok);
+  const st = STATUS[d.status];
+  const lv = Object.entries(d.evidence);
+  const count = k => lv.filter(([, e]) => e.level === k).length;
+  return `<div class="explain"><b>ขั้นนี้:</b> ไม่มีเฉลย จึงตรวจด้วย<b>ความสอดคล้องภายในเอกสาร</b>: เลขภาษีต้องผ่าน checksum และตัวเลขต้องบวกกันลงตัว (คลาดได้ ±0.02 บาทจากการปัด) (<code>validation/checks.py</code>)
+    แล้วให้ระดับหลักฐานรายฟิลด์ไว้ไฮไลต์ให้ฝ่ายบัญชีดู (<code>validation/evidence.py</code>) — <b>ไม่ใช่ความน่าจะเป็น</b> ไม่มีน้ำหนักหรือ threshold</div>
+  <h3>Checks</h3>
+  <div class="tablewrap"><table><tr><th>ผล</th><th>check</th><th>ตรวจอะไร</th><th>รายละเอียด</th><th>ฟิลด์ที่ใช้</th></tr>
+    ${d.checks.map(c => `<tr><td>${mark(c.passed)}</td><td class="mono">${esc(c.name)}</td><td class="small">${esc(CHECK_INFO[c.name] || "")}</td><td class="small mono">${esc(c.detail)}</td><td class="small">${c.fields.map(f => `<code>${esc(f)}</code>`).join(" ")}</td></tr>`).join("")}</table></div>
+  <h3>หลักฐานรายฟิลด์</h3>
+  <p class="small">ยืนยันแล้ว ${count("verified")} · ไม่มีตัวยืนยัน ${count("unverified")} · ขัดแย้ง ${count("conflict")} · หาไม่เจอ ${count("missing")} — กฎ: รูปแบบผิด / check ไม่ผ่าน / ค่าไม่ปรากฏในข้อความ → <b>ขัดแย้ง</b> · มี check ผ่าน → <b>ยืนยันแล้ว</b> · นอกนั้น → <b>ไม่มีตัวยืนยัน</b> (ชื่อ เลขที่ วันที่ ไม่มีตัวตรวจข้าม จึงไม่มีวันเป็น "ยืนยันแล้ว")</p>
+  <div class="tablewrap"><table><tr><th>ฟิลด์</th><th>ค่า</th><th>ระดับ</th><th>อยู่ในข้อความ</th><th>รูปแบบ</th><th>check ผ่าน</th><th>check ไม่ผ่าน</th></tr>
+    ${lv.filter(([k]) => !k.startsWith("remark[")).map(([k, e]) => `<tr><td>${esc(FIELD_LABEL[k] || k)}</td><td>${esc(e.value ?? "")}</td><td><span class="badge ${LEVEL[e.level][1]}">${LEVEL[e.level][0]}</span></td>
+      <td>${e.grounded === true ? "✓" : e.grounded === false ? '<span class="badge b-bad">ไม่พบ</span>' : ""}</td><td>${e.format_valid === true ? "✓" : e.format_valid === false ? '<span class="badge b-bad">ผิด</span>' : ""}</td>
+      <td class="small">${e.checks_passed.join(", ")}</td><td class="small">${e.checks_failed.join(", ")}</td></tr>`).join("")}</table></div>
+  <h3>ตัดสินสถานะ</h3>
+  <p class="small">ไล่กฎตามลำดับ (<code>validation/scoring.py → decide_status</code>) กฎแรกที่ไม่ผ่านเป็นตัวตัดสิน ผ่านครบทุกข้อ = อนุมัติอัตโนมัติได้</p>
+  <div class="flow">${d.rules.map((r, i) => `<div class="${i === fired ? "fired" : ""}">${r.ok ? '<span class="badge b-ok">✓</span>' : '<span class="badge b-bad">✗</span>'} ${esc(r.rule)} ${!r.ok ? `<span class="small muted">→ ${STATUS[r.fail_to][0]}</span>` : ""}</div>`).join("")}</div>
+  ${d.missing.length ? `<p class="small">ฟิลด์ที่ต้องมีแต่หาไม่เจอ: ${d.missing.map(m => `<code>${esc(m)}</code>`).join(" ")}</p>` : ""}
+  <p>สถานะ: <span class="bigstatus badge ${st[1]}">${st[0]}</span> <span class="mono small muted">${d.status}</span></p>`;
+};
+
+RENDER.result = d => `
+  <div class="explain"><b>ผลสุดท้าย</b> ตาม <code>schemas/invoice.schema.json</code> (schema ${esc(d.json.schema_version)}) ยอดเงินเป็นสตริงทศนิยม · บันทึกไว้ที่ <code>${esc(d.path)}</code></div>
+  <div class="toolbar"><button onclick="navigator.clipboard.writeText(JSON.stringify(data('result').json,null,2));this.textContent='คัดลอกแล้ว'">คัดลอก JSON</button>
+    <button onclick="dl()">ดาวน์โหลด .json</button></div>
+  <pre class="mono">${esc(JSON.stringify(d.json, (k, v) => k === "raw_text" ? undefined : v, 2))}</pre>`;
+function dl() { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(data("result").json, null, 2)], { type: "application/json" })); a.download = (job.file.replace(/\.[^.]+$/, "") || "result") + ".json"; a.click(); }
+
+// ------------------------------------------------------------------ เลือกส่วน → ไฮไลต์ทุกขั้น + กล่องสรุป
+function selectSec(id) { selSec = selSec === id ? null : id; applySel(); }
+function applySel() {
+  document.querySelectorAll("[data-sec]").forEach(el => el.classList.toggle("sel", !!selSec && el.dataset.sec === selSec));
+  document.querySelectorAll("g.secbox").forEach(g => { const r = g.querySelector("rect"); const on = g.dataset.sec === selSec;
+    r.setAttribute("stroke-width", on ? 6 : (r.getAttribute("stroke-dasharray") ? 3 : 2.5)); r.setAttribute("fill-opacity", on ? .25 : .07);
+    r.style.stroke = on ? "var(--sel)" : ""; });
+  const box = $("#insp");
+  if (!selSec || !job) { box.classList.remove("on"); return; }
+  const lay = data("layout"), s = lay && lay.sections.find(x => x.id === selSec);
+  if (!s) { box.classList.remove("on"); return; }
+  const crop = data("crops") && data("crops").sections.find(c => c.id === selSec);
+  const o = data("ocr") && data("ocr").sections.find(r => r.id === selSec);
+  const t = data("text"), ex = data("extract");
+  const lines = t ? t.lines.map((l, i) => [i, l]).filter(([, l]) => l.section === selSec) : [];
+  const ids = new Set(lines.map(([i]) => i));
+  const fields = ex ? ex.fields.filter(f => f.found.some(i => ids.has(i))) : [];
+  box.innerHTML = `<button class="x" onclick="selectSec(null)">ปิด</button><h3 style="margin:0">ส่วน ${secChip(s.id, s.kind)} <span class="small muted">${s.kind}${s.part ? ` ท่อน ${s.part}/${s.parts}` : ""}</span></h3>
+    <div class="small muted">กรอบบนสำเนา ${lay.work_size[0]}px: ${s.bbox.join(", ")} · ชิ้นหมึก ${s.components}${s.keep ? "" : " · <b>ว่าง ไม่ส่ง OCR</b>"}</div>
+    ${crop ? `<h3>ภาพที่ส่งเข้า OCR</h3><img src="${img("sections/" + crop.file)}" class="zoomable" style="width:100%;border:1px solid var(--line);background:#fff" alt="">` : ""}
+    ${o ? `<h3>ข้อความที่อ่านได้ <span class="small muted">${o.seconds}s</span></h3><pre class="mono">${esc(o.text) || "(ว่าง)"}</pre>` : ""}
+    ${lines.length ? `<h3>บรรทัดที่ได้ (${lines.length})</h3><table class="small">${lines.map(([i, l]) => `<tr><td class="muted"><a href="#" onclick="gotoLine(${i});return false">#${i}</a></td><td>${esc(l.text)}</td></tr>`).join("")}</table>` : ""}
+    ${fields.length ? `<h3>ฟิลด์ที่ค่าอยู่ในส่วนนี้</h3><table class="small">${fields.map(f => `<tr><td>${esc(f.label || FIELD_LABEL[f.key] || f.key)}</td><td><b>${esc(f.value)}</b></td></tr>`).join("")}</table>` : ""}`;
+  box.classList.add("on");
+}
+function gotoLine(i) {
+  const tr = document.getElementById("ln-" + i); if (!tr) return;
+  const sec = data("text").lines[i].section; if (sec && selSec !== sec) { selSec = sec; applySel(); }
+  tr.scrollIntoView({ block: "center", behavior: "smooth" }); tr.classList.remove("flash"); void tr.offsetWidth; tr.classList.add("flash");
+}
+
+// ------------------------------------------------------------------ ขยายภาพ
+document.addEventListener("click", e => {
+  const t = e.target;
+  if (t.matches && t.matches("img.zoomable")) { const lb = $("#lightbox"); lb.querySelector("img").src = t.src; lb.classList.add("on"); }
+});
+$("#lightbox").onclick = () => $("#lightbox").classList.remove("on");
+document.addEventListener("keydown", e => { if (e.key === "Escape") { $("#lightbox").classList.remove("on"); selectSec(null); } });
+init();
+</script></body></html>
