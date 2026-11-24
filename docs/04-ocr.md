@@ -26,6 +26,8 @@ res = make_reader("openthai", cfg).recognize(img)   # img = ภาพ BGR → Re
 | `openthai` (ค่าตั้งต้น) | `readers/openthai.py` | โมเดลภาพ 0.63B (torch ในเครื่อง) | Markdown | ดู [04-openthai-ocr.md](04-openthai-ocr.md) |
 | `typhoon` | `readers/typhoon.py` | โมเดลภาพ 3B ผ่าน Ollama / vLLM / Typhoon API | Markdown | ต้องเปิด Ollama |
 | `paddle` | `readers/paddle.py` (+ `readers/lines.py`) | ตรวจกรอบคำแล้วอ่านทีละกรอบ | บรรทัดล้วน + ความมั่นใจรายคำ | ห้ามอยู่ process เดียวกับ torch (cuDNN คนละรุ่น) |
+| `openthai21` | `readers/openthai.py` | ตัวเดียวกับ `openthai` weights 2.1 (torch ในเครื่อง) | Markdown | ผลแยกโฟลเดอร์ ดู [04-openthai-ocr.md](04-openthai-ocr.md) หัวข้อ 6 |
+| `openthai-text` | `readers/openthai_text.py` | ตัวตรวจบรรทัด + ตัวอ่าน CTC (ONNX บน CPU) | ข้อความทีละบรรทัด + ความมั่นใจ | ไม่มีตาราง ลายมือแย่ ดู [04-openthai-ocr.md](04-openthai-ocr.md) หัวข้อ 6 |
 | `oxr` | `readers/oxr.py` | โมเดลภาพ 1.3B (torch ในเครื่อง) | ข้อความ | อ่านไทยไม่ได้ ดู [archive/oxr.md](archive/oxr.md) |
 
 ตัวเรียกโมเดลแบบแชต (`llm_client.py`) ใช้ร่วมกันระหว่าง Typhoon กับ LLM ตัวสกัดของขั้นที่ 5 ส่วน prompt ของ LLM ตัวสกัดอยู่ที่ `extraction/prompts.py`

@@ -60,6 +60,25 @@ openthai:
   max_tokens: 8744
   parse_mode: single             # single = อ่านหน้าเดียวรอบเดียว | double = อ่านซ้ำเฉพาะตาราง/chart แบบ crop (ช้ากว่า แต่ลดตารางตก)
 
+# OpenThai 2.1 OCR Markdown (iApp 2026-11-18) — ใช้ด้วย --engine openthai21 ตัวอ่านเดียวกับ openthai แค่ weights ใหม่ ผลลง 04_ocr/<dataset>/openthai21/
+# ดาวน์โหลด: hf download iapp/OpenThai2.1-OCR-Markdown-20261118 --local-dir models/OpenThai2.1-OCR-Markdown-20261118
+# model card: เอกสารราชการไทย/ตารางเท่าเดิม (printed Thai 90.2 เทียบ 2.0 90.3) ดีขึ้นที่ภาพถ่ายมือถือ + หน้าแบบใหม่ ยังไม่ได้วัดกับสแกนของเรา
+openthai21:
+  backend: transformers
+  model_dir: models/OpenThai2.1-OCR-Markdown-20261118
+  device: null
+  base_url: http://localhost:8000/v1
+  repetition_penalty: 1.1        # ค่าเดียวกับ openthai (2.0) ให้เทียบแฟร์ model card 2.1 ไม่ได้แนะนำค่าใหม่
+  max_tokens: 8744
+  parse_mode: single
+
+# OpenThai 2.1 OCR Text (iApp 2026-11-18) — ใช้ด้วย --engine openthai-text ONNX บน CPU (ไม่ใช้ GPU) ต้อง pip install onnxruntime
+# ดาวน์โหลด: hf download iapp/OpenThai2.1-OCR-Text-20261118 --local-dir models/OpenThai2.1-OCR-Text-20261118
+# คืนบรรทัด + ความมั่นใจ ไม่มีตาราง model card: ลายมืออ่านได้แย่ (handwriting 10.3)
+openthai-text:
+  model_dir: models/OpenThai2.1-OCR-Text-20261118
+  threads: 1                     # ตาม model card (หนึ่ง worker ต่อ core)
+
 # OXR-1.0 (SoMarkAI) ใช้ด้วย --engine oxr โหลดตรงด้วย Transformers ไม่ใช้ Docker — อ่านภาพย่อย (section) เฉพาะส่วนที่เป็นตัวเลข/อังกฤษ (ไม่รู้ภาษาไทย ดู docs/archive/oxr.md)
 # ดาวน์โหลด weights ~3GB เก็บนอก repo ได้: hf download SoMarkAI/OXR-1.0 --local-dir <model_dir>
 oxr:
