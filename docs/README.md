@@ -7,12 +7,13 @@
 | ขั้น | เรื่อง | โค้ด | เอกสาร |
 |---|---|---|---|
 | — | ติดตั้งและวิธีใช้ (คำสั่ง, โครงเก็บผล, สคริปต์) | | [00-setup-and-usage.md](00-setup-and-usage.md) |
+| — | หน้าเว็บลอง OCR ทีละขั้น (อัปโหลด 1 ไฟล์ ดูภาพ/ผลทุกขั้นจนได้ JSON) | `scripts/demo/` | [00-setup-and-usage.md](00-setup-and-usage.md) (หัวข้อ "หน้าเว็บลอง OCR ทีละขั้น") |
 | 1 | เตรียมและโหลดไฟล์ | `io/loader.py` | [01-input.md](01-input.md) |
 | 2 | Preprocess ภาพทั้งหน้า (ทิศ เอียง ขอบ) | `preprocessing/` | [02-preprocessing.md](02-preprocessing.md) |
 | 3 | แบ่งหน้าเป็น section ก่อน OCR (flow หลัก, ข้ามได้ถ้าอ่านทั้งหน้า) | `sections/` | [03-sections.md](03-sections.md) |
 | 3 | ทางเลือก: แบ่ง region / ตาราง → ช่อง → key/value + ระบาย QR (คำสั่ง `regions` · OCR ผ่าน `sections --layout regions` วัดแล้วแย่กว่าผัง section) | `sections/regions/`, `configs/regions/` | [03-regions.md](03-regions.md) |
 | 4 | อ่านข้อความ: ตัวอ่านทุก engine ทางเดียวกัน (OpenThai · Typhoon · Paddle · OXR) | `readers/`, `sections/read.py` | [04-ocr.md](04-ocr.md) |
-| 4 | OpenThai 2.0 OCR: ตัวอ่านของ flow หลัก (หลักการ การต่อเข้า ผลวัด 18 ใบ) | `readers/openthai.py` | [04-openthai-ocr.md](04-openthai-ocr.md) |
+| 4 | OpenThai 2.0 OCR: ตัวอ่านของ flow หลัก (หลักการ การต่อเข้า ผลวัด 18 ใบ) + OpenThai 2.1 Markdown/Text เทียบกัน | `readers/openthai.py`, `readers/openthai_text.py` | [04-openthai-ocr.md](04-openthai-ocr.md) |
 | 5 | สกัด field: 5A rules · 5B LLM · 5C เลือกผล · 5D hybrid | `extraction/`, `pipeline.py` | [05-extraction.md](05-extraction.md) |
 | 5 | 5E validation · 5F สถานะ · 5G บันทึก JSON | `validation/`, `cli.py` | [05-validation-output.md](05-validation-output.md) |
 | — | หลักการระบบ, data contract (schema), best solution และ roadmap | `schema.py` | [06-design-and-roadmap.md](06-design-and-roadmap.md) |
@@ -25,6 +26,7 @@
 | แผนรองรับลายมือและ confidence รายฟิลด์ | [draft-07-handwriting-and-field-confidence.md](draft-07-handwriting-and-field-confidence.md) |
 | Decision model (concept: Jev / Laya) | [draft-08-decision-model.md](draft-08-decision-model.md) |
 | แผน decision engine กับ confidence รายฟิลด์ (ความเห็น ข้อแย้ง ตัวชี้วัด) | [draft-09-decision-engine-confidence-plan.md](draft-09-decision-engine-confidence-plan.md) |
+| แผน implement OpenThai-SystemOne (decision model ภาษาไทย รันในเครื่อง) | [draft-11-openthai-systemone-plan.md](draft-11-openthai-systemone-plan.md) |
 
 **archive** (ลองแล้วไม่ใช้ เก็บไว้เป็นหลักฐานผลวัด)
 
@@ -34,7 +36,7 @@
 
 ## Workflow
 
-**flow หลักสำหรับสแกนจริง** (`python -m fin_extractor sections <input>` = ห้าขั้นนี้ในคำสั่งเดียว ข้ามขั้นที่ผลยังใช้ได้ ไม่ใช้ OCR คัดส่วน) อยู่ในแผนภาพถัดไป ทุก engine (`--engine openthai|typhoon|paddle|oxr`) ใช้ flow นี้ **ห้ามอ่านทั้งหน้า** (คำสั่ง `ocr` ปิดแล้ว) ส่วนแผนภาพที่สองเป็นบันทึกของสองโหมดเดิมที่อ่านทั้งหน้า (ไม่ใช้แล้ว)
+**flow หลักสำหรับสแกนจริง** (`python -m fin_extractor sections <input>` = ห้าขั้นนี้ในคำสั่งเดียว ข้ามขั้นที่ผลยังใช้ได้ ไม่ใช้ OCR คัดส่วน) อยู่ในแผนภาพถัดไป ทุก engine (`--engine openthai|openthai21|openthai-text|typhoon|paddle|oxr`) ใช้ flow นี้ **ห้ามอ่านทั้งหน้า** (คำสั่ง `ocr` ปิดแล้ว) ส่วนแผนภาพที่สองเป็นบันทึกของสองโหมดเดิมที่อ่านทั้งหน้า (ไม่ใช้แล้ว)
 
 ```mermaid
 flowchart TD

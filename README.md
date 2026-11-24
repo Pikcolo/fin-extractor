@@ -46,10 +46,11 @@ python -X utf8 -m fin_extractor sections data/01_input/synthetic --engine paddle
 
 ```powershell
 python -m fin_extractor preprocess data/01_input --steps           # ดูผล preprocess ทีละขั้น
-python -m fin_extractor sections data/01_input/finance_doc_scan    # flow หลัก (ดูหัวข้อถัดไป) --engine openthai|typhoon|paddle|oxr
+python -m fin_extractor sections data/01_input/finance_doc_scan    # flow หลัก (ดูหัวข้อถัดไป) --engine openthai|openthai21|openthai-text|typhoon|paddle|oxr
 python -m fin_extractor extract data/01_input/finance_doc_scan --engine typhoon --only 1306   # สกัดซ้ำจากข้อความรายส่วนที่เก็บไว้ (ไม่อ่านภาพ ไม่ใช้ GPU)
 python -m fin_extractor compare data/01_input/finance_doc_scan     # เทียบผลสกัด luma/flat/bin ติดธงแถวที่เทียบไม่แฟร์
 python -m fin_extractor schema                                # export JSON Schema (หลังแก้ schema.py)
+python -X utf8 scripts/demo/ocr_demo_app.py                  # หน้าเว็บลอง OCR 1 ไฟล์ ดูผลทุกขั้นจนได้ JSON → http://127.0.0.1:8766
 pytest
 ```
 

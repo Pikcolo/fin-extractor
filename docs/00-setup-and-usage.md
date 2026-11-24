@@ -39,6 +39,8 @@ pytest                                                                     # ต
 | Ollama + Typhoon OCR | `sections --engine typhoon` | `ollama pull scb10x/typhoon-ocr1.5-3b` |
 | Ollama + LLM | การสกัดด้วย LLM (`extract --llm on\|hybrid`) | `ollama pull qwen2.5:3b` (เปลี่ยนรุ่นที่ `llm_extractor.model`) |
 | OpenThai 2.0 OCR (iApp, 0.63B) | `sections --engine openthai` (ค่าตั้งต้น) | `pip install torch==2.11.0 torchvision==0.26.0 --index-url https://download.pytorch.org/whl/cu128` แล้ว `pip install -e ".[openthai]"` และ `hf download iapp/OpenThai2.0-OCR-Markdown --local-dir models/OpenThai2.0-OCR-Markdown` (index cu128 มี torch สูงสุด 2.11; ถ้าลง torch จาก PyPI เฉย ๆ บน Windows จะได้รุ่น CPU) ทดสอบบน RTX 4050 6GB: VRAM สูงสุด ~2.4GB, 1 หน้า ~20 วินาที (รวมโหลดโมเดล) |
+| OpenThai 2.1 OCR Markdown | `sections --engine openthai21` (ทดลอง ผลวัดดู [04-openthai-ocr.md](04-openthai-ocr.md) หัวข้อ 6) | ตัวอ่านและ torch ชุดเดียวกับ 2.0 แค่ดาวน์โหลด `hf download iapp/OpenThai2.1-OCR-Markdown-20261118 --local-dir models/OpenThai2.1-OCR-Markdown-20261118` (2.6 GB) VRAM ~1.4 GB |
+| OpenThai 2.1 OCR Text (CPU) | `sections --engine openthai-text` (ทดลอง) | `pip install onnxruntime` และ `hf download iapp/OpenThai2.1-OCR-Text-20261118 --local-dir models/OpenThai2.1-OCR-Text-20261118` (9 MB) ไม่ใช้ GPU |
 | ฟอนต์ | `scripts/data/make_synthetic_samples.py`, `scripts/ocr/oxr/visualize_oxr.py`, `scripts/ocr/visualize_bbox.py` | **มากับโปรเจกต์แล้ว** ที่ `assets/fonts/` (Sarabun, SIL OFL) ไม่ใช้ฟอนต์ของเครื่อง ไม่ต้องติดตั้ง |
 
 **อะไรอยู่ในโปรเจกต์ อะไรอยู่นอก:**
@@ -130,19 +132,36 @@ data/
 | คำสั่ง | ขั้นที่ทำ | ผลลัพธ์ |
 |---|---|---|
 | `python -m fin_extractor preprocess <input> [--profile P] [--steps] [--force] [--orientation 90/180/270]` | 1 → 2 | `data/02_preprocess/<dataset>/<profile>/` |
-| `python -m fin_extractor extract <input> [--engine openthai\|typhoon\|paddle\|oxr] [--variant luma\|flat\|bin\|color] [--llm off\|on\|auto\|hybrid] [--only 1309 …]` | 5 (สกัดซ้ำจากข้อความรายส่วนที่มี ไม่อ่านภาพ) | `data/05_extract/<dataset>/<engine>/<วิธี>/<extractor>/` |
+| `python -m fin_extractor extract <input> [--engine openthai\|openthai21\|openthai-text\|typhoon\|paddle\|oxr] [--variant luma\|flat\|bin\|color] [--llm off\|on\|auto\|hybrid] [--only 1309 …]` | 5 (สกัดซ้ำจากข้อความรายส่วนที่มี ไม่อ่านภาพ) | `data/05_extract/<dataset>/<engine>/<วิธี>/<extractor>/` |
 | `python -m fin_extractor ocr …` | ปิดแล้ว (ห้ามอ่านทั้งหน้า) หยุดพร้อมบอกให้ใช้ `sections --to ocr` | — |
-| `python -m fin_extractor sections <input> [--variant luma\|flat\|bin\|color] [--engine openthai\|typhoon\|paddle\|oxr] [--from ขั้น] [--to ขั้น] [--only 1309 …] [--redo] [--layout sections\|regions] [--table-mode whole\|cells\|bands\|rows] [--max-piece-frac F] [--fill-aware] [--drop-empty-rows] [--profile P]` | flow หลัก: preprocess → layout → images → ocr → extract (ชื่อขั้นใน `--from`/`--to`: `preprocess` `layout` `images` `ocr` `extract`) | `data/02_preprocess` … `data/05_extract` ตามขั้น |
+| `python -m fin_extractor sections <input> [--variant luma\|flat\|bin\|color] [--engine openthai\|openthai21\|openthai-text\|typhoon\|paddle\|oxr] [--from ขั้น] [--to ขั้น] [--only 1309 …] [--redo] [--layout sections\|regions] [--table-mode whole\|cells\|bands\|rows] [--max-piece-frac F] [--fill-aware] [--dotted-rules] [--no-mask-codes] [--trim-sections all\|text-lr] [--drop-empty-rows] [--profile P]` | flow หลัก: preprocess → layout → images → ocr → extract (ชื่อขั้นใน `--from`/`--to`: `preprocess` `layout` `images` `ocr` `extract`) | `data/02_preprocess` … `data/05_extract` ตามขั้น |
 | `python -m fin_extractor regions <input> [--only 1307 …] [--no-debug-images] [--profile P]` | ขั้น 3 แบบทางเลือก: region (template 50 ทวิ / แถบตามเส้น) + ตาราง → ช่อง + key/value + ระบาย QR จากภาพ final (CPU ไม่ OCR ไม่แตะผังเดิม) ตั้งค่าที่ `configs/regions/` ดู [03-regions.md](03-regions.md) | `data/03_sections/<dataset>/<profile>/regions/` |
 | `python -m fin_extractor compare <input> [--engine openthai] [--variants luma flat bin] [--out ไฟล์.md]` | — | ตารางเทียบผลสกัดข้ามวิธี พิมพ์ที่หน้าจอ (ใส่ `--out` เขียน .md ด้วย) แถวที่เทียบไม่แฟร์ถูกติดธงและไม่นับในยอดรวม |
 | `python -m fin_extractor schema` | — | `schemas/invoice.schema.json` (generate จาก `schema.py` ห้ามแก้ไฟล์ตรง ๆ) |
 | `pytest` | รันเทสต์ | |
 
+ตัวเลือกของ `sections` ที่เกี่ยวกับสิ่งที่ส่งเข้า OCR:
+
+| ตัวเลือก | ความหมาย |
+|---|---|
+| (ค่าตั้งต้น) ระบาย QR/บาร์โค้ด · `--no-mask-codes` ปิด | หา QR/บาร์โค้ดแล้วระบายขาวก่อนแบ่ง ไม่ส่งเข้า OCR ข้อความในรหัสเก็บใน `masked_codes` ของผัง ([03-sections.md](03-sections.md)) |
+| `--trim-sections all\|text-lr` | หดกรอบส่วนให้เหลือแค่ข้อความ วัดกับ OpenThai แล้วไม่ดีขึ้นทั้งสองแบบ จึงไม่เปิดเป็นค่าตั้งต้น ([03-sections.md](03-sections.md)) |
+
+**หน้าเว็บลอง OCR ทีละขั้น** (`scripts/demo/ocr_demo_app.py`): อัปโหลดเอกสาร 1 ไฟล์ แล้วดูผลทุกขั้นของ flow หลัก (preprocess → ผังแบ่งส่วนพร้อมภาพกลางทาง → ภาพรายส่วน → OCR ทีละส่วน → บรรทัด → ฟิลด์ → check/สถานะ → JSON) คลิกรหัสส่วนเพื่อตามส่วนนั้นข้ามทุกขั้น
+
+```bash
+python -X utf8 scripts/demo/ocr_demo_app.py          # เปิด http://127.0.0.1:8766 (เฉพาะเครื่องนี้)
+```
+
+- ตั้งค่าปรับภาพ/แบ่งส่วนเป็นค่าตั้งต้นของ `sections` ให้เอง (`FLOW_DEFAULTS` ในสคริปต์) เลือกได้แค่ตัวอ่าน
+- ขั้นที่โหลดโมเดล (preprocess ที่ใช้ตัวตรวจทิศของ Paddle และ OCR) รันใน `scripts/demo/ocr_demo_worker.py` แยก process รันได้ทีละงาน ใช้หน้าแรกของ PDF
+- ผลแต่ละงานอยู่ที่ `data/etc/demo/<งาน>/` (ไม่ commit) ใช้ฟังก์ชันเดียวกับ pipeline จริง ไม่ได้เขียนตรรกะใหม่
+
 ตัวเลือกของ `extract`:
 
 | ตัวเลือก | ความหมาย |
 |---|---|
-| `--engine` | ตัวอ่านที่สร้างข้อความรายส่วน (`openthai` ตั้งต้น · `typhoon` · `paddle` · `oxr`) อ่านจาก `04_ocr/<dataset>/<engine>/<วิธี>/` |
+| `--engine` | ตัวอ่านที่สร้างข้อความรายส่วน (`openthai` ตั้งต้น · `openthai21` · `openthai-text` · `typhoon` · `paddle` · `oxr`) อ่านจาก `04_ocr/<dataset>/<engine>/<วิธี>/` |
 | `--variant luma\|flat\|bin\|color` | ภาพรายส่วนแบบที่ใช้ตอนอ่าน (`luma` ตั้งต้น) ผลเขียนที่ `05_extract/…/<วิธี>/<extractor>/` |
 | `--llm off\|on\|auto\|hybrid` | `off` = rules อย่างเดียว (ตั้งต้น) · `on`/`auto` = rules และ LLM สกัดแยก เลือกชุดที่ check ดีกว่า · `hybrid` = rules นำ LLM เติมเฉพาะช่องที่ยังไม่เสร็จ (ผลลง `…/hybrid/`) |
 | `--profile` | ชื่อชุดตั้งค่า preprocess (ใช้หาไฟล์ ไม่แตะภาพ) |

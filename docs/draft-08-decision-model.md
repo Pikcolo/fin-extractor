@@ -4,6 +4,7 @@
 [06-design-and-roadmap.md](06-design-and-roadmap.md)
 
 > แผนเรื่องใช้ decision model ช่วยทำ confidence รายฟิลด์ พร้อมข้อแย้งและตัวชี้วัด อยู่ที่ [draft-09-decision-engine-confidence-plan.md](draft-09-decision-engine-confidence-plan.md)
+> ตัวเลือกที่สาม OpenThai-SystemOne (iApp: open-weight รันในเครื่อง ฝึกภาษาไทย) พร้อมแผน implement อยู่ที่ [draft-11-openthai-systemone-plan.md](draft-11-openthai-systemone-plan.md)
 
 > สถานะ: concept ยังไม่ได้ implement (ไม่มีโค้ดของ decision model ใน `src/`) ขั้นที่ต้องมีก่อน U5 (Review UI/ReviewRecord) ก็ยังไม่ทำ และยังไม่ได้ทดลองกับโมเดลจริง
 > ข้อมูลเกี่ยวกับ Jev และ Laya มาจากบล็อกและไดเรกทอรีเป็นส่วนใหญ่ (หัวข้อ "แหล่งข้อมูล")
