@@ -18,6 +18,7 @@ from ..io import read_image
 from ..paths import DEFAULT_PROFILE, DataPaths
 from ..preprocessing import binarize as bin_ops
 from ..preprocessing import enhance
+from . import graphics as G
 from . import images as I  # noqa: E741
 from . import layout as L
 from .crops import iter_section_crops
@@ -36,15 +37,22 @@ def page_images(final_dir: Path) -> dict[str, Path]:
     return {p.name[: -len("_p1.png")]: p for p in sorted(final_dir.rglob("*_p1.png"))}
 
 
-def layout_params(table_mode: str, max_piece_frac: float | None, full: np.ndarray, work: np.ndarray, fill_text: bool = False, dotted: bool = False) -> dict:
-    return {"table_mode": table_mode, "fill_text_ink": fill_text, "dotted_rules": dotted, "max_piece_frac": max_piece_frac, "work_long_side": L.WORK,
+def layout_params(table_mode: str, max_piece_frac: float | None, full: np.ndarray, work: np.ndarray, fill_text: bool = False, dotted: bool = False,
+                  mask_codes: bool = False, trim: str | None = None) -> dict:
+    return {"table_mode": table_mode, "fill_text_ink": fill_text, "dotted_rules": dotted, "mask_codes": mask_codes, "trim_sections": trim or False,
+            "max_piece_frac": max_piece_frac, "work_long_side": L.WORK,
             "page_size": [int(full.shape[1]), int(full.shape[0])], "work_size": [int(work.shape[1]), int(work.shape[0])]}
 
 
 def build_layouts(paths: DataPaths, dataset: str, profile: str = DEFAULT_PROFILE, only: list[str] | None = None,
-                  table_mode: str = "rows", max_piece_frac: float | None = L.MAX_PIECE_FRAC, fill_text: bool = False, dotted: bool = False) -> dict[str, int]:
+                  table_mode: str = "rows", max_piece_frac: float | None = L.MAX_PIECE_FRAC, fill_text: bool = False, dotted: bool = False,
+                  mask_codes: bool = True, pdf_dpi: float = 300, trim: str | None = None) -> dict[str, int]:
     """ผังแบ่ง section ของทุกไฟล์ใน ``02_preprocess/<dataset>/<profile>/final/`` (กรองด้วยท้ายชื่อใน ``only``)
-    เขียนเฉพาะคีย์ ``layout`` ``layout_params`` ``layout_sections`` คีย์อื่นที่ notebook เคยบันทึกไว้คงเดิม คืนยอดรวม."""
+    เขียนเฉพาะคีย์ ``layout`` ``layout_params`` ``layout_sections`` ``masked_codes`` คีย์อื่นที่ notebook เคยบันทึกไว้คงเดิม คืนยอดรวม
+    ``mask_codes``: ระบาย QR/บาร์โค้ดก่อนแบ่ง (``graphics.py``) ส่วนที่เหลือแต่รหัสจึงว่างและไม่ส่ง OCR · ``pdf_dpi`` × มาตราส่วนขยายของ preprocess = dpi ของภาพ final
+    ``trim``: None = ไม่หด · ``all`` / ``text-lr`` = หดกรอบให้เหลือแค่ข้อความ (``graphics.trim_sections`` กรอบเดิมอยู่ใน ``band``) ไม่เปิดเป็นค่าตั้งต้น (ดู docs/03-sections.md)."""
+    from ..stages import read_meta
+
     final_dir = paths.preprocess_final(dataset, profile)
     pages = page_images(final_dir) if final_dir.is_dir() else {}
     if not pages:
@@ -58,10 +66,16 @@ def build_layouts(paths: DataPaths, dataset: str, profile: str = DEFAULT_PROFILE
     totals = {"files": 0, "sections": 0, "kept": 0, "blank": 0}
     for stem in stems:
         full = read_image(pages[stem])
+        src_dpi = pdf_dpi * float(read_meta(pages[stem]).get("scale", 1.0))
+        found = G.find_codes(full, src_dpi) if mask_codes else []
+        full = G.blank(full, found)
         work, _ = L.resize_to_work(full)
         bw = bin_ops.otsu(enhance.to_gray(work))
         region, text_on_fill = I.fill_masks(work) if fill_text else (None, None)
         secs = L.layout_sections(bw, table_mode=table_mode, max_piece_frac=max_piece_frac or None, fill_region=region, fill_text=text_on_fill, dotted=dotted)
+        G.mark_sections(secs, found, full.shape, work.shape)
+        if trim:
+            G.trim_sections(full, work, secs, src_dpi, trim)
         kept = [s for s in secs if s["keep"]]
         by_kind = {k: sum(1 for s in secs if s["kind"] == k) for k in ("cell", "text", "table")}
         summary = {"tables": len({s["table"] for s in secs if s["table"] is not None}), "sections": len(secs),
@@ -69,7 +83,8 @@ def build_layouts(paths: DataPaths, dataset: str, profile: str = DEFAULT_PROFILE
 
         path = out_dir / f"{stem}.json"
         doc = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-        doc.update(layout=summary, layout_sections=[dict(s) for s in secs], layout_params=layout_params(table_mode, max_piece_frac, full, work, fill_text, dotted))
+        doc.update(layout=summary, layout_sections=[dict(s) for s in secs], masked_codes=found,
+                   layout_params=layout_params(table_mode, max_piece_frac, full, work, fill_text, dotted, mask_codes, trim))
         path.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
 
         overlay = L.draw_sections(work, secs)
@@ -79,7 +94,8 @@ def build_layouts(paths: DataPaths, dataset: str, profile: str = DEFAULT_PROFILE
         totals["sections"] += len(secs)
         totals["kept"] += len(kept)
         totals["blank"] += len(secs) - len(kept)
-        print(f"{stem[-4:]}: ตาราง {summary['tables']} · ส่วน {len(secs)} (เก็บ {len(kept)}, ว่าง {len(secs) - len(kept)}) {by_kind}", flush=True)
+        codes_note = (" · ระบาย " + ", ".join(c["kind"] for c in found)) if found else ""
+        print(f"{stem[-4:]}: ตาราง {summary['tables']} · ส่วน {len(secs)} (เก็บ {len(kept)}, ว่าง {len(secs) - len(kept)}) {by_kind}{codes_note}", flush=True)
     print(f"รวม {totals['files']} ไฟล์ · {totals['sections']} ส่วน (เก็บ {totals['kept']}, ว่าง {totals['blank']}) → {out_dir}")
     return totals
 

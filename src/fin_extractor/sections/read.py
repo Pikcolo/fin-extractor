@@ -20,7 +20,7 @@ import numpy as np
 
 from ..paths import DataPaths, doc_dir
 from ..readers import TORCH_ENGINES, make_reader
-from .crops import load_final_image
+from .crops import load_final_image, masked_final
 from .layout import crop_full, resize_to_work
 
 REGIONS_VARIANT = "regions-luma"  # อ่านภาพ region ของคำสั่ง regions (03_sections/…/regions/<ไฟล์>/crops/) แทนภาพ section ผลแยกโฟลเดอร์ 04_ocr/…/regions-luma/
@@ -45,8 +45,9 @@ def kept_layout(layout: list[dict]) -> list[tuple[str, list[int]]]:
 
 
 def fingerprint(layout: list[dict]) -> list[list]:
-    """ส่วนที่เก็บของผังปัจจุบัน (id + bbox) บันทึกไว้ในผลทุกไฟล์ ใช้ตัดสินว่าผลเก่าข้ามหรือต่อได้ไหม — ผังเปลี่ยนแล้วผลเก่าไม่ตรงอีกต่อไป."""
-    return [[i, b] for i, b in kept_layout(layout)]
+    """ส่วนที่เก็บของผังปัจจุบัน (id + bbox) บันทึกไว้ในผลทุกไฟล์ ใช้ตัดสินว่าผลเก่าข้ามหรือต่อได้ไหม — ผังเปลี่ยนแล้วผลเก่าไม่ตรงอีกต่อไป
+    ส่วนที่ QR/บาร์โค้ดถูกระบาย (``masked`` ดู graphics.py) มีรายการชนิดต่อท้าย ผลที่อ่านภาพก่อนระบายจึงไม่ตรง ส่วนอื่นรูปแบบเดิม (ผลเก่ายังใช้ได้)."""
+    return [[s["id"], list(s["bbox"]), *([s["masked"]] if s.get("masked") else [])] for s in layout if s["keep"]]
 
 
 def clean_index(clean_dir: Path, layout: list[dict], stem: str) -> dict[str, dict]:
@@ -208,7 +209,7 @@ def read_dataset(paths: DataPaths, cfg: dict, dataset: str, stems: list[str], en
                 done = {r["id"]: r for r in prev["sections"] if "error" not in r}
                 print(f"[{n}/{len(stems)}] {stem[-4:]} ต่อจากที่ค้าง ({len(done)} ส่วนเสร็จแล้ว)", flush=True)
         if variant == "color":
-            full = load_final_image(paths, dataset, stem)
+            full = masked_final(paths, dataset, stem, json.loads(layout_file(paths, dataset, stem, variant).read_text(encoding="utf-8")))
             work, _ = resize_to_work(full)
         else:
             clean_dir = images_dir(paths, dataset, stem, variant)

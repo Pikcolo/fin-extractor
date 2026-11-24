@@ -81,6 +81,75 @@ def test_fill_aware_layout_does_not_cut_through_a_coloured_banner(tmp_path):
     assert layout_is_current(paths, "ds", "doc1", "rows", 0.3, fill_text=True) and not layout_is_current(paths, "ds", "doc1", "rows", 0.3)
 
 
+def qr_page() -> tuple[np.ndarray, tuple[int, int, int, int]]:
+    """หน้าขาว (ขนาดเท่า A4 ที่ 150 dpi) มีข้อความด้านบน และ QR อยู่แถบของตัวเองด้านล่าง คืน (ภาพ, กรอบ QR x0,y0,x1,y1)."""
+    page = np.full((1754, 1240, 3), 255, np.uint8)
+    cv2.putText(page, "INVOICE HEADER", (60, 120), cv2.FONT_HERSHEY_SIMPLEX, 2.0, (0, 0, 0), 4)
+    qr = cv2.QRCodeEncoder.create().encode("INV-001")
+    qr = cv2.resize(qr, (300, 300), interpolation=cv2.INTER_NEAREST)
+    x0, y0 = 100, 1200
+    page[y0:y0 + 300, x0:x0 + 300] = cv2.cvtColor(qr, cv2.COLOR_GRAY2BGR)
+    return page, (x0, y0, x0 + 300, y0 + 300)
+
+
+def test_qr_codes_are_blanked_before_the_layout_and_never_reach_ocr(tmp_path):
+    import json
+
+    from fin_extractor.sections.crops import masked_final
+    from fin_extractor.sections.read import fingerprint
+
+    paths = DataPaths({"paths": {"data_dir": str(tmp_path)}})
+    page, (x0, y0, x1, y1) = qr_page()
+    save_image(paths.preprocess_final("ds") / "doc1" / "doc1_p1.png", page)
+    layout_file = paths.section_layout("ds") / "doc1.json"
+
+    build_layouts(paths, "ds", mask_codes=False)
+    plain = json.loads(layout_file.read_text(encoding="utf-8"))
+    work_y = 1600 / 1754  # สำเนาทำงานด้านยาว 1600
+    over_qr = lambda doc: [s for s in doc["layout_sections"] if s["keep"] and s["bbox"][1] < y1 * work_y and s["bbox"][1] + s["bbox"][3] > y0 * work_y]  # noqa: E731
+    assert over_qr(plain) and plain["masked_codes"] == []  # ไม่ระบาย: แถบ QR ถูกส่ง OCR
+
+    build_layouts(paths, "ds")  # ค่าตั้งต้น: ระบาย
+    doc = json.loads(layout_file.read_text(encoding="utf-8"))
+    assert [(c["kind"], c["data"]) for c in doc["masked_codes"]] == [("qr", "INV-001")]  # ข้อความในรหัสเก็บไว้ในผัง
+    assert over_qr(doc) == []  # แถบที่เหลือแต่ QR ว่าง → ไม่ส่ง OCR
+    assert masked_final(paths, "ds", "doc1", doc)[y0:y1, x0:x1].min() == 255  # ภาพที่ตัดส่วนไปอ่านไม่มี QR เหลือ
+    assert layout_is_current(paths, "ds", "doc1", "rows", 0.3) and not layout_is_current(paths, "ds", "doc1", "rows", 0.3, mask_codes=False)
+    assert fingerprint([{"id": "s01", "bbox": [0, 0, 5, 5], "keep": True, "masked": ["qr"]}]) == [["s01", [0, 0, 5, 5], ["qr"]]]
+    assert fingerprint([{"id": "s01", "bbox": [0, 0, 5, 5], "keep": True}]) == [["s01", [0, 0, 5, 5]]]  # ส่วนที่ไม่ถูกระบาย: รูปแบบเดิม ผล OCR เก่ายังใช้ได้
+
+
+def test_trim_sections_shrinks_bands_to_their_text_and_keeps_the_band(tmp_path):
+    import json
+
+    paths = DataPaths({"paths": {"data_dir": str(tmp_path)}})
+    page = np.full((1754, 1240, 3), 255, np.uint8)
+    cv2.putText(page, "LEFT ONLY TEXT", (60, 200), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 0), 3)  # แถบเต็มหน้า แต่ข้อความอยู่ซ้ายสุด
+    cv2.putText(page, "SECOND BLOCK", (700, 900), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 0), 3)
+    save_image(paths.preprocess_final("ds") / "doc1" / "doc1_p1.png", page)
+    layout_file = paths.section_layout("ds") / "doc1.json"
+
+    build_layouts(paths, "ds")
+    plain = [s for s in json.loads(layout_file.read_text(encoding="utf-8"))["layout_sections"] if s["keep"]]
+    build_layouts(paths, "ds", trim="all")
+    trimmed = [s for s in json.loads(layout_file.read_text(encoding="utf-8"))["layout_sections"] if s["keep"]]
+
+    assert [s["id"] for s in plain] == [s["id"] for s in trimmed]  # ส่วนเดิม ลำดับเดิม
+    for p, t in zip(plain, trimmed):
+        assert t["band"] == p["bbox"]  # กรอบเดิมเก็บไว้
+        x, y, w, h = t["bbox"]
+        bx, by, bw, bh = t["band"]
+        assert bx <= x and by <= y and x + w <= bx + bw and y + h <= by + bh  # อยู่ในแถบเดิม
+        assert w * h < 0.5 * bw * bh  # ตัดพื้นว่างทิ้งไปเกินครึ่ง
+    assert layout_is_current(paths, "ds", "doc1", "rows", 0.3, trim="all") and not layout_is_current(paths, "ds", "doc1", "rows", 0.3)
+    assert not layout_is_current(paths, "ds", "doc1", "rows", 0.3, trim="text-lr")
+
+    build_layouts(paths, "ds", trim="text-lr")  # หดแค่ซ้าย/ขวา: บน/ล่างเท่าแถบเดิม
+    lr = [s for s in json.loads(layout_file.read_text(encoding="utf-8"))["layout_sections"] if s["keep"]]
+    for p, t in zip(plain, lr):
+        assert t["bbox"][1] == p["bbox"][1] and t["bbox"][3] == p["bbox"][3] and t["bbox"][2] < p["bbox"][2]
+
+
 def test_preprocess_meta_survives_cached_reads_and_orientation_flags_list_the_bad_pages(tmp_path):
     import json
 

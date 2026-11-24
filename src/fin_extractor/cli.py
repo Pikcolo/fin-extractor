@@ -154,10 +154,13 @@ def cmd_sections(args, cfg) -> None:
         run_dataset(paths, dataset, cfg, args.profile, only)  # CPU ไม่กี่วินาที ทำใหม่ทุกครั้ง (ผลเหมือนเดิม ผล OCR เดิมจึงยังใช้ได้ ตรวจด้วยลายนิ้วมือผัง)
     elif "layout" in todo:
         banner("layout")
-        stale = stems_needing(lambda s: not args.redo and layout_is_current(paths, dataset, s, args.table_mode, args.max_piece_frac, args.profile, args.fill_aware, args.dotted_rules), stems)
+        mask = not args.no_mask_codes
+        stale = stems_needing(lambda s: not args.redo and layout_is_current(paths, dataset, s, args.table_mode, args.max_piece_frac, args.profile,
+                                                                              args.fill_aware, args.dotted_rules, mask, args.trim_sections), stems)
         print(f"ผังใช้ได้อยู่แล้ว {len(stems) - len(stale)} ไฟล์ · ทำใหม่ {len(stale)}", flush=True)
         if stale:
-            build_layouts(paths, dataset, args.profile, stale, args.table_mode, args.max_piece_frac, args.fill_aware, args.dotted_rules)
+            build_layouts(paths, dataset, args.profile, stale, args.table_mode, args.max_piece_frac, args.fill_aware, args.dotted_rules,
+                          mask_codes=mask, pdf_dpi=cfg["loader"]["pdf_dpi"], trim=args.trim_sections)
     variants = () if args.variant in ("color", REGIONS_VARIANT) else (args.variant,)  # ค่าตั้งต้นเขียนเฉพาะวิธีที่ใช้ (flat/bin ทดลองผ่าน scripts/sections/make_clean_sections.py ซึ่งเขียนครบทั้งสามวิธี)
     if "images" in todo and variants:
         banner("images")
@@ -272,6 +275,11 @@ def build_parser() -> argparse.ArgumentParser:
                    help="ผังนับตัวอักษรบนพื้นสีเป็นหมึกและไม่ตัดผ่านแถบสี (กัน OCR เดาข้อความจากเสี้ยวแถบ เช่น 1306) ผลวัด 6 ใบที่ผังเปลี่ยน: ฟิลด์ที่ขาดรวมเท่าเดิม (ดู docs/03-sections.md) จึงไม่เปิดเป็นค่าตั้งต้น")
     s.add_argument("--dotted-rules", action="store_true",
                    help="ผังตัดตามเส้นแบ่งแถวที่เป็นเส้นประด้วย (ฟอร์มอย่าง 50 ทวิ ที่เส้นแถวเป็นเส้นประ) ยังไม่ได้วัดกับ OCR จึงไม่เปิดเป็นค่าตั้งต้น (ดู docs/03-sections.md)")
+    s.add_argument("--no-mask-codes", action="store_true",
+                   help="ไม่ระบาย QR/บาร์โค้ดก่อนแบ่ง (ค่าตั้งต้นระบาย: ไม่ส่งรหัสเข้า OCR ข้อความในรหัสเก็บใน masked_codes ของผัง ดู sections/graphics.py)")
+    s.add_argument("--trim-sections", choices=["all", "text-lr"],
+                   help="หดกรอบแต่ละส่วนให้เหลือแค่ข้อความ ตัดพื้นว่างทิ้งก่อนส่ง OCR (trim_box ของโหมด regions ดู sections/graphics.py) "
+                        "all = ทุกส่วนทั้งสี่ด้าน · text-lr = เฉพาะส่วนข้อความ หดแค่ซ้าย/ขวา ไม่ใส่ = ไม่หด (ค่าตั้งต้น ผลวัดดู docs/03-sections.md)")
     s.add_argument("--drop-empty-rows", action="store_true", help="แบบ bin เท่านั้น: ลบแถวตารางที่ช่องตัวเลขว่าง (ดู docs/03-sections.md)")
     profile_arg(s)
     s.set_defaults(func=cmd_sections)
