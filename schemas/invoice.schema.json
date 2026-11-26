@@ -1,5 +1,86 @@
 {
   "$defs": {
+    "Decision": {
+      "description": "คำตอบของ decision model ต่อหนึ่งคำถาม (shadow mode: บันทึกอย่างเดียว ไม่เปลี่ยน data / review / status ดู decision/).",
+      "properties": {
+        "task": {
+          "description": "doc_type | profile | party_name",
+          "title": "Task",
+          "type": "string"
+        },
+        "key": {
+          "description": "ฟิลด์ที่คำถามนี้เกี่ยวข้อง เช่น document_type, vendor.name",
+          "title": "Key",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "choice",
+            "noul"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "answer": {
+          "description": "ตัวเลือกที่ความน่าจะเป็นสูงสุด (noul: yes/no)",
+          "title": "Answer",
+          "type": "string"
+        },
+        "probabilities": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "ความน่าจะเป็นของทุกตัวเลือก (choice: เฉลี่ยจากทุกลำดับตัวเลือกที่ถาม)",
+          "title": "Probabilities",
+          "type": "object"
+        },
+        "abstain": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ความน่าจะเป็นของช่อง abstain ที่โมเดลรายงาน (สูงสุดจากทุกลำดับ) noul ไม่มี",
+          "title": "Abstain"
+        },
+        "orders": {
+          "default": 1,
+          "description": "จำนวนลำดับตัวเลือกที่ถาม (สลับลำดับเพราะคำตอบพลิกตามลำดับได้)",
+          "title": "Orders",
+          "type": "integer"
+        },
+        "agreed": {
+          "default": true,
+          "description": "ทุกลำดับเลือกตัวเลือกเดียวกันไหม",
+          "title": "Agreed",
+          "type": "boolean"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "state": {
+          "additionalProperties": true,
+          "description": "ข้อมูลที่ป้อนเข้าโมเดลจริง (ไว้ตรวจย้อนหลัง)",
+          "title": "State",
+          "type": "object"
+        }
+      },
+      "required": [
+        "task",
+        "key",
+        "type",
+        "answer",
+        "probabilities",
+        "model"
+      ],
+      "title": "Decision",
+      "type": "object"
+    },
     "ExtraField": {
       "description": "รายการหมายเหตุ (remark): ข้อมูลที่เอกสารพิมพ์ไว้แต่ไม่มีช่องใน schema ของชนิดเอกสารนั้น (เช่น เลขที่ใบสั่งซื้อ, เงื่อนไขชำระเงิน).",
       "properties": {
@@ -543,6 +624,14 @@
         "$ref": "#/$defs/RejectedValue"
       },
       "title": "Rejected",
+      "type": "array"
+    },
+    "decisions": {
+      "description": "คำตอบของ decision model (extract --decision on) บันทึกอย่างเดียว ไม่มี = ไม่มีคีย์",
+      "items": {
+        "$ref": "#/$defs/Decision"
+      },
+      "title": "Decisions",
       "type": "array"
     }
   },
