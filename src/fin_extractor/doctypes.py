@@ -24,7 +24,7 @@ KEY_FIELDS = ("vendor.name", "vendor.tax_id", "invoice_no", "date", "total_amoun
 # ชื่อ check ทั้งหมดของ validation/checks.py (โปรไฟล์ประกาศ ``checks`` จากรายการนี้เท่านั้น)
 KNOWN_CHECKS = ("vendor_tax_id_checksum", "buyer_tax_id_checksum", "items_sum", "discount",
                 "before_vat_plus_vat", "vat_rate", "date_range",
-                "amount_in_words", "income_rows_sum", "qr_match")
+                "amount_in_words", "income_rows_sum")
 DOC_PREFIX = "document_fields."
 
 

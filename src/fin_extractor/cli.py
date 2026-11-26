@@ -81,15 +81,12 @@ def cmd_extract(args, cfg) -> None:
             if not pages:
                 print(f"ข้าม {f.name}: ไม่มีข้อความดิบใน {raw_dir} (รัน sections --engine {args.engine} --to ocr ก่อน)")
                 continue
-            manifest = paths.section_regions(dataset, f.stem, args.profile) / "manifest.json"  # QR ที่ผัง regions ถอดไว้ (ไม่มี = ไม่มี check qr_match)
-            codes = ([c["data"] for c in json.loads(manifest.read_text(encoding="utf-8"))["stages"]["mask"]["codes"] if c.get("data")]
-                     if args.variant == "regions-luma" and manifest.exists() else [])
-            for page_no, r in ((no, pipe.process_raw(str(f), no, *load_raw(p), codes=codes)) for no, p in pages):
+            for page_no, r in ((no, pipe.process_raw(str(f), no, *load_raw(p))) for no, p in pages):
                 if decider:  # shadow mode: บันทึกคำตอบอย่างเดียว ไม่แตะ data / review / status
                     r.decisions = decider.ask(build_questions(r.data, r.raw_text, pipe.profiles, decider.cfg, r.missing_fields))
-                    pipe.confirm_hints(r, r.decisions, codes)
+                    pipe.confirm_hints(r, r.decisions)
                     if decider.cfg.get("fill_confirmed"):  # เติมเฉพาะค่าที่ check ยืนยัน (docs/draft-11 P4)
-                        r = pipe.apply_hints(r, r.decisions, codes)
+                        r = pipe.apply_hints(r, r.decisions)
                 seconds = round(time.perf_counter() - t0, 2)
                 if not args.keep_raw:
                     r.raw_text = None

@@ -30,14 +30,14 @@ class FakePipe:
         return ExtractionResult(source_file=source, page=page, engine=self.engine_name, data=InvoiceData(),
                                 status="needs_review", raw_text=raw, ocr_confidence=0.5)
 
-    def process_raw(self, source, page, raw, meta=None, codes=()):
+    def process_raw(self, source, page, raw, meta=None):
         FakePipe.log.append(("raw", page, raw, dict(meta or {})))
         return self._result(source, page, raw)
 
-    def confirm_hints(self, result, decisions, codes=()):
+    def confirm_hints(self, result, decisions):
         pass
 
-    def apply_hints(self, result, decisions, codes=()):
+    def apply_hints(self, result, decisions):
         return result
 
 

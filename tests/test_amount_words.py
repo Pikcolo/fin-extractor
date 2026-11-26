@@ -49,23 +49,3 @@ def test_income_rows_sum_uses_dated_two_amount_rows_once():
     missing = income_rows_sum(["8 ต.ค. 69 | 233,644.86 | 7,009.35"], InvoiceData())  # 1311: แถวรวมหาย
     assert missing.passed is None and "233644.86" in missing.detail
     assert income_rows_sum(["ไม่มีแถว"], d).passed is None
-
-
-def test_qr_match_confirms_code_never_tax_id_and_never_fails():
-    from fin_extractor.validation.checks import qr_match
-
-    d = InvoiceData(invoice_no="BI8461-101069", vendor={"tax_id": "0105531076923"})
-    c = qr_match(d, ["BI8461-101069", "|0105531076923090000027808081ZJ449G90401270034"])  # 1312 · QR จ่ายบิลของ 1313
-    assert c.passed is True and set(c.fields) == {"invoice_no"}  # เลขภาษีใน QR ไม่บอกว่าเป็นของฝ่ายไหน จึงไม่ยืนยัน
-    short = qr_match(InvoiceData(invoice_no="005"), ["https://example.com/order/8461005?s=ee12de83"])  # ท่อนสั้นใน URL ไม่นับ
-    assert short.passed is None and short.fields == []
-    assert qr_match(d, []).passed is None
-
-
-def test_qr_bill_payment_amount_confirms_total():
-    from fin_extractor.validation.checks import qr_match
-
-    bill = "|010553107692309\r000002780808\r1ZJ449G90401270034\r41773"  # 1313: ยอด 417.73 หน่วยสตางค์
-    c = qr_match(InvoiceData(invoice_no="000002780808", total_amount="417.73"), [bill])
-    assert set(c.fields) == {"invoice_no", "total_amount"}
-    assert "total_amount" not in qr_match(InvoiceData(total_amount="427.09"), [bill]).fields

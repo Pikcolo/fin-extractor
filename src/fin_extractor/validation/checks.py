@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import re
 from datetime import date
 from decimal import Decimal
 
@@ -193,31 +192,4 @@ def income_rows_sum(lines: list[str], d: InvoiceData, paid_key: str = "document_
 
 # check ที่เทียบค่าของช่องหนึ่งกับค่าอื่นในเอกสาร (ยืนยันได้ว่า "ค่านี้คือค่าของช่องนี้") ต่างจาก checksum / date_range ที่บอกแค่ว่ารูปแบบใช้ได้
 # (เลขภาษีที่ผ่าน checksum อาจเป็นของอีกฝ่าย วันที่ในช่วงอาจเป็นวันอื่นบนเอกสาร) ใช้เป็นด่านเติมค่าที่ decision model เสนอ
-RELATIONAL_CHECKS = ("items_sum", "discount", "before_vat_plus_vat", "vat_rate", "amount_in_words", "income_rows_sum", "qr_match")
-
-QR_CODE_KEYS = ("invoice_no",)  # ค่าที่เป็นรหัส: ต้องตรงทั้งท่อนของข้อความใน QR (ท่อนสั้นอย่าง "005" ห้ามนับเมื่อเป็นส่วนหนึ่งของ URL)
-# ไม่ยืนยันเลขภาษีด้วย QR: เลขที่พบใน QR บอกว่าอ่านเลขถูก แต่ไม่บอกว่าช่องผู้ขาย/ผู้ซื้อถูกฝ่าย
-# (1314: เลขผู้ขายตรงกับ QR จ่ายบิลของ UPS แต่ชื่อผู้ขายเป็นของผู้ซื้อ ช่องจะขึ้นว่ายืนยันแล้วทั้งที่เอกสารสลับฝ่าย)
-
-
-def qr_match(d: InvoiceData, codes: Collection[str]) -> ValidationCheck:
-    """ค่าที่สกัดได้ตรงกับข้อความที่ถอดจาก QR/บาร์โค้ดบนเอกสารไหม (ผัง regions ถอดรหัสก่อนระบายขาว เก็บใน manifest)
-    QR อ่านด้วยเครื่อง ไม่ผ่าน OCR จึงเป็นหลักฐานแยกจากข้อความ: ตรง = ยืนยันช่องนั้น · ไม่พบใน QR ≠ ผิด (QR อาจไม่มีค่านั้นเลย) จึงไม่มีผล "ไม่ผ่าน"."""
-    payloads = [str(c) for c in codes if c]
-    if not payloads:
-        return ValidationCheck(name="qr_match", passed=None, detail="ไม่มี QR/บาร์โค้ดที่ถอดรหัสได้")
-    tokens = {t.upper() for p in payloads for t in re.split(r"[^0-9A-Za-z\-]+", p) if t}
-    hit = []
-    for key in QR_CODE_KEYS:
-        v = _get(d, key)
-        if v and str(v).strip().upper() in tokens:
-            hit.append(key)
-    # QR/บาร์โค้ดจ่ายบิลข้ามธนาคาร: "|" + เลขผู้เสียภาษีของผู้รับเงิน 13 หลัก + suffix 2 หลัก ⏎ Ref1 ⏎ Ref2 ⏎ ยอดเงินหน่วยสตางค์ (ไม่มีจุดทศนิยม)
-    # เจอจริงที่ 1313/1314 (UPS: ยอด 41773 = 417.73) ยืนยัน total_amount เมื่อยอดตรงพอดี
-    for p in payloads:
-        parts = p.lstrip("|").split("\r") if p.startswith("|") else []
-        if len(parts) == 4 and parts[3].isdigit() and d.total_amount is not None and Decimal(parts[3]) / 100 == d.total_amount:
-            hit.append("total_amount")
-    if not hit:
-        return ValidationCheck(name="qr_match", passed=None, detail=f"QR {len(payloads)} ก้อน ไม่มีค่าที่ตรงกับช่องที่สกัดได้")
-    return ValidationCheck(name="qr_match", passed=True, detail="ตรงกับ QR: " + ", ".join(hit), fields=hit)
+RELATIONAL_CHECKS = ("items_sum", "discount", "before_vat_plus_vat", "vat_rate", "amount_in_words", "income_rows_sum")

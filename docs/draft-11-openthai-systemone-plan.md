@@ -47,8 +47,8 @@
 > - **P4 ตัดสินโดยไม่ใช้เฉลยที่คนกรอก (2026-11-26):** ผู้ใช้ไม่กรอก Excel ตรวจผล จึงไม่วัดความแม่นของโมเดลกับเฉลย
 >   แต่ให้ค่าที่โมเดลเสนอผ่าน**ด่านที่ตรวจได้จากตัวเลขในเอกสารเอง** แบบเดียวกับด่านที่ hybrid ใช้กับค่าของ LLM (`decision.fill_confirmed: true`, `pipeline.apply_hints`)
 >   1. เติมเฉพาะช่องที่ขาด (ค่าเดิมไม่ถูกแตะ) และค่าต้องมาจากบรรทัด OCR (ตัวเลือกของ missing_hint)
->   2. ต้องมี check **เชิงความสัมพันธ์** ที่อ้างถึงช่องนั้นผ่านหลังเติม (`RELATIONAL_CHECKS`: items_sum discount before_vat_plus_vat vat_rate amount_in_words income_rows_sum qr_match)
->      checksum / date_range ไม่นับ: บอกแค่ว่ารูปแบบใช้ได้ (เลขภาษีที่ผ่าน checksum อาจเป็นของอีกฝ่าย จาก spike ด้านบน โมเดลแยกฝ่ายไม่ได้) · qr_match ไม่ยืนยันเลขภาษีเลยด้วยเหตุผลเดียวกัน
+>   2. ต้องมี check **เชิงความสัมพันธ์** ที่อ้างถึงช่องนั้นผ่านหลังเติม (`RELATIONAL_CHECKS`: items_sum discount before_vat_plus_vat vat_rate amount_in_words income_rows_sum)
+>      checksum / date_range ไม่นับ: บอกแค่ว่ารูปแบบใช้ได้ (เลขภาษีที่ผ่าน checksum อาจเป็นของอีกฝ่าย จาก spike ด้านบน โมเดลแยกฝ่ายไม่ได้)
 >   3. check ที่ไม่เคยล้มต้องไม่ล้มหลังเติม (ล้มเพิ่ม = ไม่เติมเลย) · ค่าที่ยืนยันได้เฉพาะเมื่อเติมคู่กัน (50 ทวิ: ยอดจ่าย + ภาษี) ต้องผ่านด่านครบทั้งคู่
 >   4. ผู้ให้ค่า = `decision` (review บอกเหตุผล) และเอกสารที่มีค่าจาก decision ไม่ auto_approve
 >   ผลกับ 18 ใบ (`scripts/eval/decision_p3.py --before <ผล --decision off>`): ช่องที่ขาด 7 → 5 · ข้อเสนอ 4 · ผ่านด่าน 2 (1311 ยอดจ่าย 233,644.86 / ภาษี 7,009.35 ผ่าน income_rows_sum, failed → needs_review)

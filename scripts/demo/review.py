@@ -73,10 +73,9 @@ def apply_edits(data: dict, edits: dict[str, Any]) -> tuple[InvoiceData | None, 
 
 
 def build(pipe: FinanceOCRPipeline, data: InvoiceData, lines: list[str], extra: list[ValidationCheck],
-          edited: set[str], sections: dict[str, list[str]], original: dict[str, Any], base_sources: dict[str, str] | None = None,
-          codes: list[str] | tuple = ()) -> dict:
+          edited: set[str], sections: dict[str, list[str]], original: dict[str, Any], base_sources: dict[str, str] | None = None) -> dict:
     """ผลตรวจของข้อมูลชุดนี้ในรูปที่หน้าเว็บใช้: แถวรายฟิลด์ (เรียงตามที่ควรตรวจก่อน) + check + สถานะ."""
-    res = corrected_result({"source_file": "", "page": 1, "engine": ""}, pipe, data, lines, extra, edited, base_sources, codes)
+    res = corrected_result({"source_file": "", "page": 1, "engine": ""}, pipe, data, lines, extra, edited, base_sources)
     checks, status, missing = res.checks, res.status, res.missing_fields
     profile = pipe.profile_for(data)
     flat = {k: v for k, v in flatten(data).items()}
@@ -107,12 +106,12 @@ def build(pipe: FinanceOCRPipeline, data: InvoiceData, lines: list[str], extra: 
 
 
 def corrected_result(base: dict, pipe: FinanceOCRPipeline, data: InvoiceData, lines: list[str], extra: list[ValidationCheck],
-                     edited: set[str], base_sources: dict[str, str] | None = None, codes: list[str] | tuple = ()) -> ExtractionResult:
+                     edited: set[str], base_sources: dict[str, str] | None = None) -> ExtractionResult:
     """ผลหลังคนแก้ (schema เดียวกับผลของระบบ) ตรวจใหม่ทั้งหมดจากค่าที่แก้แล้ว ช่องที่แก้มี ``source: human`` ใน review
     ``base_sources`` = ที่มาเดิมของค่าที่ไม่ใช่ rules (llm / ตัวอ่านเสริม) ช่องที่คนไม่ได้แก้คงที่มานั้นไว้."""
     base_sources = base_sources or {}
     sources = {k: ("human" if k in edited or k.split("[")[0] in edited else base_sources.get(k, "rules")) for k in flatten(data)}
-    checks, _missing, status, evidence = pipe.assess(data, lines, sources, None, extra, codes)
+    checks, _missing, status, evidence = pipe.assess(data, lines, sources, None, extra)
     review = review_from_evidence(evidence, checks, pipe.profile_for(data).primary_amount, sources)
     return ExtractionResult(source_file=base["source_file"], page=base["page"], engine=(base["engine"] + "+human").lstrip("+"), data=data,
                             checks=checks, review=review, ocr_confidence=base.get("ocr_confidence"), status=status)
