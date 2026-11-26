@@ -8,6 +8,7 @@ backend ที่ล้ม (โหลดโมเดลไม่ได้ ตอ
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any, Protocol
 
@@ -23,8 +24,8 @@ class Backend(Protocol):
     def choice(self, state: dict, instructions: str, options: dict[str, str | None]) -> tuple[dict[str, float], float]:
         """(ความน่าจะเป็นของแต่ละตัวเลือก รวมเป็น 1, ความน่าจะเป็นของ abstain)."""
 
-    def noul(self, state: dict, instructions: str) -> float:
-        """p(yes)."""
+    def nouls(self, state: dict, questions: dict[str, str]) -> dict[str, float]:
+        """p(yes) ของหลายคำถามบน state เดียวกัน (โมเดลอ่าน state ครั้งเดียวแล้วตอบทุกคำถามในรอบเดียว)."""
 
 
 class SystemOneBackend:
@@ -48,10 +49,11 @@ class SystemOneBackend:
         a = self._load().system_one(state, {"q": Choice(instructions=instructions, criteria=options)}).answers["q"]
         return dict(a.probabilities), float(a.abstain)
 
-    def noul(self, state, instructions):
+    def nouls(self, state, questions):
         from openthai_systemone import Noul
 
-        return float(self._load().system_one(state, {"q": Noul(instructions=instructions)}).answers["q"].noul)
+        r = self._load().system_one(state, {k: Noul(instructions=t) for k, t in questions.items()})
+        return {k: float(r.answers[k].noul) for k in questions}
 
 
 def orders(n: int) -> list[list[int]]:
@@ -70,14 +72,23 @@ class Decider:
         self.backend = backend or SystemOneBackend(cfg.get("model", "models/OpenThai-SystemOne"), cfg.get("device", "cpu"))
 
     def ask(self, questions: list[dict]) -> list[Decision]:
-        out = []
+        """คำถาม yes/no ที่ใช้ state เดียวกันถามรวมในการเรียกครั้งเดียว choice ถามแยกทีละลำดับตัวเลือก คืนตามลำดับคำถามเดิม."""
+        out: dict[int, Decision] = {}
         try:
-            for q in questions:
-                out.append(self._choice(q) if q["type"] == "choice" else self._noul(q))
+            groups: dict[str, list[int]] = {}
+            for i, q in enumerate(questions):
+                if q["type"] == "choice":
+                    out[i] = self._choice(q)
+                else:
+                    groups.setdefault(json.dumps(q["state"], ensure_ascii=False, sort_keys=True), []).append(i)
+            for idx in groups.values():
+                ps = self.backend.nouls(questions[idx[0]]["state"], {str(i): questions[i]["instructions"] for i in idx})
+                for i in idx:
+                    out[i] = self._noul(questions[i], ps[str(i)])
         except Exception as e:  # noqa: BLE001 — shadow mode: โมเดลใช้ไม่ได้ต้องไม่ทำให้ผลสกัดหาย
             log.warning("decision model failed, no decisions recorded: %s", e)
             return []
-        return out
+        return [out[i] for i in range(len(questions))]
 
     def _choice(self, q: dict) -> Decision:
         names = list(q["options"])
@@ -91,11 +102,10 @@ class Decider:
         return Decision(task=q["task"], key=q["key"], type="choice", answer=best,
                         probabilities={k: round(v, 4) for k, v in avg.items()},
                         abstain=round(max(a for _p, a in runs), 4), orders=len(runs), agreed=len(picks) == 1,
-                        model=self.backend.name, state=q["state"])
+                        model=self.backend.name, state=q["state"], instructions=q["instructions"])
 
-    def _noul(self, q: dict) -> Decision:
-        p = self.backend.noul(q["state"], q["instructions"])
+    def _noul(self, q: dict, p: float) -> Decision:
         # คำตอบ = ตัวเลือกที่ความน่าจะเป็นสูงกว่า (แบบเดียวกับ choice) ไม่ใช่เกณฑ์ที่ตั้ง การใช้ p ตัดสินอะไรต้องรอผลวัด P3
         return Decision(task=q["task"], key=q["key"], type="noul", answer="yes" if p >= 1 - p else "no",
                         probabilities={"yes": round(p, 4), "no": round(1 - p, 4)}, orders=1, agreed=True,
-                        model=self.backend.name, state=q["state"])
+                        model=self.backend.name, state=q["state"], instructions=q["instructions"])

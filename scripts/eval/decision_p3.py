@@ -4,7 +4,10 @@ T1 ชนิดเอกสาร (เฉลย: data/etc/groundtruth/<dataset>/
     ตรงตัว   ชื่อชนิดหลังตัดหมายเหตุในวงเล็บ ต้องตรงทั้งชุด (rules ตอบได้แค่ 4 ค่าภาษาอังกฤษ จึงไม่มีคะแนนระดับนี้)
     กลุ่ม    กลุ่มที่มีผลกับงานบัญชี: withholding (50 ทวิ) · voucher (ใบสำคัญรับเงิน) · tax_invoice (ชื่อมีคำว่า ใบกำกับภาษี) · other
              กลุ่มของ rules มาจากโปรไฟล์ (50 ทวิ / ใบสำคัญรับเงิน) แล้วจาก document_type (tax_invoice → tax_invoice ที่เหลือ other)
-T2 ชื่อผู้ขาย/ผู้ซื้อ (เฉลย: data/etc/groundtruth/<dataset>/party_names.xlsx ที่ผู้ใช้ติ๊ก ถ้ามี) — ยังไม่มีไฟล์ = ข้าม
+T2 จาก Excel ตรวจผลที่ผู้ใช้กรอก (data/etc/compare/check_rule_hybrid_filled.xlsx หรือ check_rule_hybrid.xlsx ชีท rule)
+    แถว = ฟิลด์ที่ขาด/ไม่ถูก (ระบบใส่ให้) + ที่ผู้ใช้เพิ่ม · ฟิลด์ถือว่า "ผิด" เมื่อ ผลตรวจ ไม่ว่างและไม่ใช่ "ถูก" หรือ ค่าที่ถูกต้อง ต่างจากค่าที่ระบบได้
+    name_only: ชื่อที่ผิดตามชีท ↔ โมเดลตอบ no ไหม · ชื่อที่ไม่อยู่ในชีทนับเป็น "ไม่ทราบ" ไม่เดาว่าถูก
+    missing_hint: ค่าที่โมเดลเสนอ ↔ ค่าที่ถูกต้องที่ผู้ใช้กรอก
 
     .venv/Scripts/python -X utf8 scripts/eval/decision_p3.py [--extract <โฟลเดอร์ผล rules>] [--md]
 """
@@ -94,29 +97,47 @@ def main() -> None:
         print(f"| {x['file']} | {x['truth']} | {x['model']} | {'✓' if x['exact_ok'] else '✗'} | {'✓' if x['agreed'] else '✗'} | "
               f"{x['p_top']:.2f} | {x['group_truth']} / {x['group_model']} / {x['group_rules']} |")
 
-    xl = GT / "party_names.xlsx"
-    if xl.exists():
-        from openpyxl import load_workbook
+    xl = next((p for p in (ROOT / "data/etc/compare/check_rule_hybrid_filled.xlsx", ROOT / "data/etc/compare/check_rule_hybrid.xlsx")
+               if p.exists()), None)
+    if xl is None:
+        print("\nT2 ข้าม: ยังไม่มีไฟล์ตรวจผล")
+        return
+    from openpyxl import load_workbook
 
-        ws = load_workbook(xl, data_only=True).active
-        marks = {(str(r[0].value), str(r[1].value)): r[4].value for r in ws.iter_rows(min_row=2) if r[4].value}
-        print(f"\nT2 ชื่อ · ติ๊กแล้ว {len(marks)} แถว")
-        tp = fp = fn = tn = 0
-        for p in sorted(args.extract.rglob("*_p1.json")):
-            fno = p.stem.split("_")[-2]
-            for d in json.loads(p.read_text(encoding="utf-8")).get("decisions", []):
-                m = marks.get((fno, d["key"]))
-                if d["task"] != "party_name" or not m:
+    ws = load_workbook(xl, data_only=True)["rule"]
+    col = {c.value: c.column - 1 for c in ws[1] if c.value}
+    marks = {}
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if not row[col["ไฟล์"]]:
+            continue
+        verdict, fix, got = row[col["ผลตรวจ"]], row[col["ค่าที่ถูกต้อง"]], row[col["ค่าที่ระบบได้"]]
+        if verdict is None and fix is None:
+            continue  # ยังไม่ได้ตรวจแถวนี้
+        wrong = (verdict is not None and str(verdict).strip() != "ถูก") or (fix is not None and str(fix).strip() != str(got or "").strip())
+        marks[(str(row[col["ไฟล์"]]), row[col["ฟิลด์ (key)"]])] = (wrong, fix)
+    print(f"\nT2 จาก {xl.name} · แถวที่ตรวจแล้ว {len(marks)}")
+    if not marks:
+        print("  ยังไม่มีแถวที่กรอก ผลตรวจ / ค่าที่ถูกต้อง")
+        return
+    flagged = {"tp": 0, "fp": 0, "fn": 0, "tn": 0, "unknown": 0}
+    hints = []
+    for p in sorted(args.extract.rglob("*_p1.json")):
+        fno = p.stem.split("_")[-2]
+        for d in json.loads(p.read_text(encoding="utf-8")).get("decisions", []):
+            m = marks.get((fno, d["key"]))
+            if d["task"] == "name_only":
+                if m is None:
+                    flagged["unknown"] += 1
                     continue
-                bad, flagged = m != "ถูก", d["answer"] == "no"
-                tp += bad and flagged
-                fp += flagged and not bad
-                fn += bad and not flagged
-                tn += not bad and not flagged
-        print(f"  ชื่อที่ผิดจริง {tp + fn}: โมเดลชี้ {tp} · ไม่ชี้ {fn} · ชื่อที่ถูก {fp + tn}: โมเดลชี้ผิด {fp}")
-    else:
-        print(f"\nT2 ข้าม: ยังไม่มี {xl}")
-
+                bad, no = m[0], d["answer"] == "no"
+                flagged["tp" if bad and no else "fn" if bad else "fp" if no else "tn"] += 1
+            elif d["task"] == "missing_hint" and m and m[1] is not None:
+                hints.append((fno, d["key"], d["answer"], str(m[1]), d["agreed"]))
+    print(f"  name_only: ชื่อที่ผิดจริง {flagged['tp'] + flagged['fn']} (โมเดลตอบ no {flagged['tp']}) · "
+          f"ชื่อที่ถูก {flagged['fp'] + flagged['tn']} (โมเดลตอบ no {flagged['fp']}) · ไม่อยู่ในชีท {flagged['unknown']}")
+    for fno, key, ans, fix, agreed in hints:
+        print(f"  missing_hint {fno} {key}: เสนอ {ans} · ค่าที่ถูก {fix} · {'ตรง' if ans.replace(',', '') == fix.replace(',', '') else 'ไม่ตรง'}"
+              f"{'' if agreed else ' (ลำดับตัวเลือกให้คำตอบต่างกัน)'}")
 
 if __name__ == "__main__":
     main()

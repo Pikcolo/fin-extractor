@@ -96,7 +96,7 @@ decision:
   backend: systemone
   model: models/OpenThai-SystemOne
   device: cpu                  # ไม่ใช้ GPU (เครื่องนี้เคยดับตอนงาน GPU หนัก) P0 วัดบน CPU แล้วพอ
-  tasks: [doc_type, profile, party_name]
+  tasks: [doc_type, profile, name_only, missing_hint]
   # ตัวเลือกของงาน doc_type: ชนิดตามที่พิมพ์บนเอกสาร จากรายการที่ผู้ใช้ให้มา (2026-11-26 ครอบคลุมสแกน 18 ใบ)
   # ตัดหมายเหตุในวงเล็บ ("ENG ล้วน", "ลายมือ" เป็นลักษณะเอกสาร ไม่ใช่ชนิด) ตามที่ผู้ใช้เลือก · "ใบเสร็จ" รวมกับ "ใบเสร็จรับเงิน"
   doc_types:

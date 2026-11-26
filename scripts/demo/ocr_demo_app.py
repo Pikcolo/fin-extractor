@@ -59,7 +59,31 @@ from fin_extractor.validation.evidence import flatten  # noqa: E402
 import review as R  # noqa: E402  (scripts/demo/review.py)
 
 WORKER = Path(__file__).with_name("ocr_demo_worker.py")
-PAGE = Path(__file__).with_name("ocr_demo.html")
+PAGE = Path(__file__).with_name("ocr_demo.html").read_bytes()  # อ่านครั้งเดียวตอนเริ่ม: สลับ git branch ขณะเซิร์ฟเวอร์รัน หน้าเว็บกับเซิร์ฟเวอร์ยังมาจากรุ่นเดียวกัน
+
+
+def _git(*args: str) -> str:
+    try:
+        return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, timeout=5).stdout.strip()
+    except Exception:  # noqa: BLE001
+        return "?"
+
+
+CODE_VERSION = {"branch": _git("rev-parse", "--abbrev-ref", "HEAD"), "commit": _git("rev-parse", "--short", "HEAD")}  # ตอนเริ่มเซิร์ฟเวอร์
+
+
+def decision_available(cfg: dict) -> tuple[bool, str]:
+    """ใช้ decision model ได้ไหม (มีแพ็กเกจ + มีโมเดลในเครื่อง) ไม่โหลดโมเดล."""
+    import importlib.util
+
+    from fin_extractor.config import resolve_path
+
+    if importlib.util.find_spec("openthai_systemone") is None:
+        return False, "ยังไม่ได้ติดตั้ง openthai-systemone (pip install openthai-systemone)"
+    model = resolve_path((cfg.get("decision") or {}).get("model", "models/OpenThai-SystemOne"))
+    if not (model / "model.safetensors").exists():
+        return False, f"ไม่พบโมเดลที่ {model} (hf download iapp/OpenThai-SystemOne --local-dir models/OpenThai-SystemOne)"
+    return True, ""
 FONTS = ROOT / "assets" / "fonts"
 MAX_UPLOAD = 50 * 2**20
 # ตั้งค่าของขั้น preprocess/แบ่งส่วน = ค่าตั้งต้นของคำสั่ง sections (ไม่ให้เลือกบนหน้าเว็บ): ตรวจทิศอัตโนมัติ · ไม่ใช้ --fill-aware / --dotted-rules · ระบาย QR/บาร์โค้ด
@@ -446,7 +470,7 @@ def decision_stage(job: dict, mode: str, cfg: dict) -> dict:
     คำถามสร้างด้วย ``decision/questions.build`` ตัวเดียวกับ ``extract --decision on`` · โมเดลโหลดครั้งเดียวต่อเซิร์ฟเวอร์ (CPU)."""
     global _decider
     if job["options"].get("decision") != "on":
-        return {"skipped": "ไม่ได้เลือก (ติ๊ก decision model ตอนอัปโหลด)"}
+        return {"off": True, "available": decision_available(cfg)[0], "reason": decision_available(cfg)[1]}
     from fin_extractor.decision import Decider
     from fin_extractor.decision.questions import build
 
@@ -460,7 +484,7 @@ def decision_stage(job: dict, mode: str, cfg: dict) -> dict:
         except Exception as e:  # noqa: BLE001 — ไม่มีโมเดล/แพ็กเกจ: แจ้งบนหน้าเว็บ ไม่ทำให้งานล้ม
             return {"skipped": f"โหลด decision model ไม่ได้: {type(e).__name__}: {str(e)[:200]}"}
         pipe = FinanceOCRPipeline(cfg, engine=job["options"]["engine"])
-        qs = build(res.data, ctx["markdown"], pipe.profiles, cfg["decision"])
+        qs = build(res.data, ctx["markdown"], pipe.profiles, cfg["decision"], res.missing_fields)
         t = time.perf_counter()
         decs = _decider.ask(qs)
         ctx["decisions"][mode] = {"decisions": [x.model_dump() for x in decs], "seconds": round(time.perf_counter() - t, 1),
@@ -712,10 +736,13 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = urlparse(self.path).path
         if path == "/":
-            return self.send(200, PAGE.read_bytes(), "text/html; charset=utf-8")
+            return self.send(200, PAGE, "text/html; charset=utf-8")
         if path == "/api/info":
-            return self.json({"engines": ENGINES, "llm_modes": LLM_MODES, "llm_model": load_config()["llm_extractor"]["model"],
-                              "busy": run_lock.locked(), "exts": sorted(SUPPORTED_EXTS)})
+            cfg = load_config()
+            ok, why = decision_available(cfg)
+            return self.json({"engines": ENGINES, "llm_modes": LLM_MODES, "llm_model": cfg["llm_extractor"]["model"],
+                              "busy": run_lock.locked(), "exts": sorted(SUPPORTED_EXTS), "code": CODE_VERSION,
+                              "decision_available": ok, "decision_reason": why})
         if m := re.fullmatch(r"/font/(Sarabun-(?:Regular|Bold)\.ttf)", path):
             return self.send(200, (FONTS / m.group(1)).read_bytes(), "font/ttf")
         if m := re.fullmatch(r"/api/job/([\w-]+)", path):
@@ -762,6 +789,16 @@ class Handler(BaseHTTPRequestHandler):
                 return self.json({"error": "งานนี้ยังไม่มีผลสกัด"}, 404)
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
             return self.json(review_request(job, body.get("edits") or {}, save=bool(m.group(2))))
+        if m := re.fullmatch(r"/api/job/([\w-]+)/decision", url.path):  # เปิด/ปิด decision model หลังรัน (เปิด = ถามผลของแบบที่ใช้อยู่ ครั้งแรกต่อแบบ)
+            job = JOBS.get(m.group(1))
+            on = parse_qs(url.query).get("on", ["0"])[0] == "1"
+            if not job or "extract_ctx" not in job:
+                return self.json({"error": "งานนี้ยังไม่มีผลสกัด"}, 404)
+            job["options"]["decision"] = "on" if on else "off"
+            mode = job_stage(job, "extract")["data"]["used"]
+            set_stage(job, "decision", "running")
+            set_stage(job, "decision", "done", decision_stage(job, mode, load_config()))
+            return self.json({"ok": True})
         if m := re.fullmatch(r"/api/job/([\w-]+)/use", url.path):  # สลับแบบสกัดที่ใช้กับขั้นตรวจ/JSON (ผลที่สกัดไว้แล้ว)
             job = JOBS.get(m.group(1))
             mode = parse_qs(url.query).get("mode", [""])[0]

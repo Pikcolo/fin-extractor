@@ -149,7 +149,7 @@ class FieldReview(BaseModel):
 class Decision(BaseModel):
     """คำตอบของ decision model ต่อหนึ่งคำถาม (shadow mode: บันทึกอย่างเดียว ไม่เปลี่ยน data / review / status ดู decision/)."""
 
-    task: str = Field(description="doc_type | profile | party_name")
+    task: str = Field(description="doc_type | profile | name_only | missing_hint")
     key: str = Field(description="ฟิลด์ที่คำถามนี้เกี่ยวข้อง เช่น document_type, vendor.name")
     type: Literal["choice", "noul"]
     answer: str = Field(description="ตัวเลือกที่ความน่าจะเป็นสูงสุด (noul: yes/no)")
@@ -158,6 +158,7 @@ class Decision(BaseModel):
     orders: int = Field(1, description="จำนวนลำดับตัวเลือกที่ถาม (สลับลำดับเพราะคำตอบพลิกตามลำดับได้)")
     agreed: bool = Field(True, description="ทุกลำดับเลือกตัวเลือกเดียวกันไหม")
     model: str
+    instructions: str = Field("", description="คำถามที่ถามโมเดล")
     state: dict = Field(default_factory=dict, description="ข้อมูลที่ป้อนเข้าโมเดลจริง (ไว้ตรวจย้อนหลัง)")
 
 

@@ -86,7 +86,7 @@ def cmd_extract(args, cfg) -> None:
                      if args.variant == "regions-luma" and manifest.exists() else [])
             for page_no, r in ((no, pipe.process_raw(str(f), no, *load_raw(p), codes=codes)) for no, p in pages):
                 if decider:  # shadow mode: บันทึกคำตอบอย่างเดียว ไม่แตะ data / review / status
-                    r.decisions = decider.ask(build_questions(r.data, r.raw_text, pipe.profiles, decider.cfg))
+                    r.decisions = decider.ask(build_questions(r.data, r.raw_text, pipe.profiles, decider.cfg, r.missing_fields))
                 seconds = round(time.perf_counter() - t0, 2)
                 if not args.keep_raw:
                     r.raw_text = None

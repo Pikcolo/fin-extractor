@@ -126,6 +126,8 @@ tr.flash td { animation:fl 1.6s; } @keyframes fl { from { background:var(--warn-
 .rv-row input.changed { background:var(--accent-soft); border-color:var(--accent); }
 .rv-row ul { margin:0; padding-left:18px; font-size:13px; color:var(--muted); }
 .rv-err { color:var(--bad); font-size:12.5px; margin-top:2px; }
+.rv-row textarea, .rv-items td textarea { width:100%; font:inherit; font-size:13px; padding:4px 6px; border:1px solid var(--line); border-radius:4px; background:var(--panel); color:var(--ink); resize:vertical; box-sizing:border-box; }
+.rv-row textarea.changed { border-color:var(--acc, var(--accent)); }
 .rv-items td input { width:100%; font:inherit; font-size:13px; padding:3px 6px; border:1px solid var(--line); border-radius:4px; background:var(--panel); color:var(--ink); }
 .rv-sum { display:flex; flex-wrap:wrap; gap:8px 18px; align-items:center; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:var(--panel2); }
 @media (max-width:760px) { .rv-row { grid-template-columns:1fr; } }
@@ -140,7 +142,7 @@ tr.flash td { animation:fl 1.6s; } @keyframes fl { from { background:var(--warn-
 .toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:6px 0; }
 </style></head><body>
 <header>
-  <h1>OCR ทีละขั้น</h1>
+  <h1>OCR ทีละขั้น <span class="small muted" id="codever" style="font-weight:400"></span></h1>
   <p>อัปโหลดเอกสาร 1 ไฟล์ แล้วดูว่าแต่ละขั้นของ fin_extractor ทำอะไรกับมัน ตั้งแต่ภาพดิบจนได้ JSON สุดท้าย · คลิกกรอบ/รหัสส่วน (เช่น <span class="sec">s03</span>) ที่ไหนก็ได้เพื่อตามส่วนนั้นข้ามทุกขั้น</p>
 </header>
 <div id="stepper"><div class="in" id="steps"></div></div>
@@ -217,6 +219,9 @@ async function init() {
   $("#llm").innerHTML = info.llm_modes.map(m => `<option value="${m}">${LLM_LABEL[m] || m}</option>`).join("")
     + `<option value="all">ทั้ง 3 แบบ เทียบกัน (rules · hybrid · winner)</option>`;
   $("#file").accept = info.exts.join(",");
+  $("#codever").textContent = info.code ? `· branch ${info.code.branch} @ ${info.code.commit} (สลับ branch แล้วรีสตาร์ตเซิร์ฟเวอร์)` : "";
+  decisionInfo = { available: info.decision_available, reason: info.decision_reason };
+  if (!info.decision_available) { $("#decision").disabled = true; $("#decision").parentElement.title = info.decision_reason; $("#decision").parentElement.style.opacity = .55; }
   if (info.busy) $("#msg").textContent = "มีงานกำลังรันอยู่";
   const m = location.hash.match(/^#job=([\w-]+)$/);  // รีเฟรชแล้วกลับมาดูงานเดิมได้ (ระหว่างที่เซิร์ฟเวอร์ยังเปิดอยู่)
   if (m) { jobId = m[1]; $("#msg").textContent = "งาน " + jobId; poll(); }
@@ -629,14 +634,25 @@ async function useMode(m) {
 }
 function alertMsg(t) { $("#msg").textContent = t; }
 // decision model (shadow): คำถาม · ข้อมูลที่ป้อน · ความน่าจะเป็นทุกตัวเลือก · เทียบกับผลของระบบ
-const TASK_INFO = { doc_type: "ชนิดเอกสารตามที่พิมพ์", profile: "โปรไฟล์ชนิดเอกสาร", party_name: "ชื่อเป็นชื่อบริษัท/บุคคลล้วน ๆ ไหม" };
+const TASK_INFO = { doc_type: "ชนิดเอกสารตามที่พิมพ์", profile: "โปรไฟล์ชนิดเอกสาร", name_only: "ชื่อเป็นชื่อบริษัท/บุคคลล้วน ๆ ไหม",
+                    missing_hint: "ข้อเสนอค่าของช่องที่ขาด (ให้คนดู ไม่เขียนลงผล)" };
+async function decisionToggle(on) {
+  const r = await fetch(`/api/job/${jobId}/decision?on=${on ? 1 : 0}`, { method: "POST" });
+  if (!r.ok) { $("#msg").textContent = (await r.json()).error; return; }
+  ["decision", "review"].forEach(k => { rendered[k] = null; });
+  rev = -1; poll();
+}
+const decisionsByKey = () => { const d = data("decision"); return d && d.decisions ? Object.fromEntries(d.decisions.map(x => [x.key, x])) : {}; };
 RENDER.decision = d => {
-  if (d.skipped) return `<p class="small muted">ข้าม: ${esc(d.skipped)}</p>`;
+  const btn = on => `<button onclick="this.disabled=true;this.textContent='กำลังถาม decision model…';decisionToggle(${on})" ${on && !decisionInfo.available ? "disabled" : ""}>${on ? "ใช้ decision model" : "ไม่ใช้ decision model"}</button>`;
+  if (d.off) return `<div class="toolbar">${btn(true)} <span class="small muted">${d.available ? "ยังไม่ได้ใช้ · กดเพื่อถาม decision model กับผลของแบบที่ใช้อยู่ (CPU ราว 10–30 วินาทีครั้งแรก)" : "ใช้ไม่ได้: " + esc(d.reason)}</span></div>`;
+  if (d.skipped) return `<p class="small muted">ข้าม: ${esc(d.skipped)}</p><div class="toolbar">${btn(false)}</div>`;
   const bars = p => Object.entries(p).sort((a, b) => b[1] - a[1]).map(([k, v]) =>
     `<div class="small" style="display:grid;grid-template-columns:minmax(120px,260px) 1fr 48px;gap:6px;align-items:center">
       <span>${esc(k)}</span><span style="background:var(--na-soft);height:8px;border-radius:4px;overflow:hidden"><span style="display:block;height:100%;width:${(v * 100).toFixed(1)}%;background:var(--accent)"></span></span><span class="mono">${(v * 100).toFixed(1)}%</span></div>`).join("");
   const cmp = x => {
-    if (x.task === "party_name") { const lv = d.levels[x.key]; return `ค่าในระบบ: <b>${esc(d.current[x.key] || "—")}</b> · ระดับหลักฐาน ${lv ? `<span class="badge ${LEVEL[lv][1]}">${LEVEL[lv][0]}</span>` : "—"}`; }
+    if (x.task === "name_only") { const lv = d.levels[x.key]; return `ค่าในระบบ: <b>${esc(d.current[x.key] || "—")}</b> · ระดับหลักฐาน ${lv ? `<span class="badge ${LEVEL[lv][1]}">${LEVEL[lv][0]}</span>` : "—"}`; }
+    if (x.task === "missing_hint") return `ช่องนี้ระบบหาไม่เจอ · โมเดลเสนอ <b>${esc(x.answer)}</b> <span class="small muted">(ข้อเสนอเท่านั้น ไม่เขียนลงผล ถ้าถูกให้กรอกเองในขั้นตรวจ/แก้)</span>`;
     const sys = d.current[x.key];
     return `ระบบ (rules) ได้: <b>${esc(sys || "—")}</b>${x.task === "profile" ? (sys === x.answer ? ' <span class="badge b-ok">ตรงกัน</span>' : ' <span class="badge b-warn">ต่างกัน</span>') : ' <span class="small muted">(rules ตอบได้แค่ tax_invoice/receipt/invoice/quotation จึงเทียบตรง ๆ ไม่ได้)</span>'}`;
   };
@@ -645,11 +661,13 @@ RENDER.decision = d => {
         → <b>${esc(x.answer)}</b>${x.type === "choice" ? (x.agreed ? ' <span class="badge b-ok">ทุกลำดับตอบตรงกัน</span>' : ` <span class="badge b-warn">ลำดับตัวเลือกให้คำตอบต่างกัน (${x.orders} ลำดับ)</span>`) : ""}
         ${x.abstain != null ? `<span class="small muted"> · abstain ${(x.abstain * 100).toFixed(1)}%</span>` : ""}</div>
       <div class="small" style="margin:4px 0">${cmp(x)}</div>${bars(x.probabilities)}
-      <details class="small" style="margin-top:4px"><summary>ข้อมูลที่ป้อนเข้าโมเดล</summary><pre>${esc(JSON.stringify(x.state, null, 1))}</pre></details></div>`).join("");
+      <details class="small" style="margin-top:4px"><summary>คำถามและข้อมูลที่ป้อนเข้าโมเดล</summary><div>${esc(x.instructions || "")}</div><pre>${esc(JSON.stringify(x.state, null, 1))}</pre></details></div>`).join("");
   return `<div class="explain"><b>ขั้นนี้ (shadow):</b> ถาม decision model <code>${esc(d.model)}</code> บน CPU กับผลของแบบ <b>${esc(MODE_NAME[d.mode] || d.mode)}</b>
       ${d.asked} คำถาม · ${d.seconds} วินาที (รวมทุกลำดับตัวเลือก) · <b>บันทึกอย่างเดียว ไม่เปลี่ยนค่า ระดับหลักฐาน หรือสถานะ</b> (<code>src/fin_extractor/decision/</code>, docs/draft-11)
       <br>คำถามแบบเลือกตอบถาม 3 ลำดับตัวเลือกแล้วเฉลี่ย เพราะคำตอบพลิกตามลำดับได้ · ป้อนแค่ข้อความท่อนบนสุดของหน้า (s00) และชื่อที่สกัดได้ ไม่ป้อนทั้งหน้า
-      <br>ความน่าจะเป็นยังไม่ได้เทียบกับเฉลยของเอกสารเรา (P3) อย่าใช้ตัดสินแทนคน</div>
+      <br>ความน่าจะเป็นยังไม่ได้เทียบกับเฉลยของเอกสารเรา (P3) อย่าใช้ตัดสินแทนคน · คำตอบของช่องชื่อ/ช่องที่ขาดแสดงในขั้นตรวจ/แก้ด้วย
+      <br><b>ไม่มีคำถาม "ค่านี้ถูกไหม" แบบกว้าง:</b> ทดลองกับ 18 เคสที่รู้คำตอบแล้ว โมเดลตอบว่าถูกทุกเคสที่ผิด (docs/draft-11)</div>
+    <div class="toolbar">${btn(false)}</div>
     ${d.decisions.length ? `<div class="grid2">${rows}</div>` : '<p class="small muted">ไม่มีคำตอบ (โมเดลล้มหรือไม่มีคำถาม ดู log)</p>'}`;
 };
 RENDER.extract = d => {
@@ -713,17 +731,32 @@ RENDER.validate = d => {
 };
 
 // ------------------------------------------------------------------ ตรวจ/แก้รายฟิลด์ (ไม่ใช้ decision engine: เรียงตามหลักฐานที่ระบบมี)
-let reviewEdits = {}, reviewData = null, reviewErr = {}, reviewSaved = null;
+let reviewEdits = {}, reviewData = null, reviewErr = {}, reviewSaved = null, decisionInfo = { available: false, reason: "" };
 const RV_LEVEL = { conflict: ["ขัดแย้ง ต้องแก้/ยืนยัน", "b-bad"], missing: ["หาไม่เจอ ต้องกรอก", "b-warn"], unverified: ["ไม่มีตัวยืนยัน ดูเทียบภาพ", ""],
                    edited: ["แก้แล้ว", "b-acc"], verified: ["ยืนยันแล้ว", "b-ok"], empty: ["ไม่มีค่า", ""], not_applicable: ["ไม่มีในชนิดนี้", ""] };
 RENDER.review = d => { if (!reviewData) reviewData = d; return `<div id="reviewBox">${reviewHtml()}</div>`; };
+// ช่องข้อความยาวใช้ textarea ตามชนิดช่อง (ชื่อ ที่อยู่ รายละเอียด ฟิลด์ข้อความของโปรไฟล์) สูงตามเนื้อหา
+const LONG_KEYS = new Set(["vendor.name", "vendor.address", "buyer.name", "buyer.address"]);
+const isLong = r => LONG_KEYS.has(r.key) || (r.key.startsWith("document_fields.") && (r.type === "text" || /_text$|words/.test(r.key)));
+const rowsFor = v => Math.min(8, Math.max(2, Math.ceil(String(v || "").length / 60) + (String(v || "").match(/\n/g) || []).length));
+function decisionBadge(key) {
+  const x = decisionsByKey()[key];
+  if (!x) return "";
+  if (x.task === "name_only") return x.answer === "no"
+    ? ` <span class="badge b-warn" title="decision model: ไม่ใช่ชื่อล้วน (shadow ไม่เปลี่ยนระดับ)">decision: อาจมีข้อความอื่นปน ${(x.probabilities.no * 100).toFixed(0)}%</span>`
+    : ` <span class="badge" title="decision model (shadow)">decision: ชื่อล้วน ${(x.probabilities.yes * 100).toFixed(0)}%</span>`;
+  if (x.task === "missing_hint") return ` <span class="badge b-acc" title="ข้อเสนอของ decision model ไม่เขียนลงผล">decision เสนอ: ${esc(x.answer)}${x.agreed ? "" : " (ลำดับตัวเลือกตอบไม่ตรงกัน)"}</span>`;
+  return "";
+}
 function rvRow(r) {
   const v = r.key in reviewEdits ? reviewEdits[r.key] : r.value, lv = RV_LEVEL[r.level];
   const changed = r.key in reviewEdits || r.edited;
   return `<div class="rv-row lv-${r.level}" data-sec="${r.sections[0] || ""}">
     <div><b>${esc(r.label || FIELD_LABEL[r.key] || r.key)}</b><div class="mono muted" style="font-size:11px">${esc(r.key)}</div>
       <div style="margin-top:4px"><span class="badge ${lv[1]}">${lv[0]}</span>${changed && r.level !== "edited" ? ' <span class="badge b-acc">แก้แล้ว</span>' : ""}${srcBadge(r.source)}</div></div>
-    <div><input value="${esc(v)}" class="${changed ? "changed" : ""}" placeholder="${r.level === "missing" ? "กรอกจากภาพ" : "ว่าง"}" onchange="reviewEdit('${r.key}', this.value)">
+    <div>${isLong(r)
+      ? `<textarea rows="${rowsFor(v)}" class="${changed ? "changed" : ""}" placeholder="${r.level === "missing" ? "กรอกจากภาพ" : "ว่าง"}" onchange="reviewEdit('${r.key}', this.value)">${esc(v)}</textarea>`
+      : `<input value="${esc(v)}" class="${changed ? "changed" : ""}" placeholder="${r.level === "missing" ? "กรอกจากภาพ" : "ว่าง"}" onchange="reviewEdit('${r.key}', this.value)">`}${decisionBadge(r.key)}
       ${reviewErr[r.key] ? `<div class="rv-err">${esc(reviewErr[r.key])}</div>` : ""}
       <div class="small muted" style="margin-top:3px">${r.edited ? `ระบบอ่านได้: ${esc(r.original || "—")} <a href="#" onclick="reviewReset('${r.key}');return false">คืนค่าเดิม</a>` : ""}
         ${r.sections.length ? ` มาจากส่วน ${r.sections.map(s => secChip(s)).join(" ")}` : ""}</div></div>
@@ -735,7 +768,9 @@ function rvItems(d) {
     <div><b>รายการสินค้า/บริการ</b> <span class="badge ${RV_LEVEL[d.items_edited ? "edited" : d.items_level][1]}">${RV_LEVEL[d.items_edited ? "edited" : d.items_level][0]}</span>
       <span class="small muted"> · ${esc(d.items_reason)}</span></div>
     <div class="tablewrap"><table class="rv-items"><tr><th>รายละเอียด</th><th style="width:80px">จำนวน</th><th style="width:100px">ราคา/หน่วย</th><th style="width:110px">จำนวนเงิน</th><th style="width:30px"></th></tr>
-      ${items.map((it, i) => `<tr>${["description", "quantity", "unit_price", "amount"].map(k => `<td><input data-i="${i}" data-k="${k}" value="${esc(it[k])}" onchange="rvItemsChanged()"></td>`).join("")}
+      ${items.map((it, i) => `<tr>${["description", "quantity", "unit_price", "amount"].map(k => k === "description"
+        ? `<td><textarea data-i="${i}" data-k="${k}" rows="${rowsFor(it[k])}" onchange="rvItemsChanged()">${esc(it[k])}</textarea></td>`
+        : `<td><input data-i="${i}" data-k="${k}" value="${esc(it[k])}" onchange="rvItemsChanged()"></td>`).join("")}
         <td><button onclick="rvItemDel(${i})" title="ลบแถว">×</button></td></tr>`).join("")}</table></div>
     <div><button onclick="rvItemAdd()">+ เพิ่มรายการ</button></div></div>`;
 }
@@ -780,7 +815,7 @@ async function reviewSend(save = false) {
 }
 function reviewEdit(key, value) { reviewEdits[key] = value; reviewSend(); }
 function reviewReset(key) { delete reviewEdits[key]; reviewSend(); }
-function rvItemsRead() { const rows = []; document.querySelectorAll(".rv-items input").forEach(i => { (rows[i.dataset.i] ||= {})[i.dataset.k] = i.value; }); return rows; }
+function rvItemsRead() { const rows = []; document.querySelectorAll(".rv-items input, .rv-items textarea").forEach(i => { (rows[i.dataset.i] ||= {})[i.dataset.k] = i.value; }); return rows; }
 function rvItemsChanged() { reviewEdits.items = rvItemsRead(); reviewSend(); }
 function rvItemDel(i) { const rows = rvItemsRead(); rows.splice(i, 1); reviewEdits.items = rows; reviewSend(); }
 function rvItemAdd() { const rows = rvItemsRead(); rows.push({ description: "", quantity: "", unit_price: "", amount: "" }); reviewEdits.items = rows; $("#reviewBox").innerHTML = reviewHtml(); }

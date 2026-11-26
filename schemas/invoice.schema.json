@@ -4,7 +4,7 @@
       "description": "คำตอบของ decision model ต่อหนึ่งคำถาม (shadow mode: บันทึกอย่างเดียว ไม่เปลี่ยน data / review / status ดู decision/).",
       "properties": {
         "task": {
-          "description": "doc_type | profile | party_name",
+          "description": "doc_type | profile | name_only | missing_hint",
           "title": "Task",
           "type": "string"
         },
@@ -61,6 +61,12 @@
         },
         "model": {
           "title": "Model",
+          "type": "string"
+        },
+        "instructions": {
+          "default": "",
+          "description": "คำถามที่ถามโมเดล",
+          "title": "Instructions",
           "type": "string"
         },
         "state": {
