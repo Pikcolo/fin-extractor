@@ -253,8 +253,7 @@ class FinanceOCRPipeline:
         checks += list(extra)
         na = set(profile.not_applicable)
         missing, status = decide_status(data, checks, not_applicable=na, required=profile.required,
-                                        primary_amount=profile.primary_amount,
-                                        can_auto_approve=profile.can_auto_approve)
+                                        primary_amount=profile.primary_amount)
         evidence = build_field_evidence(data, checks, "\n".join(lines), sources, agree, not_applicable=na,
                                         required=profile.required, profile=profile)
         return checks, missing, status, evidence
@@ -264,10 +263,10 @@ class FinanceOCRPipeline:
         """ข้อความที่อ่านได้ของหน้าหนึ่ง → ผลสกัด/ตรวจ/สถานะ (ไม่แตะ OCR จึงรันซ้ำจาก ``raw_text`` ที่เก็บไว้ได้)."""
         data, sources, agree = self.extract_traced(lines, raw_text)
         checks, _missing, status, evidence = self.assess(data, lines, sources, agree, extra)
-        if status == "auto_approved" and any(src not in ("rules", "llm", "human") and key in evidence and evidence[key].level != "verified"
+        if status == "ready" and any(src not in ("rules", "llm", "human") and key in evidence and evidence[key].level != "verified"
                                              for key, src in sources.items()):
             # ค่าจากตัวอ่านเสริมที่ไม่มี check ยืนยัน ต้องให้คนดู: ตัวอ่านเสริมอ่านวันที่/เลขที่เพี้ยนได้ (1318: 16/10 แทน 15/10, ST69100-0036)
-            status = "needs_review"
+            status = "check"
         review = review_from_evidence(evidence, checks, self.profile_for(data).primary_amount)
         return ExtractionResult(
             source_file=source_file, page=page, engine=self.engine_name, data=data,

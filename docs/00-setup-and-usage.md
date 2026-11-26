@@ -219,7 +219,7 @@ python scripts/eval/compare_file.py 001312                                      
 - **Prompt ของ Typhoon OCR** (`TYPHOON_OCR_PROMPT` ใน `readers/typhoon.py`) อิงรูปแบบใน model card ควรเทียบกับ model card ของรุ่นที่ใช้อีกครั้ง
 - **Typhoon API บน cloud**: มี config แล้วแต่ยังไม่ได้เรียกจริง
 - **rules ถูกปรับให้เข้ากับ `BITKUB-001.jpg`** ชุดสแกนจริง 18 ใบ (`data/01_input/finance_doc_scan`) มีเอกสารหลายชนิดนอกใบกำกับภาษี (หนังสือรับรอง 50 ทวิ, ใบสำคัญรับเงินลายมือ, ใบเสร็จศุลกากร)
-  ผล OpenThai ผัง regions + rules ล่าสุด (2026-11-26 ไม่มีเฉลย): 11 `needs_review` · 5 `auto_approved` · 2 `failed` — `auto_approved` ไม่ได้แปลว่าค่าถูก (ผ่านได้ด้วย checksum เลขภาษีอย่างเดียว ควรตรวจมือก่อนเชื่อ)
+  ผล OpenThai ผัง regions + rules ล่าสุด (2026-11-26 ไม่มีเฉลย): 11 `check` · 5 `ready` · 2 `incomplete` — `ready` ไม่ได้แปลว่าค่าถูก (ผ่านได้ด้วย checksum เลขภาษีอย่างเดียว ควรตรวจมือก่อนเชื่อ)
   ตัวเลขและเหตุผลอยู่ใน [05-extraction.md](05-extraction.md) เกณฑ์สถานะใน [05-validation-output.md](05-validation-output.md) และผล preprocess ใน [02-preprocessing.md](02-preprocessing.md#ผลวัดบนสแกนจริง)
 - **LLM ขนาด 3B** ยังสลับ field ยอดเงินได้ ใช้รุ่นใหญ่ขึ้นจะเสถียรกว่า
 - **วันที่:** ถ้าช่องวันที่ถูกบังหรือว่าง ระบบจะหยิบวันที่แรกในเอกสาร ซึ่งอาจไม่ใช่วันที่ออกเอกสาร

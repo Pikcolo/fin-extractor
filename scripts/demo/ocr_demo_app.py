@@ -493,11 +493,10 @@ def use_result(job: dict, mode: str) -> None:
         set_stage(job, "validate", "done", {
             "checks": out["checks"], "evidence": out["review"], "missing": res.missing_fields, "status": res.status,
             "rules": [
-                {"rule": f"มียอดหลัก ({primary or 'ไม่กำหนด'})", "ok": has_primary, "fail_to": "failed"},
-                {"rule": "ฟิลด์ที่ต้องมีครบ", "ok": not res.missing_fields, "fail_to": "needs_review"},
-                {"rule": "ไม่มี check ที่ไม่ผ่าน", "ok": all(c.passed is not False for c in checks), "fail_to": "needs_review"},
-                {"rule": "มี check ที่ผ่านอย่างน้อย 1 ข้อ", "ok": any(c.passed is True for c in checks), "fail_to": "needs_review"},
-                {"rule": "โปรไฟล์ไม่ใช่ฉบับร่าง (draft)", "ok": profile.can_auto_approve, "fail_to": "needs_review"},
+                {"rule": f"มียอดหลัก ({primary or 'ไม่กำหนด'})", "ok": has_primary, "fail_to": "incomplete"},
+                {"rule": "ฟิลด์ที่ต้องมีครบ", "ok": not res.missing_fields, "fail_to": "check"},
+                {"rule": "ไม่มี check ที่ไม่ผ่าน", "ok": all(c.passed is not False for c in checks), "fail_to": "check"},
+                {"rule": "มี check ที่ผ่านอย่างน้อย 1 ข้อ", "ok": any(c.passed is True for c in checks), "fail_to": "check"},
             ],
         })
         set_stage(job, "result", "done", {"json": out, "path": (d / "result.json").relative_to(ROOT).as_posix()})

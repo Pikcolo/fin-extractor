@@ -149,5 +149,5 @@ fin_extractor/
 - **ต่อคำภาษาไทย**: `OCRLine.text` เว้นวรรคตามระยะห่างจริงในภาพ (ไม่งั้นได้ `บ ร ิ ษั ท`) และแก้ `ํา` → `ำ`
 - **Ollama ใช้ native API** เพราะ endpoint แบบ OpenAI ตั้ง `num_ctx` ไม่ได้ (default 4096 ทำให้ VLM ตอบไม่จบ)
 - **LLM + rules + cross-check**: `extract --llm on|auto` รันทั้งสองแบบ เลือกผลที่ตัวเลขสอดคล้องกันมากกว่า แล้วเติม field ที่ขาดจากอีกฝั่ง · `--llm hybrid` = rules นำ LLM เติมเฉพาะช่องที่ยังไม่เสร็จ
-- **status**: `auto_approved` (field สำคัญครบ, ไม่มี check ไหน fail และผ่านอย่างน้อย 1 ข้อ) / `needs_review` / `failed` (หา total ไม่เจอ)
+- **status**: `ready` (field สำคัญครบ, ไม่มี check ไหน fail และผ่านอย่างน้อย 1 ข้อ) / `check` / `incomplete` (หา total ไม่เจอ)
 - **review** (schema 4.0): ระดับรายฟิลด์ (`conflict` / `missing` / `unverified` / `verified` / `not_applicable`) + เหตุผลเป็นคำพูด เรียงตามที่ควรตรวจก่อน ค่าอยู่ใน `data` ที่เดียว ดู [docs/05-validation-output.md](docs/05-validation-output.md)

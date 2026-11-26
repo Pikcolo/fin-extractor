@@ -55,7 +55,7 @@ def test_checks_pass_and_catch_ocr_error():
     checks = {c.name: c.passed for c in run_checks(d)}
     assert checks["before_vat_plus_vat"] is False
     _, status = decide_status(d, run_checks(d))
-    assert status == "needs_review"
+    assert status == "check"
 
 
 def test_markdown_table_to_lines():
@@ -108,35 +108,35 @@ def test_bare_total_before_vat_is_still_the_subtotal():
 def test_status_comes_from_missing_fields_and_checks():
     d = extract_fields(BITKUB_LINES)  # ช่องเลขที่เอกสารว่างในข้อความนี้
     missing, status = decide_status(d, run_checks(d))
-    assert missing == ["invoice_no"] and status == "needs_review"
+    assert missing == ["invoice_no"] and status == "check"
 
     d.invoice_no = "INV-001"
     missing, status = decide_status(d, run_checks(d))
-    assert missing == [] and status == "auto_approved"
+    assert missing == [] and status == "ready"
 
     # field ครบแต่ไม่มี check ไหนยืนยันตัวเลขได้ → ยังไม่อนุมัติอัตโนมัติ
     _, status = decide_status(d, [])
-    assert status == "needs_review"
+    assert status == "check"
 
     d.total_amount = None
     _, status = decide_status(d, run_checks(d))
-    assert status == "failed"
+    assert status == "incomplete"
 
 
 def test_handwritten_field_needs_corroboration_to_auto_approve():
     d = extract_fields(BITKUB_LINES)
     d.invoice_no = "INV-001"
     checks = run_checks(d)
-    assert decide_status(d, checks)[1] == "auto_approved"
+    assert decide_status(d, checks)[1] == "ready"
 
     # ยอดรวมจากลายมือ + ผลรวมลงตัว → ยังอนุมัติได้
-    assert decide_status(d, checks, ["total_amount"])[1] == "auto_approved"
+    assert decide_status(d, checks, ["total_amount"])[1] == "ready"
     # เลขที่เอกสารจากลายมือ ไม่มี check ไหนยืนยันได้ → ต้องคนตรวจ
-    assert decide_status(d, checks, ["invoice_no"])[1] == "needs_review"
+    assert decide_status(d, checks, ["invoice_no"])[1] == "check"
 
     # ยอดรวมจากลายมือแต่ผลรวมไม่ลงตัว → ต้องคนตรวจ
     d.total_amount += 1
-    assert decide_status(d, run_checks(d), ["total_amount"])[1] == "needs_review"
+    assert decide_status(d, run_checks(d), ["total_amount"])[1] == "check"
 
 
 def test_markdown_to_lines_joins_decimals_split_by_a_space():

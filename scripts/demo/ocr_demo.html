@@ -204,7 +204,7 @@ const FIELD_LABEL = {
   "amount_before_vat": "มูลค่าก่อน VAT", "vat_rate": "อัตรา VAT", "vat_amount": "VAT", "total_amount": "ยอดสุทธิรวม VAT",
 };
 const LEVEL = { verified: ["ยืนยันแล้ว", "b-ok"], unverified: ["ไม่มีตัวยืนยัน", ""], conflict: ["ขัดแย้ง", "b-bad"], missing: ["หาไม่เจอ", "b-warn"], not_applicable: ["ไม่มีในชนิดนี้", ""] };
-const STATUS = { auto_approved: ["อนุมัติอัตโนมัติได้", "b-ok"], needs_review: ["ต้องให้คนตรวจ", "b-warn"], failed: ["ล้มเหลว", "b-bad"] };
+const STATUS = { ready: ["พร้อม: ดูเทียบภาพผ่าน ๆ", "b-ok"], check: ["ตรวจช่องที่ไฮไลต์", "b-warn"], incomplete: ["ไม่ครบ: กรอกยอดหลักเอง", "b-bad"] };
 
 // ------------------------------------------------------------------ upload
 async function init() {

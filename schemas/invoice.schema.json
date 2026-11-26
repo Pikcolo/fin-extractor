@@ -502,9 +502,9 @@
     },
     "status": {
       "enum": [
-        "auto_approved",
-        "needs_review",
-        "failed"
+        "ready",
+        "check",
+        "incomplete"
       ],
       "title": "Status",
       "type": "string"

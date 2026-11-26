@@ -20,7 +20,7 @@ CORROBORATING_CHECKS = {
     "total_amount": ("items_sum", "before_vat_plus_vat", "vat_rate", "discount"),
 }
 
-Status = Literal["auto_approved", "needs_review", "failed"]
+Status = Literal["ready", "check", "incomplete"]
 
 
 def _get(d: InvoiceData, dotted: str):
@@ -53,22 +53,24 @@ def uncorroborated(handwritten: list[str], checks: list[ValidationCheck]) -> lis
 def decide_status(
     d: InvoiceData, checks: list[ValidationCheck], handwritten: list[str] | None = None,
     not_applicable: Collection[str] = (), required: Collection[str] = KEY_FIELDS,
-    primary_amount: str | None = "total_amount", can_auto_approve: bool = True,
+    primary_amount: str | None = "total_amount",
 ) -> tuple[list[str], Status]:
     """คืน (field ที่ชนิดเอกสารนี้ต้องมีแต่หาไม่เจอ, สถานะ)
 
     ``required`` และ ``primary_amount`` มาจากโปรไฟล์ชนิดเอกสาร (ค่าตั้งต้น = กฎเดิมของใบกำกับภาษี)
-    - failed: ไม่มียอดหลัก ``primary_amount`` (ยกเว้นชนิดที่ไม่มีฟิลด์นี้ หรือโปรไฟล์ตั้งเป็น null)
-    - auto_approved: field ที่ต้องมีครบ, ไม่มี check ที่ไม่ผ่าน และมี check ที่ยืนยันตัวเลขได้อย่างน้อยหนึ่งข้อ
-    - needs_review: กรณีอื่น รวมถึงเมื่อ field ที่อ่านจากลายมือไม่มี check ยืนยัน และเมื่อโปรไฟล์ยังเป็นฉบับร่าง
-      (``can_auto_approve=False``: รายการฟิลด์ที่ต้องมียังไม่ผ่านการยืนยัน จึงไม่ปล่อยผ่านโดยไม่มีคนตรวจ)
+    สถานะ = ลำดับความเร่งในการตรวจ (เจ้าหน้าที่ตรวจทุกใบอยู่แล้ว ไม่มีสถานะไหนข้ามการตรวจ)
+    - incomplete: ไม่มียอดหลัก ``primary_amount`` ต้องกรอกเอง (ยกเว้นชนิดที่ไม่มีฟิลด์นี้ หรือโปรไฟล์ตั้งเป็น null)
+    - ready: field ที่ต้องมีครบ, ไม่มี check ที่ไม่ผ่าน และมี check ที่ยืนยันตัวเลขได้อย่างน้อยหนึ่งข้อ (ไม่นับ date_range / checksum เลขภาษี) → ดูเทียบภาพผ่าน ๆ
+    - check: กรณีอื่น (มีช่องขัดแย้ง/หาไม่เจอ หรือ field ที่อ่านจากลายมือไม่มี check ยืนยัน) → ดูช่องที่ไฮไลต์
     """
     missing = missing_fields(d, not_applicable, required)
     if primary_amount and primary_amount not in not_applicable and _get(d, primary_amount) in (None, ""):
-        return missing, "failed"
-    verified = any(c.passed is True for c in checks)
+        return missing, "incomplete"
+    from .evidence import NOT_CORROBORATING  # กฎเดียวกับระดับรายฟิลด์: date_range / checksum เลขภาษีผ่านไม่นับเป็นตัวยืนยัน
+
+    verified = any(c.passed is True and c.name not in NOT_CORROBORATING for c in checks)
     if handwritten and uncorroborated(handwritten, checks):
-        return missing, "needs_review"
-    if can_auto_approve and not missing and verified and all(c.passed is not False for c in checks):
-        return missing, "auto_approved"
-    return missing, "needs_review"
+        return missing, "check"
+    if not missing and verified and all(c.passed is not False for c in checks):
+        return missing, "ready"
+    return missing, "check"

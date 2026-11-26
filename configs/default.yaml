@@ -118,18 +118,16 @@ core_labels:
 #   aliases        ข้อความที่พิมพ์บนเอกสารไว้จำแนกชนิด (ตัดช่องว่าง/ตัวพิมพ์ ลำดับในไฟล์ = ลำดับความสำคัญ ตัวที่ตรงก่อนชนะ)
 #   required       field ที่ชนิดนี้ต้องมี (ค่าตั้งต้น = vendor.name, vendor.tax_id, invoice_no, date, total_amount)
 #                  ฟิลด์ประจำชนิดอ้างแบบ document_fields.<key>
-#   primary_amount ยอดที่ถ้าหาไม่เจอแล้ว failed (ค่าตั้งต้น total_amount; null = ไม่มีกฎนี้)
+#   primary_amount ยอดที่ถ้าหาไม่เจอแล้ว incomplete (ค่าตั้งต้น total_amount; null = ไม่มีกฎนี้)
 #   not_applicable field ที่ชนิดนี้ไม่มี (ไม่นับเป็นหาไม่เจอ และตัดออกจาก schema ที่ส่งให้ LLM)
 #   checks         ชื่อ check ที่ใช้กับชนิดนี้ (ค่าตั้งต้น = ทุกข้อ) ข้อที่ไม่ระบุจะรายงานเป็น passed=null ไม่นับผ่าน/ไม่ผ่าน
 #                  ชื่อที่ใช้ได้: vendor_tax_id_checksum, buyer_tax_id_checksum, items_sum, discount, before_vat_plus_vat, vat_rate, date_range
 #   fields         key / label / type (text|code|money|date|tax_id|percent) / aliases (ป้ายที่พิมพ์) / source (ป้ายนี้เห็นจากที่ไหน)
 #
-# สถานะ: draft — รายการฟิลด์และ required ด้านล่างมาจากป้ายที่พิมพ์บนสแกนใน data/01_input/finance_doc_scan (ระบุใน source)
-#        ยังไม่ได้ให้ฝ่ายบัญชียืนยัน ต้องยืนยันก่อนใช้ตัดสินจริง (docs/08 หัวข้อ 3.6)
+# รายการฟิลด์และ required ด้านล่างมาจากป้ายที่พิมพ์บนสแกนใน data/01_input/finance_doc_scan (ระบุใน source)
 document_types:
   withholding_certificate:
     title: หนังสือรับรองการหักภาษี ณ ที่จ่าย (50 ทวิ)
-    status: "draft: รอฝ่ายบัญชียืนยัน"
     aliases: ["หนังสือรับรองการหักภาษี", "50 ทวิ"]
     # ผู้ถูกหักภาษี = ผู้ที่ถูกหักเงิน (ใช้เป็น buyer) ส่วนผู้หักภาษีเป็น vendor — ร่าง รอฝ่ายบัญชียืนยัน ชื่ออยู่บรรทัดใต้ป้ายได้ (next_line)
     core_labels:
@@ -148,7 +146,6 @@ document_types:
       - {key: total_tax_withheld_text, label: รวมเงินภาษีที่หักนำส่ง (ตัวอักษร), type: text, aliases: ["รวมเงินภาษีที่หักนำส่ง (ตัวอักษร)"], source: "001307", words_of: document_fields.total_tax_withheld}
   customs_receipt:
     title: ใบเสร็จ/ใบสรุปค่าภาษีศุลกากรและนำเข้า
-    status: "draft: รอฝ่ายบัญชียืนยัน"
     aliases: ["กรมศุลกากร", "Special Entry Number"]
     core_labels:
       - {key: buyer.name, aliases: ["ชื่อผู้นำของเข้า/ผู้ส่งของออก", "ชื่อผู้น่าของเข้า/ผู้ส่งของออก"], source: "001316 (001315 พิมพ์ Shipper/Consignee สองชื่อในบรรทัดเดียว ไม่อ่านเพราะแยกคอลัมน์ไม่ได้)"}
@@ -166,7 +163,6 @@ document_types:
       - {key: total_charges, label: รวมเงินทั้งสิ้น / Total Charges, type: money, aliases: ["รวมเงินทั้งสิ้น", "Total Charges"], source: "001315 (Total Charges), 001316 (รวมเงินทั้งสิ้น)"}
   payment_voucher:
     title: ใบสำคัญรับเงิน (ผู้รับเงินไม่มีใบเสร็จ)
-    status: "draft: รอฝ่ายบัญชียืนยัน"
     aliases: ["ใบสำคัญรับเงิน"]
     core_labels:
       - {key: buyer.name, aliases: ["ได้รับเงินจาก"], source: "001322 (001320 ลายมือ ค่าว่าง)"}

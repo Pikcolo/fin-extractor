@@ -66,7 +66,7 @@ flowchart TD
 
 รุ่นก่อนมีสองโหมดที่อ่านทั้งหน้า (Paddle ทั้งหน้า + rules และ Typhoon ทั้งหน้า + rules/LLM เลือกผลที่ดีกว่า) ถอดออกแล้วเพราะห้ามอ่านทั้งหน้า
 คำสั่ง ตัวเลือก และโฟลเดอร์ผลของรุ่นนั้นไม่มีในโค้ดแล้ว ผลวัดและข้อสังเกตเก็บเป็นประวัติใน [04-ocr.md](04-ocr.md)
-สถานะของรอบสุดท้าย (สแกนจริง 18 ใบ รัน 2026-11-11 ไม่มีเฉลย): Paddle + rules 15 `needs_review` / 3 `failed` · Paddle + LLM 15 `needs_review` / 1 `failed` / 2 `auto_approved` · Typhoon + rules 18 `needs_review` · Typhoon + LLM 18 `needs_review`
+สถานะของรอบสุดท้าย (สแกนจริง 18 ใบ รัน 2026-11-11 ไม่มีเฉลย): Paddle + rules 15 `check` / 3 `incomplete` · Paddle + LLM 15 `check` / 1 `incomplete` / 2 `ready` · Typhoon + rules 18 `check` · Typhoon + LLM 18 `check`
 
 ชุดสแกนจริง 18 ใบมีเอกสารหลายชนิดปนกัน (ใบกำกับภาษี, หนังสือรับรองหัก ณ ที่จ่าย, ใบสำคัญรับเงินลายมือ, ใบเสร็จศุลกากร)
 และส่วนใหญ่ไม่ได้พลาดที่ preprocess ดู [ขั้นที่ 2](02-preprocessing.md#ผลวัดบนสแกนจริง)

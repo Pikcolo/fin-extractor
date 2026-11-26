@@ -142,14 +142,6 @@ def test_remark_keeps_unmodelled_label_value_lines_and_drops_known_ones():
     assert [(e.label, e.value) for e in got] == [("เลขที่ใบสั่งซื้อ", "PO-123"), ("เงื่อนไขการชำระเงิน", "โอนเงิน")]
 
 
-def test_draft_profile_cannot_auto_approve():
-    d = InvoiceData(vendor={"name": "บริษัท ก จำกัด", "tax_id": "0105559117128"}, invoice_no="A1", date="2023-05-18",
-                    amount_before_vat="100.00", vat_amount="7.00", total_amount="107.00")
-    checks = run_checks(d)
-    assert decide_status(d, checks)[1] == "auto_approved"  # generic: กฎเดิม
-    assert decide_status(d, checks, can_auto_approve=False)[1] == "needs_review"
-    assert Profile(name="x", status="").can_auto_approve and not Profile(name="x", status="Draft: รอยืนยัน").can_auto_approve
-
 
 def test_remark_drops_entries_that_repeat_a_filled_field():
     d = InvoiceData(invoice_no="INV-1", total_amount="1940.00", document_fields={"entry_no": "B999"})
@@ -173,15 +165,15 @@ def test_withholding_without_total_amount_is_not_failed_when_its_own_total_exist
     d = InvoiceData(vendor={"name": "บริษัท ก จำกัด", "tax_id": "0105559117128"}, document_profile=prof.name,
                     document_fields={"total_paid": "2000.00"})
     missing, status = _status(prof, d)
-    assert missing == ["document_fields.total_tax_withheld"] and status == "needs_review"
-    assert decide_status(d, run_checks(d))[1] == "failed"  # โปรไฟล์ generic เดิม: ไม่มี total_amount → failed
+    assert missing == ["document_fields.total_tax_withheld"] and status == "check"
+    assert decide_status(d, run_checks(d))[1] == "incomplete"  # โปรไฟล์ generic เดิม: ไม่มี total_amount → failed
     d.document_fields.clear()
-    assert _status(prof, d)[1] == "failed"  # ไม่มียอดหลักของชนิดนี้ → failed
+    assert _status(prof, d)[1] == "incomplete"  # ไม่มียอดหลักของชนิดนี้ → failed
 
 
 def test_primary_amount_null_never_fails():
     prof = Profile(name="p", primary_amount=None, required=("vendor.name",))
-    assert _status(prof, InvoiceData())[1] == "needs_review"
+    assert _status(prof, InvoiceData())[1] == "check"
 
 
 def test_evidence_covers_document_fields_remark_and_profile_required_keys():
@@ -315,11 +307,11 @@ def test_checks_not_in_profile_are_reported_as_null_not_removed():
 def test_inapplicable_failure_no_longer_blocks_but_a_real_failure_still_does():
     d = InvoiceData(vendor={"name": "A", "tax_id": "0105559117128"}, invoice_no="1", date="2023-05-18",
                     amount_before_vat="100.00", vat_amount="9.00", total_amount="109.00")
-    assert decide_status(d, run_checks(d))[1] == "needs_review"                                   # vat ผิด → ไม่อนุมัติ
+    assert decide_status(d, run_checks(d))[1] == "check"                                   # vat ผิด → ไม่อนุมัติ
     ok = run_checks(d, applicable=["vendor_tax_id_checksum", "date_range"])
-    assert decide_status(d, ok)[1] == "auto_approved"
+    assert decide_status(d, ok)[1] == "check"  # ไม่มี check ไหนไม่ผ่าน แต่ checksum / date_range ไม่ยืนยันค่า → ยังไม่ ready
     bad_id = InvoiceData(vendor={"name": "A", "tax_id": "0105559117129"}, invoice_no="1", date="2023-05-18", total_amount="1.00")
-    assert decide_status(bad_id, run_checks(bad_id, applicable=["vendor_tax_id_checksum"]))[1] == "needs_review"
+    assert decide_status(bad_id, run_checks(bad_id, applicable=["vendor_tax_id_checksum"]))[1] == "check"
 
 
 def test_every_check_name_run_checks_emits_is_a_known_check():

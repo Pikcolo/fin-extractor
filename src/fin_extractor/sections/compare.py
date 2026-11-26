@@ -63,7 +63,7 @@ def compare_variants(paths: DataPaths, dataset: str, engine: str, variants: tupl
         rows.append({"file": stem, "flags": flags, "per_variant": per})
     ok = [r for r in rows if not r["flags"]]
     totals = {v: {"missing": sum(r["per_variant"][v]["missing"] for r in ok), "checks_failed": sum(r["per_variant"][v]["checks_failed"] for r in ok),
-                  "failed": sum(r["per_variant"][v]["status"] == "failed" for r in ok)} for v in variants}
+                  "incomplete": sum(r["per_variant"][v]["status"] == "incomplete" for r in ok)} for v in variants}
     return {"rows": rows, "totals": totals, "comparable": len(ok), "variants": list(variants)}
 
 
@@ -77,6 +77,6 @@ def to_markdown(result: dict) -> str:
     out.append(f"รวมเฉพาะแถวที่เทียบกันได้ (ไม่มีธง) {result['comparable']}/{len(result['rows'])} ไฟล์:")
     for v in vs:
         t = result["totals"][v]
-        out.append(f"- {v}: ฟิลด์ที่ขาด {t['missing']} · เช็คไม่ผ่าน {t['checks_failed']} · failed {t['failed']}")
+        out.append(f"- {v}: ฟิลด์ที่ขาด {t['missing']} · เช็คไม่ผ่าน {t['checks_failed']} · incomplete {t['incomplete']}")
     out.append("วัดความครบ ไม่ใช่ความถูก (ไม่มีเฉลย)")
     return "\n".join(out)

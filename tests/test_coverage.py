@@ -76,7 +76,7 @@ def test_values_found_only_in_the_supplement_are_attributed_and_need_review():
     assert res.review["invoice_no"].source == "openthai-text" and res.review["date"].source == "openthai-text"
     assert any("ตัวอ่านเสริม" in r for r in res.review["invoice_no"].reasons)
     assert res.review["vendor.name"].source is None  # ค่าที่ตัวอ่านหลักให้ ยังเป็นของ rules
-    assert res.status != "auto_approved"
+    assert res.status != "ready"
 
 
 def test_word_coverage_marks_words_the_primary_reader_missed_1306():

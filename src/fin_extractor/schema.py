@@ -158,7 +158,7 @@ class ExtractionResult(BaseModel):
         description="ระดับ + เหตุผลรายฟิลด์ เรียงตามที่ควรตรวจก่อน (conflict → missing → unverified → verified → not_applicable) "
         "คีย์แบบ vendor.tax_id, total_amount, items[0].amount, document_fields.<key> · ฟิลด์ที่ไม่มีค่าและไม่บังคับไม่อยู่ที่นี่",
     )
-    status: Literal["auto_approved", "needs_review", "failed"]
+    status: Literal["ready", "check", "incomplete"]
     ocr_confidence: float | None = Field(None, ge=0, le=1, description="ค่าเฉลี่ยที่ OCR engine รายงานเอง (มีเฉพาะ Paddle / OpenThai Text) ไม่มี = ไม่มีคีย์")
     raw_text: str | None = Field(None, description="ข้อความดิบจากตัวอ่าน (เฉพาะเมื่อสั่ง --keep-raw) ไว้ debug")
     rejected: list[RejectedValue] = Field(default_factory=list, description="ค่าที่ LLM เสนอแต่ไม่ถูกรับ (โหมด hybrid) พร้อมเหตุผล ไม่มี = ไม่มีคีย์")

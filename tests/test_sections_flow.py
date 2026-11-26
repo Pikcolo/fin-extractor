@@ -189,7 +189,7 @@ def test_compare_flags_rows_that_are_not_comparable_and_totals_skip_them(tmp_pat
     for v, a_missing, b_layout in (("luma", ["x"], fp["b"]), ("bin", [], [["s00", [0, 9, 1, 1]]])):  # bin ใช้ผังของ b ต่างจาก luma
         out = paths.final("openthai", "ds", "rules", v)
         out.mkdir(parents=True)
-        files = [{"file": f"{s}.pdf", "status": "needs_review", "missing_fields": a_missing if s == "a" else [], "checks_failed": 0} for s in ("a", "b")]
+        files = [{"file": f"{s}.pdf", "status": "check", "missing_fields": a_missing if s == "a" else [], "checks_failed": 0} for s in ("a", "b")]
         (out / "manifest.json").write_text(json.dumps({"files": files}), encoding="utf-8")
         raw = paths.raw_data("openthai", "ds", v)
         for s in ("a", "b"):

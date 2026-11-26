@@ -27,7 +27,7 @@ class FakePipe:
 
     def _result(self, source, page, raw):
         return ExtractionResult(source_file=source, page=page, engine=self.engine_name, data=InvoiceData(),
-                                status="needs_review", raw_text=raw, ocr_confidence=0.5)
+                                status="check", raw_text=raw, ocr_confidence=0.5)
 
     def process_raw(self, source, page, raw, meta=None):
         FakePipe.log.append(("raw", page, raw, dict(meta or {})))

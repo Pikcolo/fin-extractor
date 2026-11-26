@@ -110,7 +110,7 @@ def test_flatten_and_comparable():
 def test_money_is_decimal_quantized_and_serialized_as_string():
     d = InvoiceData(total_amount=0.1 + 0.2, vat_rate=0.07, subtotal="47.5")
     assert d.total_amount == Decimal("0.30") and d.subtotal == Decimal("47.50") and d.vat_rate == Decimal("0.07")
-    r = ExtractionResult(source_file="x", engine="e", data=d, status="needs_review")
+    r = ExtractionResult(source_file="x", engine="e", data=d, status="check")
     j = r.model_dump_json()
     assert '"total_amount":"0.30"' in j and '"schema_version":"4.0"' in j
     assert all(k not in j for k in ('"raw_text"', '"ocr_confidence"', '"rejected"', '"missing_fields"', '"field_evidence"'))  # ช่องว่าง/ช่องซ้ำไม่ถูกเขียน
@@ -209,8 +209,8 @@ def test_not_applicable_is_distinct_from_missing():
     assert evidence(d)["invoice_no"].level == "missing"
 
     missing, status = decide_status(d, run_checks(d), not_applicable=na)
-    assert missing == [] and status != "failed"
-    assert decide_status(d, run_checks(d))[1] == "failed"  # ไม่ประกาศว่าไม่มี → ยังเป็น failed เหมือนเดิม
+    assert missing == [] and status != "incomplete"
+    assert decide_status(d, run_checks(d))[1] == "incomplete"  # ไม่ประกาศว่าไม่มี → ยังเป็น failed เหมือนเดิม
 
 
 def test_extract_traced_treats_remark_like_items():

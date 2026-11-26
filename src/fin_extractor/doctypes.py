@@ -4,7 +4,7 @@
 
     aliases        ข้อความที่พิมพ์บนเอกสารที่ใช้จำแนกชนิด (เทียบแบบตัดช่องว่าง/ตัวพิมพ์ ลำดับในไฟล์ = ลำดับความสำคัญ)
     required       field ที่ชนิดนี้ต้องมี (ค่าตั้งต้น = ชุดเดิมของใบกำกับภาษี KEY_FIELDS)
-    primary_amount field ที่ถ้าหาไม่เจอแล้วเอกสารเป็น ``failed`` (ค่าตั้งต้น total_amount; null = ไม่มีกฎนี้)
+    primary_amount field ที่ถ้าหาไม่เจอแล้วเอกสารเป็น ``incomplete`` (ค่าตั้งต้น total_amount; null = ไม่มีกฎนี้)
     not_applicable field ที่ชนิดนี้ไม่มี (ไม่นับเป็นหาไม่เจอ)
     fields         ฟิลด์เฉพาะชนิด: key, label, type, aliases (ป้ายที่พิมพ์), source (ที่มาของฟิลด์นี้)
 
@@ -70,7 +70,6 @@ class Profile:
     fields: tuple[FieldSpec, ...] = ()
     checks: tuple[str, ...] | None = None  # check ที่ใช้กับชนิดนี้ (None = ทุกข้อ) ข้อที่ไม่ได้ระบุรายงานเป็น passed=null "ไม่ใช้กับเอกสารชนิดนี้"
     core_labels: tuple[FieldSpec, ...] = ()  # ป้ายของฟิลด์แกนกลางที่ชนิดนี้ใช้แทนค่าตั้งต้น (key เดียวกัน = ทับ)
-    status: str = ""  # สถานะของรายการฟิลด์ เช่น "draft: รอฝ่ายบัญชียืนยัน" (แสดงใน docs/ผล ไม่มีผลกับการตัดสิน)
     _squashed: tuple[str, ...] = field(default=(), repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -96,10 +95,6 @@ class Profile:
     def spec(self, key: str) -> FieldSpec | None:
         return next((f for f in self.fields if f.key == key), None)
 
-    @property
-    def can_auto_approve(self) -> bool:
-        """โปรไฟล์ที่สถานะขึ้นต้นด้วย "draft" (รายการฟิลด์/required ยังไม่ผ่านการยืนยัน) อนุมัติอัตโนมัติไม่ได้ ต้องให้คนตรวจ."""
-        return not self.status.strip().lower().startswith("draft")
 
 
 GENERIC_PROFILE = Profile(name=GENERIC, title="ทั่วไป (ใบกำกับภาษี/ใบเสร็จ/invoice)")
@@ -147,7 +142,6 @@ def _profile(name: str, spec: dict[str, Any] | None) -> Profile:
         fields=fields,
         checks=tuple(spec["checks"]) if "checks" in spec else None,
         core_labels=_specs(spec.get("core_labels"), core=True),
-        status=spec.get("status", ""),
     )
 
 

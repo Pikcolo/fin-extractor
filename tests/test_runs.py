@@ -11,10 +11,10 @@ def test_manifest_records_run_into_the_given_folder(tmp_path):
     out = tmp_path / "05_extract" / "scans" / "typhoon" / "page" / "llm"
     with Run("extract", tmp_path, CFG, out, settings={"mode": "vlm"}) as run:
         run.sub("extra")
-        run.add(file="a.pdf", page=1, status="needs_review", output="a_p1.json")
+        run.add(file="a.pdf", page=1, status="check", output="a_p1.json")
     m = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
     assert (out / "extra").is_dir() and m["status"] == "completed" and m["command"] == "extract"
-    assert m["settings"] == {"mode": "vlm"} and m["files"][0]["status"] == "needs_review"
+    assert m["settings"] == {"mode": "vlm"} and m["files"][0]["status"] == "check"
     assert m["schema_version"] and m["preprocessing"] == {"deskew": True}
 
 

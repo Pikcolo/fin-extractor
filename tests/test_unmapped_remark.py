@@ -44,7 +44,7 @@ def test_pair_remark_carries_its_source_chunk():
 
 
 def test_result_schema_has_rejected_values():
-    r = ExtractionResult(source_file="a.pdf", engine="e", data=InvoiceData(), status="needs_review", rejected=[RejectedValue(key="vendor.tax_id", reason="checksum ไม่ผ่าน")])
+    r = ExtractionResult(source_file="a.pdf", engine="e", data=InvoiceData(), status="check", rejected=[RejectedValue(key="vendor.tax_id", reason="checksum ไม่ผ่าน")])
     assert r.model_dump()["rejected"] == [{"key": "vendor.tax_id", "reason": "checksum ไม่ผ่าน"}]
 
 
