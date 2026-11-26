@@ -328,7 +328,8 @@ def test_every_check_name_run_checks_emits_is_a_known_check():
     d = InvoiceData(vendor={"tax_id": "0105559117128"}, buyer={"tax_id": "0105559117128"}, date="2023-05-18",
                     subtotal="100.00", discount="10.00", amount_before_vat="90.00", vat_amount="6.30", total_amount="96.30",
                     items=[{"description": "x", "amount": "100.00"}])
-    assert {c.name for c in run_checks(d)} == set(KNOWN_CHECKS)  # ครบทุกข้อและไม่มีชื่อนอกรายการ
+    # income_rows_sum (ใช้บรรทัดข้อความ) และ qr_match (ใช้ข้อความใน QR) อยู่ใน FinanceOCRPipeline.assess ไม่ใช่ run_checks
+    assert {c.name for c in run_checks(d)} | {"income_rows_sum", "qr_match"} == set(KNOWN_CHECKS)  # ครบทุกข้อและไม่มีชื่อนอกรายการ
 
 
 def test_profile_rejects_unknown_check_name():

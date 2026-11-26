@@ -7,13 +7,16 @@
 
 from __future__ import annotations
 
+import re
 from datetime import date
 from decimal import Decimal
 
 from collections.abc import Collection
 
+from ..extraction.patterns import find_amounts, find_dates
 from ..schema import InvoiceData, ValidationCheck
 from .tax_id import is_valid_thai_tax_id
+from .thai_amount import words_to_amount
 
 
 def _close(a: Decimal, b: Decimal, tol: Decimal) -> bool:
@@ -29,11 +32,12 @@ NOT_APPLICABLE_DETAIL = "ไม่ใช้กับเอกสารชนิ�
 
 def run_checks(
     d: InvoiceData, tol: float | str | Decimal = "0.02", default_vat_rate: float | str | Decimal = "0.07",
-    applicable: Collection[str] | None = None,
+    applicable: Collection[str] | None = None, words: Collection[tuple[str, str]] = (),
 ) -> list[ValidationCheck]:
     """``applicable`` = ชื่อ check ที่ใช้กับชนิดเอกสารนี้ (None = ทุกข้อ) ข้อที่ไม่ใช้ยังอยู่ในผลแต่ ``passed=None``
-    (ไม่นับเป็นผ่านหรือไม่ผ่าน ไม่ยืนยันฟิลด์ใด) เพื่อให้ผลของทุกชนิดมีชื่อ check ชุดเดียวกัน"""
-    checks = _run_all_checks(d, tol, default_vat_rate)
+    (ไม่นับเป็นผ่านหรือไม่ผ่าน ไม่ยืนยันฟิลด์ใด) เพื่อให้ผลของทุกชนิดมีชื่อ check ชุดเดียวกัน
+    ``words`` = คู่ (ช่องจำนวนเงินตัวอักษร, ช่องเงิน) ของโปรไฟล์ (``Profile.words``) สำหรับ check amount_in_words"""
+    checks = _run_all_checks(d, tol, default_vat_rate) + [amount_in_words(d, words, tol)]
     if applicable is None:
         return checks
     return [c if c.name in applicable else ValidationCheck(name=c.name, passed=None, detail=NOT_APPLICABLE_DETAIL)
@@ -129,3 +133,91 @@ def _run_all_checks(
         items_check.fields = [f for f in items_check.fields if f.startswith("items[") or f not in confirmed]
 
     return checks
+
+
+def _get(d: InvoiceData, key: str):
+    if key.startswith("document_fields."):
+        return (d.document_fields or {}).get(key.split(".", 1)[1])
+    x = d
+    for part in key.split("."):
+        x = getattr(x, part, None)
+    return x
+
+
+def amount_in_words(d: InvoiceData, words: Collection[tuple[str, str]], tol: float | str | Decimal = "0.02") -> ValidationCheck:
+    """จำนวนเงินตัวอักษรบนเอกสารตรงกับตัวเลขไหม (validation/thai_amount.py) ตัวอักษรกับตัวเลขอ่านจากคนละที่ของเอกสาร
+    ถ้าตรงกันยืนยันได้ทั้งสองช่อง ไม่มีคู่/ไม่มีค่า/อ่านตัวอักษรไม่ได้ = ตรวจไม่ได้ (None) ไม่ใช่ไม่ผ่าน."""
+    tol = _dec(tol)
+    details, used, results = [], [], []
+    for text_key, money_key in words:
+        text, money = _get(d, text_key), _get(d, money_key)
+        if not text or money in (None, ""):
+            details.append(f"{text_key}: ข้อมูลไม่ครบ")
+            continue
+        parsed = words_to_amount(str(text))
+        if parsed is None:
+            details.append(f"{text_key}: อ่านตัวอักษรเป็นจำนวนเงินไม่ได้ ({text})")
+            continue
+        ok = _close(parsed, _dec(money), tol)
+        results.append(ok)
+        used += [text_key, money_key]
+        details.append(f"{text_key} = {parsed} {'ตรงกับ' if ok else 'ไม่ตรงกับ'} {money_key} = {money}")
+    if not words:
+        return ValidationCheck(name="amount_in_words", passed=None, detail="เอกสารชนิดนี้ไม่มีช่องจำนวนเงินตัวอักษร")
+    return ValidationCheck(name="amount_in_words", passed=all(results) if results else None, detail=" · ".join(details), fields=used)
+
+
+def income_rows_sum(lines: list[str], d: InvoiceData, paid_key: str = "document_fields.total_paid",
+                    tax_key: str = "document_fields.total_tax_withheld", tol: float | str | Decimal = "0.02") -> ValidationCheck:
+    """50 ทวิ: แถวรวม "รวมเงินที่จ่ายและภาษีที่หักนำส่ง" = ผลรวมแถวรายการ ตามนิยามของแบบฟอร์ม
+    แถวรายการ = บรรทัดที่มีวันที่จ่ายและยอดเงินพอดีสองยอด (จำนวนเงินที่จ่าย · ภาษีที่หัก ตามคอลัมน์ของฟอร์ม) และไม่ใช่แถวรวม
+    แถวที่ซ้ำตรงตัว (ข้อความเสริมของชั้นตรวจความครบอ่านแถวเดียวกันซ้ำ) นับครั้งเดียว ไม่พบแถวหรือแถวรวม = ตรวจไม่ได้."""
+    tol = _dec(tol)
+    rows = []
+    for ln in lines:
+        if "รวม" in ln or not find_dates(ln):
+            continue
+        amounts = find_amounts(ln)
+        if len(amounts) == 2 and tuple(amounts) not in rows:
+            rows.append(tuple(amounts))
+    paid, tax = _get(d, paid_key), _get(d, tax_key)
+    if not rows:
+        return ValidationCheck(name="income_rows_sum", passed=None, detail="ไม่พบแถวรายการที่มีวันที่และยอดเงินสองยอด")
+    sp, st = sum(r[0] for r in rows), sum(r[1] for r in rows)
+    detail = f"แถวรายการ {len(rows)} แถว รวมจ่าย {sp} ภาษี {st}"
+    if paid in (None, "") or tax in (None, ""):
+        return ValidationCheck(name="income_rows_sum", passed=None, detail=detail + " · ไม่มียอดรวมให้เทียบ")
+    ok = _close(sp, _dec(paid), tol) and _close(st, _dec(tax), tol)
+    return ValidationCheck(name="income_rows_sum", passed=ok, detail=f"{detail} เทียบยอดรวม {paid} / {tax}", fields=[paid_key, tax_key])
+
+
+QR_CODE_KEYS = ("invoice_no",)  # ค่าที่เป็นรหัส: ต้องตรงทั้งท่อนของข้อความใน QR (ท่อนสั้นอย่าง "005" ห้ามนับเมื่อเป็นส่วนหนึ่งของ URL)
+QR_TAX_KEYS = ("vendor.tax_id", "buyer.tax_id")  # เลขภาษี 13 หลักที่ผ่าน checksum: พบเป็นส่วนหนึ่งของตัวเลขยาวใน QR ได้ (QR จ่ายบิล = เลขภาษี + suffix)
+
+
+def qr_match(d: InvoiceData, codes: Collection[str]) -> ValidationCheck:
+    """ค่าที่สกัดได้ตรงกับข้อความที่ถอดจาก QR/บาร์โค้ดบนเอกสารไหม (ผัง regions ถอดรหัสก่อนระบายขาว เก็บใน manifest)
+    QR อ่านด้วยเครื่อง ไม่ผ่าน OCR จึงเป็นหลักฐานแยกจากข้อความ: ตรง = ยืนยันช่องนั้น · ไม่พบใน QR ≠ ผิด (QR อาจไม่มีค่านั้นเลย) จึงไม่มีผล "ไม่ผ่าน"."""
+    payloads = [str(c) for c in codes if c]
+    if not payloads:
+        return ValidationCheck(name="qr_match", passed=None, detail="ไม่มี QR/บาร์โค้ดที่ถอดรหัสได้")
+    tokens = {t.upper() for p in payloads for t in re.split(r"[^0-9A-Za-z\-]+", p) if t}
+    digits = [re.sub(r"\D", "", p) for p in payloads]
+    hit = []
+    for key in QR_CODE_KEYS:
+        v = _get(d, key)
+        if v and str(v).strip().upper() in tokens:
+            hit.append(key)
+    for key in QR_TAX_KEYS:
+        v = _get(d, key)
+        if v and is_valid_thai_tax_id(v) and any(str(v) in g for g in digits):
+            hit.append(key)
+    # QR/บาร์โค้ดจ่ายบิลข้ามธนาคาร: "|" + เลขผู้เสียภาษีของผู้รับเงิน 13 หลัก + suffix 2 หลัก ⏎ Ref1 ⏎ Ref2 ⏎ ยอดเงินหน่วยสตางค์ (ไม่มีจุดทศนิยม)
+    # เจอจริงที่ 1313/1314 (UPS: ยอด 41773 = 417.73) ยืนยัน total_amount เมื่อยอดตรงพอดี
+    for p in payloads:
+        parts = p.lstrip("|").split("\r") if p.startswith("|") else []
+        if len(parts) == 4 and parts[3].isdigit() and d.total_amount is not None and Decimal(parts[3]) / 100 == d.total_amount:
+            hit.append("total_amount")
+    if not hit:
+        return ValidationCheck(name="qr_match", passed=None, detail=f"QR {len(payloads)} ก้อน ไม่มีค่าที่ตรงกับช่องที่สกัดได้")
+    return ValidationCheck(name="qr_match", passed=True, detail="ตรงกับ QR: " + ", ".join(hit), fields=hit)

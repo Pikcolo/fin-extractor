@@ -2,7 +2,7 @@
 
 > เขียน 2026-11-20 เทียบโค้ดใน repo กับขอบเขตงาน 5 เฟสของหัวข้อ "Microservice-Based Intelligent OCR for Unstructured Financial Document Extraction"
 > และไอเดีย pipeline (สแกน → preprocess → Gemini → decision engine → คน/Excel) ตัวเลขทุกตัวมาจากผลวัดในเอกสารที่อ้าง
-> **อัปเดต 2026-11-26:** เก็บกวาดโค้ด: ลบ OXR, สคริปต์วัดแบบอ่านทั้งหน้า (`scripts/eval/benchmark.py`, `scripts/ocr/benchmark_cer.py` ฯลฯ), คำสั่ง `ocr` และตัวโหลดผลรุ่นเก่า (schema 2.x/3.x) ของที่ลบอยู่ในประวัติ git ถึง commit f6cc6eb · เลิกตั้งค่าผัง regions ตามชื่อไฟล์ (`doc_types.yaml`, template 50 ทวิ) ทุกเอกสารแบ่งแบบเดียวกัน: 50 ทวิดีขึ้น 3 ใบ แย่ลง 1 ใบ (1311) ดู [03-regions](03-regions.md)
+> **อัปเดต 2026-11-26:** เก็บกวาดโค้ด: ลบ OXR, สคริปต์วัดแบบอ่านทั้งหน้า (`scripts/eval/benchmark.py`, `scripts/ocr/benchmark_cer.py` ฯลฯ), คำสั่ง `ocr` และตัวโหลดผลรุ่นเก่า (schema 2.x/3.x) ของที่ลบอยู่ในประวัติ git ถึง commit f6cc6eb · เลิกตั้งค่าผัง regions ตามชื่อไฟล์ (`doc_types.yaml`, template 50 ทวิ) ทุกเอกสารแบ่งแบบเดียวกัน: 50 ทวิดีขึ้น 3 ใบ แย่ลง 1 ใบ (1311) ดู [03-regions](03-regions.md) · check ใหม่ (branch exp/decision-engine): `amount_in_words` `income_rows_sum` `qr_match` ยืนยันช่องที่เคยไม่มีตัวยืนยันได้ 10 ช่องบน 18 ใบ ไม่มีค่าผิดเพิ่ม
 > **ยังไม่มี ground truth ของสแกนจริง** ตัวเลขผลบนสแกนจริงจึงวัด "ความครบ" (ฟิลด์ที่ขาด สถานะ) ไม่ใช่ "ความถูก"
 
 ## 1. สรุปสั้น

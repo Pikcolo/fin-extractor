@@ -389,6 +389,7 @@ def stage_extract(job: dict, d: Path, cfg: dict) -> None:
     confs = [r["confidence"] for r in ocr["sections"] if r.get("confidence") is not None]
     extra = [base._incomplete_check()] if any(r.get("truncated") for r in ocr["sections"]) else []
     args = (job["file"], 1, lines, md, sum(confs) / len(confs) if confs else None, extra)
+    codes = [c["data"] for c in (job_stage(job, "layout")["data"] or {}).get("codes", []) if c.get("data")]  # QR ที่ถอดได้ → check qr_match
     modes = list(LLM_MODES) if mode == "all" else list(dict.fromkeys(["off", mode]))
     results = {}
     for m in modes:
@@ -397,11 +398,11 @@ def stage_extract(job: dict, d: Path, cfg: dict) -> None:
         logger.addHandler(collect)
         t = time.perf_counter()
         try:
-            res = pipe.build_result(*args)
+            res = pipe.build_result(*args, codes=codes)
         finally:
             logger.removeHandler(collect)
         results[m] = {"res": res, "seconds": round(time.perf_counter() - t, 1), "errors": collect.messages}
-    job["extract_ctx"] = {"lines": lines, "results": results, "dir": str(d), "model": cfg["llm_extractor"]["model"], "markdown": md,
+    job["extract_ctx"] = {"lines": lines, "results": results, "dir": str(d), "model": cfg["llm_extractor"]["model"], "markdown": md, "codes": codes,
                           "decisions": {}}
     use_result(job, "off" if mode == "all" else mode)
 
@@ -537,7 +538,8 @@ def use_result(job: dict, mode: str) -> None:
         sources = {k: rv.source for k, rv in res.review.items() if rv.source}  # llm / ตัวอ่านเสริม: คงไว้ตอนตรวจใหม่หลังคนแก้
         job["review_ctx"] = {"engine": job["options"]["engine"], "lines": lines, "extra": [c.model_dump() for c in extra_checks],
                              "base": out, "sections": sections, "original": original, "sources": sources}
-        set_stage(job, "review", "done", R.build(pipe, data, lines, extra_checks, set(), sections, original, sources))
+        job["review_ctx"]["codes"] = ctx.get("codes", [])
+        set_stage(job, "review", "done", R.build(pipe, data, lines, extra_checks, set(), sections, original, sources, ctx.get("codes", [])))
 
 
 # ---------------------------------------------------------------- ขั้นที่รันใน worker (โหลดโมเดล)
@@ -679,10 +681,10 @@ def review_request(job: dict, edits: dict, save: bool = False) -> dict:
     if data is None:
         return {"errors": errors}
     extra = [ValidationCheck(**c) for c in ctx["extra"]]
-    out = R.build(pipe, data, ctx["lines"], extra, set(edits), ctx["sections"], ctx["original"], ctx.get("sources"))
+    out = R.build(pipe, data, ctx["lines"], extra, set(edits), ctx["sections"], ctx["original"], ctx.get("sources"), ctx.get("codes", []))
     if save:
         d = Path(job["dir"])
-        res = R.corrected_result(ctx["base"], pipe, data, ctx["lines"], extra, set(edits), ctx.get("sources"))
+        res = R.corrected_result(ctx["base"], pipe, data, ctx["lines"], extra, set(edits), ctx.get("sources"), ctx.get("codes", []))
         (d / "corrected.json").write_text(res.model_dump_json(indent=2), encoding="utf-8")
         log = [{"key": k, "before": (base_items if k == "items" else ctx["original"].get(k) or None), "after": v} for k, v in edits.items()]
         (d / "edits.json").write_text(json.dumps({"file": job["file"], "edits": log}, ensure_ascii=False, indent=1), encoding="utf-8")

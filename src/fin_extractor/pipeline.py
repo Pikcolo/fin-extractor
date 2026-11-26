@@ -33,6 +33,7 @@ from .readers import reader_label
 from .readers.lines import normalize_thai
 from .schema import ExtractionResult, InvoiceData, RejectedValue, ValidationCheck
 from .validation import decide_status, run_checks
+from .validation.checks import NOT_APPLICABLE_DETAIL, income_rows_sum, qr_match
 from .validation.evidence import build_field_evidence, comparable, field_grounding, flatten, review_from_evidence
 
 log = logging.getLogger(__name__)
@@ -200,7 +201,7 @@ class FinanceOCRPipeline:
 
     def _score(self, d: InvoiceData, profile: Profile) -> float:
         checks = run_checks(d, self.cfg["validation"]["amount_tolerance"],
-                            self.cfg["validation"]["default_vat_rate"], applicable=profile.checks)
+                            self.cfg["validation"]["default_vat_rate"], applicable=profile.checks, words=profile.words)
         return sum(c.passed is True for c in checks) - sum(c.passed is False for c in checks)
 
     def _extract_hybrid(self, rules: InvoiceData, profile: Profile, lines: list[str], raw_text: str):
@@ -209,7 +210,7 @@ class FinanceOCRPipeline:
         sources = dict.fromkeys(flatten(rules), "rules")
         na = set(profile.not_applicable)
         checks = run_checks(rules, self.cfg["validation"]["amount_tolerance"],
-                            self.cfg["validation"]["default_vat_rate"], applicable=profile.checks)
+                            self.cfg["validation"]["default_vat_rate"], applicable=profile.checks, words=profile.words)
         unresolved = unresolved_keys(rules, checks, profile.required, na, profile.primary_amount)
         asked = {top_level(k) for k in unresolved}
         if not profile_schema(profile, asked)["properties"]:  # ไม่มีช่องไหนที่ LLM ตอบได้ (เช่น ชนิดนี้ไม่มีช่องนั้น)
@@ -229,12 +230,19 @@ class FinanceOCRPipeline:
         return merged, sources, agree
 
     def assess(self, data: InvoiceData, lines: list[str], sources: dict[str, str] | None = None,
-               agree: dict[str, bool | None] | None = None, extra: list[ValidationCheck] | tuple = ()):
+               agree: dict[str, bool | None] | None = None, extra: list[ValidationCheck] | tuple = (), codes: list[str] | tuple = ()):
         """ตรวจข้อมูลที่สกัดแล้ว (หรือที่คนแก้แล้ว) → (checks, ฟิลด์ที่ขาด, สถานะ, หลักฐานรายฟิลด์) ไม่สกัดใหม่ ใช้โปรไฟล์ตาม ``data.document_profile``
-        ``lines`` = บรรทัดของข้อความที่อ่านได้ (ใช้ตรวจว่าค่าปรากฏในข้อความไหม)."""
+        ``lines`` = บรรทัดของข้อความที่อ่านได้ (ใช้ตรวจว่าค่าปรากฏในข้อความไหม) · ``codes`` = ข้อความที่ถอดจาก QR/บาร์โค้ดของหน้านั้น."""
         profile = self.profile_for(data)
         checks = run_checks(data, self.cfg["validation"]["amount_tolerance"],
-                            self.cfg["validation"]["default_vat_rate"], applicable=profile.checks) + list(extra)
+                            self.cfg["validation"]["default_vat_rate"], applicable=profile.checks, words=profile.words)
+        # 50 ทวิ: ยอดรวม = ผลรวมแถวรายการ ต้องใช้บรรทัดข้อความ (แถวรายการไม่ได้เก็บใน data) ชนิดอื่นรายงานว่าไม่ใช้ ให้ทุกผลมีชื่อ check ชุดเดียวกัน
+        if profile.checks is not None and "income_rows_sum" in profile.checks:
+            checks.append(income_rows_sum(lines, data, tol=self.cfg["validation"]["amount_tolerance"]))
+        else:
+            checks.append(ValidationCheck(name="income_rows_sum", passed=None, detail=NOT_APPLICABLE_DETAIL))
+        checks.append(qr_match(data, codes))
+        checks += list(extra)
         na = set(profile.not_applicable)
         missing, status = decide_status(data, checks, not_applicable=na, required=profile.required,
                                         primary_amount=profile.primary_amount,
@@ -244,10 +252,10 @@ class FinanceOCRPipeline:
         return checks, missing, status, evidence
 
     def build_result(self, source_file: str, page: int, lines: list[str], raw_text: str,
-                     ocr_conf: float | None, extra: list[ValidationCheck]) -> ExtractionResult:
+                     ocr_conf: float | None, extra: list[ValidationCheck], codes: list[str] | tuple = ()) -> ExtractionResult:
         """ข้อความที่อ่านได้ของหน้าหนึ่ง → ผลสกัด/ตรวจ/สถานะ (ไม่แตะ OCR จึงรันซ้ำจาก ``raw_text`` ที่เก็บไว้ได้)."""
         data, sources, agree = self.extract_traced(lines, raw_text)
-        checks, _missing, status, evidence = self.assess(data, lines, sources, agree, extra)
+        checks, _missing, status, evidence = self.assess(data, lines, sources, agree, extra, codes)
         if status == "auto_approved" and any(src not in ("rules", "llm", "human") and key in evidence and evidence[key].level != "verified"
                                              for key, src in sources.items()):
             # ค่าจากตัวอ่านเสริมที่ไม่มี check ยืนยัน ต้องให้คนดู: ตัวอ่านเสริมอ่านวันที่/เลขที่เพี้ยนได้ (1318: 16/10 แทน 15/10, ST69100-0036)
@@ -260,9 +268,10 @@ class FinanceOCRPipeline:
             rejected=[RejectedValue(key=k, reason=why) for k, why in (self.last_rejected if self.strategy == "hybrid" else [])],
         )
 
-    def process_raw(self, source_file: str, page_no: int, raw_text: str, meta: dict | None = None) -> ExtractionResult:
-        """สกัดซ้ำจากข้อความดิบที่เก็บไว้ (ไม่เรียก OCR) ``meta`` = ไฟล์ .meta.json ของข้อความนั้น."""
+    def process_raw(self, source_file: str, page_no: int, raw_text: str, meta: dict | None = None,
+                    codes: list[str] | tuple = ()) -> ExtractionResult:
+        """สกัดซ้ำจากข้อความดิบที่เก็บไว้ (ไม่เรียก OCR) ``meta`` = ไฟล์ .meta.json ของข้อความนั้น · ``codes`` = ข้อความใน QR/บาร์โค้ด."""
         meta = meta or {}
         extra = [self._incomplete_check()] if meta.get("truncated") else []
         return self.build_result(source_file, page_no, self.lines_from_raw(raw_text), raw_text,
-                                 meta.get("ocr_confidence"), extra)
+                                 meta.get("ocr_confidence"), extra, codes)
