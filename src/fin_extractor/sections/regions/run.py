@@ -1,6 +1,6 @@
 """ลำดับงานของโหมด regions ต่อหนึ่งหน้า แล้วเขียนภาพตรวจ + crop + manifest.json (ลำดับเดียวกับ pipeline/runner.py ของ preprocess_finance)
 
-    normalize → mask → clean → regions → tables → export
+    normalize → mask → regions → tables → export
 
 รับภาพ final ของขั้น 2 (ตั้งตรง แก้เอียงแล้ว สี render 300 dpi) ค่า px ของ configs/regions/ วัดที่ 200 dpi
 จึงตรวจทุกอย่างบนสำเนาที่ย่อเป็น ``ref_dpi`` (แบบเดียวกับสำเนาทำงาน WORK ของผัง section เดิม) แล้วตัดภาพจริงจากภาพ final สีความละเอียดเต็ม
@@ -26,25 +26,19 @@ import yaml
 
 from ...config import PROJECT_ROOT
 from ...io import save_image
-from ...preprocessing import clean as clean_ops
 from ...preprocessing import enhance
 from .. import images as I
-from . import codes, doc_types, draw, geometry, lines, pieces, split, tables
+from . import codes, draw, geometry, lines, pieces, split, tables
 from .masks import ink_mask, line_masks, text_mask
 
 CONFIG_DIR = PROJECT_ROOT / "configs" / "regions"
-STAGES = ("normalize", "mask", "clean", "regions", "tables", "export")
+STAGES = ("normalize", "mask", "regions", "tables", "export")
 
 VARIANT_FUNCS = {  # ชื่อเดียวกับภาพ section (sections/images.py) ทุกตัวรับภาพสี BGR ความละเอียดเต็ม
     "color": lambda c: c,
     "luma": enhance.to_gray,
     "flat": lambda c: I.flatten_background(I.gray_value_channel(c)),
     "bin": I.binarize_inverted,
-}
-
-CLEAN_METHODS = {  # วิธีลบพื้น/ลายน้ำบนสำเนา (ตาม preprocess_finance/preprocess/clean.py) ภาพ variant ปกติตัดจากภาพที่ไม่ clean เสมอ
-    "none": lambda img: img,
-    "suppress_color": clean_ops.suppress_color,
 }
 
 
@@ -54,19 +48,11 @@ def load_yaml(path: Path) -> dict:
 
 
 class RegionConfig:
-    """configs/regions/: pipeline.yaml + doc_types.yaml + templates/<ชนิด>.yaml (อ่านครั้งเดียว)."""
+    """configs/regions/pipeline.yaml (อ่านครั้งเดียว) ทุกเอกสารใช้ค่าชุดเดียวกัน ไม่มีการตั้งค่ารายไฟล์หรือ template รายชนิด."""
 
     def __init__(self, config_dir: Path = CONFIG_DIR):
         self.dir = Path(config_dir)
         self.cfg = load_yaml(self.dir / "pipeline.yaml")
-        self.doc_types = load_yaml(self.dir / "doc_types.yaml")
-        self._templates: dict[str, dict | None] = {}
-
-    def template(self, doc_type: str) -> dict | None:
-        if doc_type not in self._templates:
-            p = self.dir / "templates" / f"{doc_type}.yaml"
-            self._templates[doc_type] = load_yaml(p) if p.exists() else None
-        return self._templates[doc_type]
 
 
 def run_page(full: np.ndarray, stem: str, src_dpi: float, rc: RegionConfig, page_dir: Path, debug_images: bool = True) -> dict:
@@ -81,15 +67,13 @@ def run_page(full: np.ndarray, stem: str, src_dpi: float, rc: RegionConfig, page
         if debug_images:
             save_image(page_dir / f"{name}.png", img)
 
-    doc_type, overrides = doc_types.classify(stem, rc.doc_types)
-    tpl = rc.template(doc_type)
-    opts = {**cfg["defaults"], **((tpl or {}).get("options") or {}), **overrides}
+    opts = cfg["defaults"]
 
     # สำเนาที่ ref_dpi (ค่า px ทุกตัววัดที่ความละเอียดนี้) — ไม่ขยายภาพที่เล็กกว่า
     scale = min(1.0, cfg["ref_dpi"] / src_dpi)
     work = cv2.resize(full, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA) if scale < 1 else full
 
-    # normalize: ตัดเหลือขอบเขตเนื้อหา + ขอบขาว ให้ ratio ของ template ไม่ขึ้นกับขอบสแกน
+    # normalize: ตัดเหลือขอบเขตเนื้อหา + ขอบขาว (ทิ้งเงาขอบสแกน)
     cb = geometry.content_bbox(work)
     nbox = geometry.pad_box(cb, work.shape, int(cfg["normalize"]["margin_frac"] * work.shape[1]))
     img = geometry.crop(work, nbox)
@@ -104,18 +88,17 @@ def run_page(full: np.ndarray, stem: str, src_dpi: float, rc: RegionConfig, page
         return [max(0, int((x0 + ox) / scale)), max(0, int((y0 + oy) / scale)),
                 min(W, int(np.ceil((x1 + ox) / scale))), min(H, int(np.ceil((y1 + oy) / scale)))]
 
-    m: dict = {"key": stem, "doc_id": stem, "doc_type": doc_type, "options": opts,
+    m: dict = {"key": stem, "doc_id": stem, "options": opts,
                "source": {"page_size": [int(full.shape[1]), int(full.shape[0])], "src_dpi": src_dpi,
                           "ref_dpi": cfg["ref_dpi"], "scale": round(scale, 6), "normalize_offset": [int(ox), int(oy)]},
                "stages": {"normalize": {"content_bbox": [int(v) for v in cb], "crop_box": [int(v) for v in nbox],
                                         "size": [int(img.shape[1]), int(img.shape[0])]}}}
 
-    frame = content  # สัดส่วนของ template วัดจากกรอบเนื้อหา (กรอบเส้นของฟอร์มขาดบ่อยในสแกน ดู templates/wht_50tawi.yaml)
+    frame = content
 
-    # mask: QR/บาร์โค้ด (ถอดรหัสเก็บไว้) + พื้นที่ ignore ของ template (ลายเซ็น/ตรายาง) ระบายขาวก่อนหา region
+    # mask: QR/บาร์โค้ด (ถอดรหัสเก็บไว้) ระบายขาวก่อนหา region
     found = codes.find_codes(img, cfg["mask"]) if opts.get("mask_codes", True) else []
-    ignored = [{"name": g["name"], "box": split.ratio_to_px(g["box"], frame)} for g in ((tpl or {}).get("ignore") or [])]
-    blank_boxes = [c["box"] for c in found] + [g["box"] for g in ignored]
+    blank_boxes = [c["box"] for c in found]
     page = full
     if blank_boxes:
         img = codes.blank(img, blank_boxes)
@@ -125,25 +108,13 @@ def run_page(full: np.ndarray, stem: str, src_dpi: float, rc: RegionConfig, page
             x0, y0, x1, y1 = to_page(b)
             page[max(0, y0 - pad):y1 + pad, max(0, x0 - pad):x1 + pad] = 255
         snap("02_mask", img)
-    m["stages"]["mask"] = {"codes": found, "ignored": ignored}
+    m["stages"]["mask"] = {"codes": found}
 
-    # clean: สำเนาสำหรับ variant ``clean`` เท่านั้น การตรวจโครงหน้าใช้ภาพที่ไม่ clean
-    method = opts.get("clean", "none")
-    if method not in CLEAN_METHODS:
-        raise ValueError(f"clean ไม่รู้จัก {method!r} เลือกจาก {list(CLEAN_METHODS)}")
-    cleaned_page = CLEAN_METHODS[method](page) if method != "none" else None
-    if cleaned_page is not None:
-        snap("03_clean", CLEAN_METHODS[method](img))
-    m["stages"]["clean"] = {"method": method}
-
-    # regions: เส้นนอนใช้ทั้งดูดขอบ template และตัดแถบ generic
+    # regions: แถบตามเส้นนอน (เส้นน้อยกว่า min_lines = แบ่งตามช่องว่าง)
     lc = cfg["lines"]
     hlines = lines.detect_hlines(img, lc["min_len_frac"]) if opts.get("use_lines", True) else []
     vlines = lines.detect_vlines(img, lc["v_min_len_frac"]) if opts.get("use_lines", True) else []  # ใช้ทั้งกันตัดกลางตาราง และแบ่งช่อง
-    if tpl is not None and opts.get("mode", "template") == "template":
-        regs = split.template_regions(img.shape, frame, tpl, cfg["regions"]["pad_frac"], hlines, lc["snap_tol_frac"], lc["snap_min_len_frac"])
-    else:
-        regs = split.generic_regions(img, frame, {**cfg["regions"], **cfg["generic"]}, hlines)
+    regs = split.generic_regions(img, frame, {**cfg["regions"], **cfg["generic"]}, hlines)
     overlay = draw.draw_regions(img, regs, frame, hlines)
     snap("04_regions", overlay)
     m["stages"]["regions"] = {"frame": list(frame), "hlines": hlines,
@@ -181,8 +152,6 @@ def run_page(full: np.ndarray, stem: str, src_dpi: float, rc: RegionConfig, page
 
         sub = stacked(page)
         out = {v: VARIANT_FUNCS[v](sub) for v in variants}
-        if cleaned_page is not None:
-            out["clean"] = stacked(cleaned_page)
         if hb is not None:
             meta = {**meta, "header_box_page": hb}
         first = ""
@@ -331,12 +300,12 @@ def run_dataset(paths, dataset: str, cfg: dict, profile: str, only: list[str] | 
         ex, tb = m["stages"]["export"], m["stages"]["tables"]["tables"]
         regions = [r["name"] for r in m["stages"]["regions"]["regions"]]
         codes_found = [c["kind"] + (f"={c['data']}" if c["data"] else "") for c in m["stages"]["mask"]["codes"]]
-        summary.append({"key": stem, "doc_type": m["doc_type"], "mode": m["stages"]["regions"]["regions"][0]["mode"] if regions else None,
+        summary.append({"key": stem, "mode": m["stages"]["regions"]["regions"][0]["mode"] if regions else None,
                         "regions": regions, "tables": len(tb), "cells": sum(1 for t in tb for r in t["rows"] for c in r["cells"] if not c["empty"]),
                         "kv_pairs": len(ex["kv_pairs"]), "codes": codes_found, "manifest": f"{stem}/manifest.json"})
         sheet.append((stem[-4:], m.pop("_overlay")))
         s = summary[-1]
-        print(f"{stem[-4:]}: {m['doc_type']} · {s['mode']} · region {len(regions)} · ตาราง {s['tables']} (ช่อง {s['cells']}, kv {s['kv_pairs']})"
+        print(f"{stem[-4:]}: {s['mode']} · region {len(regions)} · ตาราง {s['tables']} (ช่อง {s['cells']}, kv {s['kv_pairs']})"
               + (f" · {', '.join(codes_found)}" if codes_found else ""), flush=True)
     if not only:
         (root / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")

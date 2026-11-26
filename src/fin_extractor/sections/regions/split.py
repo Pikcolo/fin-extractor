@@ -1,14 +1,10 @@
-"""แบ่ง region: template (สัดส่วนของฟอร์มตายตัว + ดูดขอบเข้าหาเส้น) หรือ generic (แถบตามเส้นนอน / แถบตามช่องว่าง) — ตัดท่อนสูงใช้ sections.layout.split_rows แทน tile_on_whitespace
+"""แบ่ง region: แถบตามเส้นนอน / แถบตามช่องว่าง (ไม่มี template รายชนิด: ทุกเอกสารแบ่งแบบเดียวกัน วัด 50 ทวิ 4 ใบแล้วดีกว่า template 3 ใบ ดู docs/03-regions.md)
 
 คัดลอกจาก learning/preprocess_finance (src/finance_ocr/layout/regions.py) ตรงตัว ค่าคงที่วัดบนสแกนชุดเดียวกัน 18 ใบที่ 200 dpi — ใช้กับภาพที่ย่อเป็น 200 dpi เท่านั้น (ดู run.py)
 
 Split a normalized page into OCR-sized regions.
 
-Two modes:
-  template - ratio boxes from configs/templates/<type>.yaml, measured on the frame
-             ("content" bbox or ruled "frame"). Best for fixed forms (50 ทวิ, vouchers).
-  generic  - layout-driven: find the main ruled table, cut header / table / footer;
-             if there is no usable table, cut into horizontal bands at whitespace gaps.
+Strips along long horizontal rules; with fewer rules than min_lines, horizontal bands at whitespace gaps.
 
 All boxes are in pixels of the normalized page: (x0, y0, x1, y1).
 """
@@ -20,42 +16,6 @@ from . import lines
 from .geometry import Box, pad_box
 from .masks import ink_mask, text_mask
 
-
-# --------------------------------------------------------------------------- template
-def ratio_to_px(ratio_box: list[float], frame: Box) -> Box:
-    fx0, fy0, fx1, fy1 = frame
-    fw, fh = fx1 - fx0, fy1 - fy0
-    rx0, ry0, rx1, ry1 = ratio_box
-    return (int(round(fx0 + rx0 * fw)), int(round(fy0 + ry0 * fh)),
-            int(round(fx0 + rx1 * fw)), int(round(fy0 + ry1 * fh)))
-
-
-def template_regions(shape: tuple[int, ...], frame: Box, template: dict, pad_frac: float,
-                     hlines: list[dict] | None = None, snap_tol_frac: float = 0.0,
-                     snap_min_len_frac: float = 0.6) -> list[dict]:
-    """Ratio boxes -> pixels. With hlines, each top/bottom edge is snapped onto the nearest
-    horizontal rule within snap_tol_frac of the frame height (regions may opt out: snap: false)."""
-    fh = frame[3] - frame[1]
-    pad_px = int(pad_frac * fh)
-    tol_px = int(snap_tol_frac * fh)
-    fw = frame[2] - frame[0]
-    # only section dividers are snap targets; field underlines (~half width, e.g. ชื่อ/ที่อยู่ on 311)
-    # would pull an edge through the text line above them
-    targets = [l for l in (hlines or []) if (l["x1"] - l["x0"]) >= snap_min_len_frac * fw]
-    out = []
-    for r in template["regions"]:
-        x0, ry0, x1, ry1 = ratio_to_px(r["box"], frame)
-        y0, y1, snapped = ry0, ry1, [False, False]
-        if targets and tol_px and r.get("snap", True):
-            y0, snapped[0] = lines.snap_y(ry0, x0, x1, targets, tol_px)
-            y1, snapped[1] = lines.snap_y(ry1, x0, x1, targets, tol_px)
-            if y1 - y0 < 0.5 * (ry1 - ry0):  # collapsed onto one rule -> trust the ratio instead
-                y0, y1, snapped = ry0, ry1, [False, False]
-        box = pad_box((x0, y0, x1, y1), shape, r.get("pad_px", pad_px))
-        out.append({"name": r["name"], "box": box, "ratio": r["box"], "mode": "template",
-                    "snapped": snapped, "hint": r.get("hint", ""), "tile": r.get("tile", True),
-                    "trim": r.get("trim", True)})
-    return out
 
 
 # --------------------------------------------------------------------------- generic

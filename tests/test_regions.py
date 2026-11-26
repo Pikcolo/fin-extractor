@@ -5,18 +5,8 @@ import json
 import cv2
 import numpy as np
 
-from fin_extractor.sections.regions import doc_types, geometry, lines, split, tables
+from fin_extractor.sections.regions import geometry, lines, split, tables
 from fin_extractor.sections.regions.run import RegionConfig, run_page
-
-
-def test_classify_exact_pattern_and_default():
-    cfg = {"default_type": "generic",
-           "documents": {"A": "wht_50tawi", "B": {"type": "invoice", "clean": "suppress_color"}},
-           "patterns": {"UPS_*": "invoice"}}
-    assert doc_types.classify("A", cfg) == ("wht_50tawi", {})
-    assert doc_types.classify("B", cfg) == ("invoice", {"clean": "suppress_color"})
-    assert doc_types.classify("UPS_001", cfg) == ("invoice", {})
-    assert doc_types.classify("zzz", cfg) == ("generic", {})
 
 
 def test_trim_box_ignores_rule_slivers():
@@ -34,13 +24,6 @@ def test_detect_hlines_ignores_dotted_leaders():
     assert [ln["y"] for ln in lines.detect_hlines(img)] == [101]
 
 
-def test_snap_moves_edge_onto_nearby_rule_only():
-    rules = [{"y": 200, "x0": 0, "x1": 1000}]
-    assert lines.snap_y(190, 0, 1000, rules, tol_px=15) == (200, True)
-    assert lines.snap_y(150, 0, 1000, rules, tol_px=15) == (150, False)
-    assert lines.snap_y(195, 0, 1000, [{"y": 200, "x0": 900, "x1": 1000}], tol_px=15) == (195, False)
-
-
 def test_safe_cut_avoids_text_beside_short_rule():
     text = np.zeros((400, 1000), np.uint8)
     text[190:215, 50:300] = 255              # text on the left, crossing the rule's row
@@ -49,11 +32,6 @@ def test_safe_cut_avoids_text_beside_short_rule():
     assert c is not None and (c <= 187 or c >= 217)
     assert lines.safe_cut(rule, text, search_px=5) is None
     assert lines.safe_cut({"y": 300, "x0": 600, "x1": 1000}, text, search_px=5) == 300
-
-
-def test_ratio_to_px_uses_frame_offset():
-    assert split.ratio_to_px([0, 0, 1, 1], (10, 20, 110, 220)) == (10, 20, 110, 220)
-    assert split.ratio_to_px([0.5, 0.25, 1, 0.5], (0, 0, 200, 400)) == (100, 100, 200, 200)
 
 
 def test_whitespace_bands_and_merge():
@@ -111,7 +89,7 @@ def test_run_page_writes_stage_images_crops_tables_and_page_boxes(tmp_path):
     full = _invoice_page()
     m = run_page(full, "X_0001", 300.0, RegionConfig(), tmp_path / "X_0001")
     page_dir = tmp_path / "X_0001"
-    assert json.loads((page_dir / "manifest.json").read_text(encoding="utf-8"))["doc_type"] == "generic"
+    assert json.loads((page_dir / "manifest.json").read_text(encoding="utf-8"))["key"] == "X_0001"
     assert (page_dir / "01_normalize.png").exists() and (page_dir / "04_regions.png").exists()
     assert m["source"]["scale"] == round(200 / 300, 6)
     tb = m["stages"]["tables"]["tables"]

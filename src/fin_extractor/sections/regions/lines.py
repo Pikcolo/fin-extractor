@@ -1,11 +1,10 @@
-"""เส้นตารางแนวนอน/แนวตั้ง + ดูดขอบ (snap) + หาแนวตัดที่ไม่ผ่าข้อความ
+"""เส้นตารางแนวนอน/แนวตั้ง + หาแนวตัดที่ไม่ผ่าข้อความ
 
 คัดลอกจาก learning/preprocess_finance (src/finance_ocr/layout/lines.py) ตรงตัว ค่าคงที่วัดบนสแกนชุดเดียวกัน 18 ใบที่ 200 dpi — ใช้กับภาพที่ย่อเป็น 200 dpi เท่านั้น (ดู run.py)
 
 Horizontal ruling lines: the most reliable structure on table-style finance documents.
 
 Used two ways:
-  - snap:  move template ratio boundaries onto the nearest real line (fixes scan drift)
   - cut:   split generic documents into strips between lines (header / table rows / footer)
 """
 from __future__ import annotations
@@ -91,19 +90,6 @@ def crosses_column_rule(y: int, vlines: list[dict], x0: int, x1: int, tol_px: in
     ตัดตรงนั้นแถวจะแยกจากหัวคอลัมน์ ปลายเส้นตรงขอบบน/ล่างของตารางไม่นับ และขอบกรอบเอกสาร (ซ้าย/ขวา 2 เส้น) อย่างเดียวไม่นับ
     (1308: ขอบกรอบพาดตั้งแต่กล่องลูกค้าถึงยอดรวม ถ้านับ ทั้งหน้าจะกลายเป็นภาพเดียว)."""
     return sum(x0 <= v["x"] <= x1 and v["y0"] + tol_px < y < v["y1"] - tol_px for v in vlines) >= MIN_COLUMN_RULES
-
-
-def snap_y(y: int, x0: int, x1: int, lines: list[dict], tol_px: int, min_overlap: float = 0.5) -> tuple[int, bool]:
-    """Move boundary y to the nearest line within tol_px that covers >= min_overlap of [x0, x1]."""
-    best, best_d = y, tol_px + 1
-    for l in lines:
-        overlap = min(x1, l["x1"]) - max(x0, l["x0"])
-        if overlap < min_overlap * (x1 - x0):
-            continue
-        d = abs(l["y"] - y)
-        if d < best_d:
-            best, best_d = l["y"], d
-    return best, best_d <= tol_px
 
 
 def safe_cut(line: dict, text: np.ndarray, search_px: int, max_ink_frac: float = 0.001,

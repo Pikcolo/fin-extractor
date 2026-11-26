@@ -2,7 +2,7 @@
 
 > เขียน 2026-11-20 เทียบโค้ดใน repo กับขอบเขตงาน 5 เฟสของหัวข้อ "Microservice-Based Intelligent OCR for Unstructured Financial Document Extraction"
 > และไอเดีย pipeline (สแกน → preprocess → Gemini → decision engine → คน/Excel) ตัวเลขทุกตัวมาจากผลวัดในเอกสารที่อ้าง
-> **อัปเดต 2026-11-26:** เก็บกวาดโค้ด: ลบ OXR, สคริปต์วัดแบบอ่านทั้งหน้า (`scripts/eval/benchmark.py`, `scripts/ocr/benchmark_cer.py` ฯลฯ), คำสั่ง `ocr` และตัวโหลดผลรุ่นเก่า (schema 2.x/3.x) ของที่ลบอยู่ในประวัติ git ถึง commit f6cc6eb
+> **อัปเดต 2026-11-26:** เก็บกวาดโค้ด: ลบ OXR, สคริปต์วัดแบบอ่านทั้งหน้า (`scripts/eval/benchmark.py`, `scripts/ocr/benchmark_cer.py` ฯลฯ), คำสั่ง `ocr` และตัวโหลดผลรุ่นเก่า (schema 2.x/3.x) ของที่ลบอยู่ในประวัติ git ถึง commit f6cc6eb · เลิกตั้งค่าผัง regions ตามชื่อไฟล์ (`doc_types.yaml`, template 50 ทวิ) ทุกเอกสารแบ่งแบบเดียวกัน: 50 ทวิดีขึ้น 3 ใบ แย่ลง 1 ใบ (1311) ดู [03-regions](03-regions.md)
 > **ยังไม่มี ground truth ของสแกนจริง** ตัวเลขผลบนสแกนจริงจึงวัด "ความครบ" (ฟิลด์ที่ขาด สถานะ) ไม่ใช่ "ความถูก"
 
 ## 1. สรุปสั้น
@@ -33,7 +33,7 @@
 | OCR engine | **ทำแล้ว 5 ตัว** | OpenThai 2.0 (ค่าตั้งต้น), OpenThai 2.1 Markdown (≈ 2.0 บน 18 ใบ), OpenThai 2.1 Text (CPU ไม่มีตาราง ลายมือแย่ ใช้เป็นตัวอ่านเสริมของชั้นตรวจความครบ), Typhoon, PaddleOCR · OXR ลองแล้วอ่านไทยไม่ได้ ลบออก 2026-11-26 ผลเทียบ [04-openthai-ocr](04-openthai-ocr.md) หัวข้อ 6 |
 | Regex เลขภาษี / วันที่ / ยอดเงิน | **ทำแล้ว** | `extraction/` + โปรไฟล์ชนิดเอกสาร ([05-extraction](05-extraction.md)) |
 | Cross-check ตัวเลข | **ทำแล้ว** | checksum เลขภาษี, ผลรวมรายการ, ส่วนลด, ก่อน VAT + VAT = รวม, อัตรา VAT, ช่วงวันที่ ([05-validation-output](05-validation-output.md)) |
-| LLM ช่วยสกัด | **ทำแล้ว ปิดเป็นค่าตั้งต้น** | `--llm on/hybrid` ใช้ Ollama ในเครื่อง (`qwen2.5:3b`) วัดบนผัง regions 2026-11-26: winner แต่งค่า 35 ค่า · hybrid failed 2 → 1, auto 5 → 6 ไม่มีค่าที่ไม่อยู่ในข้อความ ([05-extraction](05-extraction.md) §5D) ยังให้ rules นำ |
+| LLM ช่วยสกัด | **ทำแล้ว ปิดเป็นค่าตั้งต้น** | `--llm on/hybrid` ใช้ Ollama ในเครื่อง (`qwen2.5:3b`) วัดบนผัง regions 2026-11-26: winner แต่งค่า 33 ค่า (หลังเลิก template) · hybrid auto 5 → 6 (failed เท่า rules: 1311, 1312) ไม่มีค่าที่ไม่อยู่ในข้อความ ([05-extraction](05-extraction.md) §5D) ยังให้ rules นำ |
 
 ### เฟส 3: FastAPI Microservice — **ยังไม่ทำ**
 
@@ -55,7 +55,7 @@
 | CER | **ไม่มีเครื่องมือแล้ว** `scripts/ocr/benchmark_cer.py` (ชุดสังเคราะห์ อ่านทั้งหน้า) ถูกลบ 2026-11-26 อยู่ในประวัติ git ถึง commit f6cc6eb ต้องเขียนใหม่แบบรายส่วนถ้าจะวัด (A3) |
 | Field-level accuracy | **มีเครื่องมือ รอข้อมูล** `scripts/eval/groundtruth_app.py` + `score_groundtruth.py` |
 | Latency | **วัดบางส่วน** OCR รายส่วน 18 ใบ: OpenThai 3.4–3.8 นาที (โหมด regions, VRAM 1.4 GB), Typhoon 8.1 นาที (ผัง section) ยังไม่มีตัวเลขต่อหน้าแยกขั้นแบบเป็นระบบ |
-| Unit tests | **ทำแล้ว** 301 test (2026-11-26) |
+| Unit tests | **ทำแล้ว** 298 test (2026-11-26) |
 | เอกสาร | **ทำแล้ว** `docs/` เรียงตามขั้น ยังไม่มี Swagger (เพราะยังไม่มี API) |
 
 ## 3. ไอเดีย pipeline: ความเห็นทีละข้อ

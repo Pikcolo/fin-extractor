@@ -3,7 +3,7 @@
   preprocess  ปรับภาพแล้วเก็บภาพสุดท้ายไว้ให้ทุก engine ใช้ร่วมกัน (ดูผลทีละขั้นด้วย --steps)
   sections    flow หลัก: preprocess → แบ่งเป็น region (ค่าตั้งต้น --layout regions) → อ่านทีละส่วน → สกัด (ทุก engine อ่านทีละส่วนเท่านั้น)
   extract     สกัดซ้ำจากข้อความรายส่วนที่เก็บไว้ (ไม่อ่านภาพ) · ไม่มีคำสั่งอ่านทั้งหน้า
-  regions     รันเฉพาะขั้น 3 ของผัง regions: แบ่ง region (template/แถบตามเส้น) + ตาราง → ช่อง + key/value + ระบาย QR (CPU ไม่ OCR)
+  regions     รันเฉพาะขั้น 3 ของผัง regions: แบ่ง region (แถบตามเส้น/ช่องว่าง) + ตาราง → ช่อง + key/value + ระบาย QR (CPU ไม่ OCR)
   compare     เทียบผลสกัดข้ามวิธี luma/flat/bin
   schema      export JSON Schema
 

@@ -1,15 +1,13 @@
 # ค่าของผัง regions — ขั้น 3 ค่าตั้งต้นของ flow (sections --layout regions · รันเดี่ยว: python -m fin_extractor regions)
 # ค่าทั้งหมดคัดลอกจาก learning/preprocess_finance/configs/pipeline.yaml ซึ่งวัดบนสแกนชุดเดียวกัน 18 ใบ
 # ค่าเป็นพิกเซล (px) วัดที่ 200 dpi: ภาพ final (render 300 dpi) จึงถูกย่อเป็น ref_dpi ก่อนตรวจ แล้วตัดภาพจริงจากภาพ final สีความละเอียดเต็ม
-# ลำดับความสำคัญ: defaults < template options < รายเอกสาร (doc_types.yaml)
+# ทุกเอกสารใช้ค่าชุดเดียวกัน (ไม่มีตั้งค่ารายไฟล์หรือ template รายชนิด: วัด 50 ทวิ 4 ใบแล้ว generic ดีกว่า 3 ใบ ดู docs/03-regions.md)
 # orient / deskew / ลบเส้นสกปรก ไม่อยู่ที่นี่: ทำแล้วในขั้น 2 (preprocess) ด้วยตัวจำแนกทิศของ Paddle ซึ่งแยก 90° กับ 270° ได้
 
 ref_dpi: 200            # ความละเอียดที่ค่า px ทุกตัวในไฟล์นี้ถูกวัด (ภาพฝังใน PDF กว้าง 1632 px = A4 ที่ 200 dpi)
 
 defaults:
-  mode: template        # template | generic (template falls back to generic if no template file)
-  clean: none           # none | suppress_color
-  use_lines: true       # use horizontal table rules (snap template edges / cut generic strips)
+  use_lines: true       # cut strips along horizontal table rules
   mask_codes: true      # blank QR codes / barcodes before cutting regions (payload kept in manifest)
 
 normalize:
@@ -23,11 +21,9 @@ mask:
 
 lines:
   min_len_frac: 0.25           # a rule must span >= 25% of page width (dotted leaders/short cell borders excluded)
-  snap_tol_frac: 0.015         # template edge moves to a rule within 1.5% of page height
-  snap_min_len_frac: 0.6       # only section dividers (>= 60% of frame width) are snap targets
   v_min_len_frac: 0.03         # vertical rule length, as a fraction of page WIDTH (> one character)
 
-tables:                        # generic:lines pages only (template docs already name their columns)
+tables:                        # strips cut along rules only (pages split by whitespace bands have no tables)
   vline_cover: 0.7             # a column rule must cross >= 70% of a row's height
   col_tol_px: 15               # rows belong to one table when their column rules line up within this
   max_header_h: 140            # filled header bar (no visible rules) inherits columns if <= this tall
@@ -49,7 +45,7 @@ generic:
   # เหตุผล: ตัดตารางตามแถว แถวข้อมูลแยกจากหัวคอลัมน์ OCR ไม่รู้ว่าค่าอยู่คอลัมน์ไหน (ผู้ใช้ชี้ 2026-11-24)
   # "ตาราง" = เส้นตั้งพาดผ่านรอยต่ออย่างน้อย 3 เส้น (lines.MIN_COLUMN_RULES: ซ้าย · เส้นแบ่งคอลัมน์ · ขวา) ขอบกรอบ 2 เส้นไม่นับ
   # ปลายเส้นห่างจากแนวตัดไม่เกิน cut_search_px ไม่นับ (ขอบบน/ล่างของตาราง) · วัดบน 18 ใบ: แบบ generic ไม่มีเส้นตั้งยาวเกิน 0.67 ของกรอบ
-  # (เส้นกรอบหน้าไม่ถูกจับเป็นเส้นตั้ง จึงไม่บล็อกทุกจุดตัด) ส่วน 50 ทวิ (template) ไม่ได้ตัดตามเส้น ไม่กระทบ
+  # (เส้นกรอบหน้าไม่ถูกจับเป็นเส้นตั้ง จึงไม่บล็อกทุกจุดตัด)
   keep_ruled_tables: true
   min_strip_px: 30         # thinner strips (double rules) are merged into the next one
   min_strip_ink: 0.002     # drop empty strips (blank table rows)

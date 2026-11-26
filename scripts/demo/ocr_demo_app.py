@@ -127,7 +127,7 @@ def stage_layout_regions(job: dict, d: Path, cfg: dict, src_dpi: float) -> dict:
     tables = m["stages"]["tables"]["tables"]
     images = {k: f"regions/{k}.png" for k in ("01_normalize", "02_mask", "04_regions", "05_tables", "06_pieces") if (d / "regions" / f"{k}.png").exists()}
     return {"mode": "regions", "work_size": [int(full.shape[1]), int(full.shape[0])], "full_size": [int(full.shape[1]), int(full.shape[0])],
-            "sections": secs, "doc_type": m["doc_type"], "region_mode": regs[0]["mode"] if regs else None, "regions": len(regs),
+            "sections": secs, "region_mode": regs[0]["mode"] if regs else None, "regions": len(regs),
             "tables": len(tables), "cells": sum(len(t.get("cells", [])) for t in tables),
             "merged": [r for r in m["stages"]["regions"].get("ocr_regions", []) if r["merged"] > 1],
             "codes": [{"kind": c["kind"], "data": c["data"]} for c in m["stages"]["mask"]["codes"]],

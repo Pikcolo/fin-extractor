@@ -428,16 +428,16 @@ RENDER.layout = d => {
 RENDER.layoutRegions = d => {
   const [W, H] = d.full_size;
   const cap = { "01_normalize": "<b>01 normalize</b> — ตัดขอบสแกนให้เหลือเนื้อหา + ขอบขาว ย่อเป็น 200 dpi (ค่า px ทุกตัวของโหมดนี้วัดที่ความละเอียดนี้)",
-    "02_mask": "<b>02 mask</b> — ระบาย QR/บาร์โค้ด (ถอดรหัสเก็บไว้) และพื้นที่ ignore ของ template (ลายเซ็น ตรายาง)",
-    "04_regions": "<b>04 regions</b> — แบ่งเป็น region: ตาม template ของชนิดเอกสาร (เช่น 50 ทวิ) หรือแถบตามเส้นนอนยาว / ช่องว่าง",
+    "02_mask": "<b>02 mask</b> — ระบาย QR/บาร์โค้ด (ถอดรหัสเก็บไว้)",
+    "04_regions": "<b>04 regions</b> — แบ่งเป็น region: แถบตามเส้นนอนยาว (เส้นน้อยกว่า 3 เส้น = แบ่งตามช่องว่าง) ทุกชนิดเอกสารแบ่งแบบเดียวกัน",
     "05_tables": "<b>05 tables</b> — เส้นตั้งแบ่งแถบเป็นช่อง แถวแรก = หัว (key) ช่องค่าถูกหดขอบตามข้อความ",
     "06_pieces": "<b>06 pieces</b> — กรอบที่ส่งเข้า OCR จริง: หดขอบชิดข้อความ ตัด region สูงเป็นท่อนก่อนบรรทัดที่ขึ้นรายการใหม่ ท่อนที่ไม่มีข้อความถูกทิ้ง" };
   return `<div class="explain"><b>ขั้นนี้ (โหมด regions):</b> ใช้ <code>sections/regions/run.py → run_page</code> ตัวเดียวกับคำสั่ง <code>regions</code> และ flow หลัก (<code>sections</code> ค่าตั้งต้น <code>--layout regions</code>) ภาพล้วน ไม่ใช้ OCR (${d.elapsed ?? "?"} วินาที)
-      ต่างจากโหมด sections ตรงที่ <b>กรอบชิดข้อความ</b> (ไม่ใช่แถบเต็มหน้า) ตารางแบ่งตามเส้น และใช้ template ตามชนิดเอกสาร (จำแนกจากชื่อไฟล์ตาม <code>configs/regions/doc_types.yaml</code>)
+      ต่างจากโหมด sections ตรงที่ <b>กรอบชิดข้อความ</b> (ไม่ใช่แถบเต็มหน้า) และตารางแบ่งตามเส้น · ทุกเอกสารใช้ค่าชุดเดียวกัน (ไม่มี template หรือการตั้งค่ารายไฟล์)
       <br><b>ตารางที่มีเส้นคอลัมน์:</b> แถบที่เส้นตั้ง ≥3 เส้นพาดผ่านรอยต่อถูกรวมเป็นตารางเดียว (ไม่ให้แถวหลุดจากหัวคอลัมน์) ถ้าสูงเกินก็ยังตัดเป็นท่อน
       แต่<b>ต่อภาพแถวหัวคอลัมน์ไว้บนทุกท่อนถัดไป</b> (ป้าย <span class="badge">หัวซ้ำ</span>) ให้ OCR รู้ว่าค่าอยู่คอลัมน์ไหน ใน .md ท่อนนั้นมีคำว่า <code>repeat-header</code> และขั้นสกัดตัดบรรทัดหัวที่อ่านซ้ำออก
       <br><b>ผลวัดที่บันทึกไว้</b> (OpenThai 18 ใบ rules ล้วน ไม่มีเฉลย): ฟิลด์ที่ขาดรวม sections 14 · regions ตัดตามแถว 20 · regions ไม่ตัดตาราง 27 · <b>regions + หัวซ้ำ 19</b> (ค่าที่ใช้ failed 3 ใบ) (<code>docs/03-regions.md</code>)</div>
-    <div class="kv small"><div>ชนิดเอกสาร (regions)</div><div>${esc(d.doc_type)}</div><div>วิธีแบ่ง</div><div>${esc(d.region_mode || "—")}</div>
+    <div class="kv small"><div>วิธีแบ่ง</div><div>${esc(d.region_mode || "—")}</div>
       <div>region</div><div>${d.regions} · ตาราง ${d.tables} (ช่อง ${d.cells})</div><div>ส่วนที่ส่ง OCR</div><div>${d.sections.length}${d.sections.some(s => s.repeat_header) ? ` · ต่อหัวคอลัมน์ซ้ำ ${d.sections.filter(s => s.repeat_header).length} ส่วน` : ""}</div>
       ${(d.merged || []).length ? `<div>ตารางมีเส้นคอลัมน์ (รวมแถบ)</div><div>${d.merged.map(r => `<span class="mono">${esc(r.name)}</span> (${r.merged} แถบ)`).join("<br>")}</div>` : ""}
       ${d.codes.length ? `<div>QR/บาร์โค้ดที่ระบาย</div><div>${d.codes.map(c => `${c.kind}: <span class="mono">${esc(c.data) || "(ถอดไม่ได้)"}</span>`).join("<br>")}</div>` : ""}</div>

@@ -106,7 +106,7 @@ data/
 ```
 fin_extractor/
 ├── configs/default.yaml        ค่าตั้งต้นทั้งหมด (preprocess, engine, endpoint VLM/LLM, coverage_check, document_types)
-├── configs/regions/            ค่าของผัง regions: pipeline.yaml, doc_types.yaml (lookup ชื่อไฟล์), templates/ (50 ทวิ)
+├── configs/regions/            ค่าของผัง regions: pipeline.yaml (ทุกเอกสารใช้ค่าชุดเดียวกัน ไม่มีตั้งค่ารายไฟล์)
 ├── assets/fonts/               ฟอนต์ Sarabun (SIL OFL) ใช้วาดชุดสังเคราะห์และหน้าเว็บเดโม
 ├── data/                       01_input … 05_extract + etc/ (ไม่ commit ยกเว้น .gitkeep)
 ├── docs/                       เอกสารเรียงตาม flow: 00 ติดตั้ง · 01–05 ทีละขั้น · 06 หลักการ/roadmap · draft-* แผนที่ยังไม่ทำ
