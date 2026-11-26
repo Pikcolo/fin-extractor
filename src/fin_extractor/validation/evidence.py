@@ -106,7 +106,8 @@ def _is_grounded(key: str, value: Any, text: str, squashed: str,
     if key == "date":
         return value in dates
     if key in _TEXT_KEYS or key.startswith("remark["):
-        return _squash(value) in squashed
+        # ค่าหลายบรรทัด (ที่อยู่ที่พิมพ์สองบรรทัด) ต้องพบทุกบรรทัด
+        return all(_squash(part) in squashed for part in str(value).split("\n") if part.strip())
     return None  # document_type, branch, items[].description: ค่าถูกแปลง/ประกอบจากหลายบรรทัด ไม่ใช่ข้อความตรง ๆ
 
 

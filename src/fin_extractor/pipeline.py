@@ -21,6 +21,7 @@ from .doctypes import (
 from .extraction import extract_fields, lines_with_chunks, markdown_to_lines
 from .extraction.rule_extractor import SUPPLEMENT, chunk_lines
 from .extraction.core_labels import extract_party_name
+from .extraction.rule_extractor import assign_addresses
 from .extraction.hybrid import known_context, merge_llm, top_level, unresolved_keys
 from .extraction.llm_extractor import profile_schema
 from .extraction.profile_extractor import (
@@ -56,6 +57,11 @@ def fill_missing(primary: InvoiceData, secondary: InvoiceData) -> InvoiceData:
         elif cur in (None, "", []):
             setattr(merged, name, alt)
     return merged
+
+
+def _get_flat(d: InvoiceData, key: str):
+    obj, attr = key.split(".", 1)
+    return getattr(getattr(d, obj), attr)
 
 
 class FinanceOCRPipeline:
@@ -163,6 +169,7 @@ class FinanceOCRPipeline:
             if name and not party.name:
                 party.name = name
                 party.branch = party.branch or branch
+        assign_addresses(lines, rules)
         chunks = self._chunks_of(lines, raw_text)
         rules.remark = [*extract_remark(lines, profile, rules, chunks), *extract_unmapped(lines, rules, chunks)]
         if not self.llm:
@@ -212,6 +219,8 @@ class FinanceOCRPipeline:
         checks = run_checks(rules, self.cfg["validation"]["amount_tolerance"],
                             self.cfg["validation"]["default_vat_rate"], applicable=profile.checks, words=profile.words)
         unresolved = unresolved_keys(rules, checks, profile.required, na, profile.primary_amount)
+        # ที่อยู่ที่ rules หาไม่เจอ: ถาม LLM ด้วย (ไม่บังคับมี จึงไม่อยู่ใน required) ค่าที่ได้ต้องผ่านด่านเดิม (พบในข้อความ)
+        unresolved += [k for k in ("vendor.address", "buyer.address") if k not in na and not _get_flat(rules, k)]
         asked = {top_level(k) for k in unresolved}
         if not profile_schema(profile, asked)["properties"]:  # ไม่มีช่องไหนที่ LLM ตอบได้ (เช่น ชนิดนี้ไม่มีช่องนั้น)
             return rules, sources, {}

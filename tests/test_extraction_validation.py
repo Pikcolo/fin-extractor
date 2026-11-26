@@ -150,3 +150,32 @@ def test_markdown_to_lines_joins_decimals_split_by_a_space():
 def test_markdown_to_lines_leaves_other_dots_alone():
     assert markdown_to_lines("ข้อ 5 .500 กรัม") == ["ข้อ 5 .500 กรัม"]  # ไม่ใช่ทศนิยมสองหลัก
     assert markdown_to_lines("มาตรา 40 (4)(ข) ... .00") == ["มาตรา 40 (4)(ข) ... .00"]  # ไม่มีตัวเลขนำหน้าจุด
+
+
+def test_address_goes_to_the_party_named_on_the_nearest_name_line_above():
+    from fin_extractor.extraction.rule_extractor import assign_addresses
+    from fin_extractor.schema import InvoiceData
+
+    lines = ["ชื่อลูกค้า Customer Name | บริษัท อิมพอร์ต สตาร์ จำกัด | วันที่ : 05/10/2569",
+             "ที่อยุ่ Address | 49/12 ซอย 6 ถนน นิพัทธ์สงเคราะห์ 1 ต.หาดใหญ่ | สำนักงานใหญ่",
+             "Address | อ.หาดใหญ่ จ.สงขลา 90110"]
+    d = InvoiceData(buyer={"name": "บริษัท อิมพอร์ต สตาร์ จำกัด"})
+    assign_addresses(lines, d)
+    assert d.buyer.address == "49/12 ซอย 6 ถนน นิพัทธ์สงเคราะห์ 1 ต.หาดใหญ่\nอ.หาดใหญ่ จ.สงขลา 90110" and d.vendor.address is None
+
+
+def test_address_is_left_empty_when_the_name_line_above_matches_no_party():
+    from fin_extractor.extraction.rule_extractor import assign_addresses
+    from fin_extractor.schema import InvoiceData
+
+    # 1310: บล็อกผู้ซื้อไม่มีป้าย "ลูกค้า" และ rules ไม่ได้ชื่อผู้ซื้อ → ไม่เดาฝ่าย
+    lines = ["บริษัท ทีเอ็นแอส หาดใหญ่ จำกัด", "ชื่อ : บริษัท อิมพอร์ต สตาร์ จำกัด",
+             "ที่อยู่ : 49/12 ซอย 6 ต.หาดใหญ่ จ.สงขลา 90110 Tel.0808317128 | รหัสพนักงานขาย : HY01"]
+    d = InvoiceData(vendor={"name": "บริษัท ทีเอ็นแอส หาดใหญ่ จำกัด"})
+    assign_addresses(lines, d)
+    assert d.vendor.address is None and d.buyer.address is None
+    # คำแนะนำของฟอร์ม "(ให้ระบุ ...)" ไม่ใช่ค่า
+    d2 = InvoiceData(vendor={"name": "บริษัท อิมพอร์ต สตาร์ จำกัด"})
+    assign_addresses(["ชื่อ บริษัท อิมพอร์ต สตาร์ จำกัด", "ที่อยู่:... (ให้ระบุ ชื่ออาคาร/หมู่บ้าน ห้องเลขที่ 1)"], d2)
+    assert d2.vendor.address is None
+

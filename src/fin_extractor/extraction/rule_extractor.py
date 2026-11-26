@@ -193,6 +193,57 @@ def _doc_no_value(val: str | None) -> str | None:
     return val
 
 
+# ที่อยู่: ป้าย "ที่อยู่" ต้นช่อง (OCR สะกด "ที่อยุ่" ได้ 1317-1319 · "ที่อยู่ตามบัตรประชาชน" ใบสำคัญรับเงิน 1320 1322) ตามด้วย "Address" ได้
+# ค่า = ข้อความหลังป้ายในช่องเดียวกัน หรือช่องถัดไป · บรรทัดถัดไปที่ช่องแรกเป็นป้าย "Address" อย่างเดียว = ที่อยู่บรรทัดที่สอง
+# (ฟอร์มสองภาษาพิมพ์ ที่อยู่ / Address สองบรรทัด 1308 1317 1318 1319) · ต้องมีตัวเลข (เลขที่บ้าน/รหัสไปรษณีย์) และไม่ขึ้นต้นด้วย "("
+# (คำแนะนำของฟอร์ม 50 ทวิ "ที่อยู่:... (ให้ระบุ ...)" 1323) · ตัดที่ Tel./โทร (1310)
+ADDRESS_LABEL_RE = re.compile(r"^\s*ที่อย[ูุ]่(?:ตามบัตรประชาชน)?\s*[:：]?\s*(?:address\b)?\s*[:：]?", re.I)
+ADDRESS_CONT_RE = re.compile(r"^\s*address\s*[:：]?\s*$", re.I)
+ADDRESS_STOP_RE = re.compile(r"\s*(?:tel\b|โทร)", re.I)
+
+
+def _find_address(lines: list[str], i: int) -> str | None:
+    cells = [c.strip() for c in lines[i].split("|")]
+    m = ADDRESS_LABEL_RE.match(cells[0])
+    if not m:
+        return None
+    value = cells[0][m.end():].strip(" :：.…") or (cells[1] if len(cells) > 1 else "")
+    nxt = [c.strip() for c in lines[i + 1].split("|")] if i + 1 < len(lines) else []
+    if value and len(nxt) > 1 and ADDRESS_CONT_RE.match(nxt[0]):
+        value = f"{value}\n{nxt[1]}"  # คงการขึ้นบรรทัด: ตรวจว่าค่าอยู่ในข้อความได้ทีละบรรทัด
+    value = value.strip(" :：.…")
+    if (cut := ADDRESS_STOP_RE.search(value)):
+        value = value[:cut.start()]
+    value = value.strip(" :：.…")
+    return value if value and not value.startswith("(") and re.search(r"\d", value) else None
+
+
+NAME_LINE_RE = re.compile(r"ชื่อ|ซื่อ|ข้าพเจ้า|\bname\b", re.I)
+
+
+def _squash(s: str) -> str:
+    return re.sub(r"\s+", "", s)
+
+
+def assign_addresses(lines: list[str], data: InvoiceData) -> None:
+    """เติมที่อยู่ผู้ขาย/ผู้ซื้อ (ต้องรู้ชื่อทั้งสองฝ่ายก่อน: เรียกหลังอ่านชื่อจากป้ายของโปรไฟล์)
+    ที่อยู่เป็นของฝ่ายที่ชื่อ (ที่สกัดได้) อยู่ในบรรทัดชื่อที่ใกล้ที่สุดเหนือมัน (บรรทัดที่มีป้ายชื่อหรือชื่อบริษัท)
+    บรรทัดชื่อนั้นไม่ตรงกับชื่อฝ่ายไหน = ไม่เติม (ไม่เดาฝ่าย: 1310 บล็อกผู้ซื้อไม่มีป้าย "ลูกค้า" · บรรทัดที่ขึ้นต้นด้วย "(" เป็นคำแนะนำของฟอร์ม ข้ามไป 1321)."""
+    for i in range(len(lines)):
+        addr = _find_address(lines, i)
+        if not addr:
+            continue
+        j = next((k for k in range(i - 1, -1, -1) if not lines[k].lstrip().startswith("(")  # "(ให้ระบุ...)" = คำแนะนำของฟอร์ม
+                  and (NAME_LINE_RE.search(lines[k]) or COMPANY_RE.search(lines[k]))), None)
+        if j is None:
+            continue
+        near = _squash(lines[j])
+        for party in (data.buyer, data.vendor):
+            if party.name and not party.address and _squash(party.name) in near:
+                party.address = addr
+                break
+
+
 def _find_invoice_no(lines: list[str]) -> str | None:
     """เลขที่เอกสารจากป้าย เลือกป้ายที่เจาะจงที่สุด (ที่เจอก่อนชนะเมื่อเจาะจงเท่ากัน) อ่านค่าได้สี่แบบ:
     ค่าหลังป้าย (``เลขที่ : AABZ...``) · ค่าก่อนป้ายอังกฤษในช่องเดียวกัน (``ใบวางบิล : IN-691005003 Invoice No`` 1306 — ป้ายไทย ค่า ป้ายอังกฤษ)

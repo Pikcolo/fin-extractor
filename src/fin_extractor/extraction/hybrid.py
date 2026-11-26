@@ -63,6 +63,13 @@ def _set(d: InvoiceData, key: str, value) -> None:
         setattr(d, key, value)
 
 
+def _other_party_has(key: str, value, rules_flat: dict, cand: dict) -> bool:
+    party, attr = key.split(".", 1)
+    other = ("buyer" if party == "vendor" else "vendor") + "." + attr
+    theirs = rules_flat.get(other) or cand.get(other)
+    return theirs not in (None, "") and comparable(theirs) == comparable(value)
+
+
 def merge_llm(
     rules: InvoiceData, llm: InvoiceData, asked: Collection[str], unresolved: Collection[str], text: str,
     profile: Profile, score: Callable[[InvoiceData], float],
@@ -87,6 +94,8 @@ def merge_llm(
             rejected.append((k, "ไม่พบในข้อความ"))
         elif k.endswith("tax_id") and not is_valid_thai_tax_id(v):
             rejected.append((k, "เลขภาษีไม่ผ่าน checksum"))
+        elif k.startswith(("vendor.", "buyer.")) and _other_party_has(k, v, rules_flat, cand):
+            rejected.append((k, "ซ้ำกับค่าของอีกฝ่าย"))  # ชื่อ/เลขภาษี/ที่อยู่เดียวกันทั้งสองฝ่าย = ใส่ผิดฝ่าย (1323: LLM ใส่เลขภาษีผู้ขายให้ผู้ซื้อ)
         else:
             scalar[k] = v
 

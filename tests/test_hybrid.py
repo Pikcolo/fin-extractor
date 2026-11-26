@@ -117,12 +117,13 @@ LINES = ["บริษัท ตัวอย่าง จำกัด", "เล�
 
 
 def test_pipeline_hybrid_skips_the_llm_when_nothing_is_unresolved():
-    # โปรไฟล์ที่ไม่บังคับช่องใดและ check ที่มีผ่านหมด → ไม่มีช่องค้าง → ไม่เรียก LLM
+    # โปรไฟล์ที่ไม่บังคับช่องใด check ที่มีผ่านหมด และไม่มีช่องที่อยู่ → ไม่มีช่องค้าง → ไม่เรียก LLM
     from fin_extractor.doctypes import Profile
 
     llm = _StubLLM(error=AssertionError("ไม่ควรถูกเรียก"))
     pipe = _pipe(llm)
-    pipe.profiles = [Profile(name="any", aliases=("ใบกำกับภาษี",), required=(), primary_amount=None)]
+    pipe.profiles = [Profile(name="any", aliases=("ใบกำกับภาษี",), required=(), primary_amount=None,
+                             not_applicable=frozenset({"vendor.address", "buyer.address"}))]
     lines = ["ใบกำกับภาษี", *LINES]
     data, sources, agree = pipe.extract_traced(lines, "\n".join(lines))
     assert pipe.profile_for(data).name == "any"
@@ -143,3 +144,12 @@ def test_pipeline_hybrid_falls_back_to_rules_when_llm_fails():
     pipe = _pipe(_StubLLM(error=ValueError("bad json")))
     data, sources, agree = pipe.extract_traced(LINES, "\n".join(LINES))
     assert set(sources.values()) == {"rules"} and agree == {}
+
+
+def test_llm_party_value_equal_to_the_other_party_is_rejected():
+    from fin_extractor.extraction.hybrid import _other_party_has
+
+    rules = {"vendor.tax_id": "1909802996432"}
+    assert _other_party_has("buyer.tax_id", "1909802996432", rules, {})       # 1323: เลขผู้ขายถูกใส่ให้ผู้ซื้อ
+    assert not _other_party_has("buyer.tax_id", "0905564002794", rules, {})
+    assert not _other_party_has("buyer.address", "49/12", {}, {})
