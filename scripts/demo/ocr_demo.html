@@ -151,6 +151,7 @@ tr.flash td { animation:fl 1.6s; } @keyframes fl { from { background:var(--warn-
     <div class="opts">
       <label>ตัวอ่าน OCR <select id="engine"></select></label>
       <label>สกัดฟิลด์ <select id="llm"></select></label>
+      <label title="ถามโมเดล OpenThai-SystemOne บน CPU บันทึกอย่างเดียว ไม่เปลี่ยนผล"><input type="checkbox" id="decision"> decision model (shadow)</label>
       <button class="primary" id="run" disabled>รัน</button>
       <button id="cancel" hidden>หยุด</button>
       <span id="msg" class="small muted"></span>
@@ -225,7 +226,7 @@ drop.ondrop = e => { e.preventDefault(); drop.classList.remove("over"); pick(e.d
 $("#file").onchange = e => pick(e.target.files[0]);
 function pick(f) { if (!f) return; file = f; drop.innerHTML = `<b>${esc(f.name)}</b> · ${(f.size / 1024).toFixed(0)} KB — คลิกเพื่อเปลี่ยนไฟล์`; $("#run").disabled = false; }
 $("#run").onclick = async () => {
-  const q = new URLSearchParams({ engine: $("#engine").value, llm: $("#llm").value });
+  const q = new URLSearchParams({ engine: $("#engine").value, llm: $("#llm").value, decision: $("#decision").checked ? "on" : "off" });
   $("#run").disabled = true; $("#msg").textContent = "กำลังอัปโหลด…";
   const r = await fetch("/api/run?" + q, { method: "POST", headers: { "X-Filename": encodeURIComponent(file.name) }, body: file });
   const j = await r.json();
@@ -289,6 +290,7 @@ const INTRO = {
   text: "ต่อข้อความทุกส่วนเป็นเอกสาร .md แล้วแปลงเป็นบรรทัดล้วน",
   extract: "หาค่าแต่ละฟิลด์ด้วย keyword + regex ทีละบรรทัด (+ LLM ถ้าเลือก hybrid / winner)",
   validate: "ตรวจตัวเลข/เลขภาษีให้สอดคล้องกัน แล้วตัดสินสถานะ",
+  decision: "ถาม decision model (OpenThai-SystemOne) เรื่องชนิดเอกสารและชื่อคู่ค้า บันทึกอย่างเดียว ไม่เปลี่ยนผล (ติ๊กตอนอัปโหลด)",
   review: "เรียงฟิลด์ตามที่ควรตรวจก่อน บอกเหตุผล ให้แก้ค่าแล้วตรวจใหม่ทันที",
   result: "ผลตาม schema 3.0",
 };
@@ -619,10 +621,34 @@ async function useMode(m) {
   const r = await fetch(`/api/job/${jobId}/use?mode=${m}`, { method: "POST" });
   if (!r.ok) { alertMsg((await r.json()).error); return; }
   reviewEdits = {}; reviewData = null; reviewErr = {}; reviewSaved = null;
-  ["extract", "validate", "review", "result"].forEach(k => { rendered[k] = null; });
+  ["extract", "validate", "decision", "review", "result"].forEach(k => { rendered[k] = null; });
   rev = -1; poll();
 }
 function alertMsg(t) { $("#msg").textContent = t; }
+// decision model (shadow): คำถาม · ข้อมูลที่ป้อน · ความน่าจะเป็นทุกตัวเลือก · เทียบกับผลของระบบ
+const TASK_INFO = { doc_type: "ชนิดเอกสารตามที่พิมพ์", profile: "โปรไฟล์ชนิดเอกสาร", party_name: "ชื่อเป็นชื่อบริษัท/บุคคลล้วน ๆ ไหม" };
+RENDER.decision = d => {
+  if (d.skipped) return `<p class="small muted">ข้าม: ${esc(d.skipped)}</p>`;
+  const bars = p => Object.entries(p).sort((a, b) => b[1] - a[1]).map(([k, v]) =>
+    `<div class="small" style="display:grid;grid-template-columns:minmax(120px,260px) 1fr 48px;gap:6px;align-items:center">
+      <span>${esc(k)}</span><span style="background:var(--na-soft);height:8px;border-radius:4px;overflow:hidden"><span style="display:block;height:100%;width:${(v * 100).toFixed(1)}%;background:var(--accent)"></span></span><span class="mono">${(v * 100).toFixed(1)}%</span></div>`).join("");
+  const cmp = x => {
+    if (x.task === "party_name") { const lv = d.levels[x.key]; return `ค่าในระบบ: <b>${esc(d.current[x.key] || "—")}</b> · ระดับหลักฐาน ${lv ? `<span class="badge ${LEVEL[lv][1]}">${LEVEL[lv][0]}</span>` : "—"}`; }
+    const sys = d.current[x.key];
+    return `ระบบ (rules) ได้: <b>${esc(sys || "—")}</b>${x.task === "profile" ? (sys === x.answer ? ' <span class="badge b-ok">ตรงกัน</span>' : ' <span class="badge b-warn">ต่างกัน</span>') : ' <span class="small muted">(rules ตอบได้แค่ tax_invoice/receipt/invoice/quotation จึงเทียบตรง ๆ ไม่ได้)</span>'}`;
+  };
+  const rows = d.decisions.map(x => `<div class="crop" style="cursor:default">
+      <div><b>${esc(TASK_INFO[x.task] || x.task)}</b> <span class="mono small muted">${esc(x.key)}</span>
+        → <b>${esc(x.answer)}</b>${x.type === "choice" ? (x.agreed ? ' <span class="badge b-ok">ทุกลำดับตอบตรงกัน</span>' : ` <span class="badge b-warn">ลำดับตัวเลือกให้คำตอบต่างกัน (${x.orders} ลำดับ)</span>`) : ""}
+        ${x.abstain != null ? `<span class="small muted"> · abstain ${(x.abstain * 100).toFixed(1)}%</span>` : ""}</div>
+      <div class="small" style="margin:4px 0">${cmp(x)}</div>${bars(x.probabilities)}
+      <details class="small" style="margin-top:4px"><summary>ข้อมูลที่ป้อนเข้าโมเดล</summary><pre>${esc(JSON.stringify(x.state, null, 1))}</pre></details></div>`).join("");
+  return `<div class="explain"><b>ขั้นนี้ (shadow):</b> ถาม decision model <code>${esc(d.model)}</code> บน CPU กับผลของแบบ <b>${esc(MODE_NAME[d.mode] || d.mode)}</b>
+      ${d.asked} คำถาม · ${d.seconds} วินาที (รวมทุกลำดับตัวเลือก) · <b>บันทึกอย่างเดียว ไม่เปลี่ยนค่า ระดับหลักฐาน หรือสถานะ</b> (<code>src/fin_extractor/decision/</code>, docs/draft-11)
+      <br>คำถามแบบเลือกตอบถาม 3 ลำดับตัวเลือกแล้วเฉลี่ย เพราะคำตอบพลิกตามลำดับได้ · ป้อนแค่ข้อความท่อนบนสุดของหน้า (s00) และชื่อที่สกัดได้ ไม่ป้อนทั้งหน้า
+      <br>ความน่าจะเป็นยังไม่ได้เทียบกับเฉลยของเอกสารเรา (P3) อย่าใช้ตัดสินแทนคน</div>
+    ${d.decisions.length ? `<div class="grid2">${rows}</div>` : '<p class="small muted">ไม่มีคำตอบ (โมเดลล้มหรือไม่มีคำถาม ดู log)</p>'}`;
+};
 RENDER.extract = d => {
   const p = d.profile, ev = (data("validate") || {}).evidence || {};
   const core = d.fields.filter(f => !f.key.startsWith("items[") && !f.key.startsWith("remark[") && !f.key.startsWith("document_fields."));

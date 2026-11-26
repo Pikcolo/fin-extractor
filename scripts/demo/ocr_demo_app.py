@@ -69,7 +69,8 @@ FLOW_DEFAULTS = {"layout": "regions", "orientation": "auto", "fill": False, "dot
 
 STAGES = [("input", "อินพุต"), ("preprocess", "ปรับภาพ (preprocess)"), ("layout", "แบ่งเป็นส่วน (layout)"),
           ("crops", "ภาพรายส่วนก่อน OCR"), ("ocr", "OCR ทีละส่วน"), ("text", "รวมข้อความ → บรรทัด"),
-          ("extract", "สกัดฟิลด์"), ("validate", "ตรวจความสอดคล้อง + สถานะ"), ("review", "ตรวจ/แก้รายฟิลด์"),
+          ("extract", "สกัดฟิลด์"), ("validate", "ตรวจความสอดคล้อง + สถานะ"), ("decision", "decision model (shadow)"),
+          ("review", "ตรวจ/แก้รายฟิลด์"),
           ("result", "JSON สุดท้าย")]
 
 state_lock = threading.RLock()  # กันอ่านสถานะงาน (หน้าเว็บ poll) ระหว่างที่เธรดงานกำลังแก้ (RLock: ขั้น 7–9 ประกาศพร้อมกันในล็อกเดียว)
@@ -400,7 +401,8 @@ def stage_extract(job: dict, d: Path, cfg: dict) -> None:
         finally:
             logger.removeHandler(collect)
         results[m] = {"res": res, "seconds": round(time.perf_counter() - t, 1), "errors": collect.messages}
-    job["extract_ctx"] = {"lines": lines, "results": results, "dir": str(d), "model": cfg["llm_extractor"]["model"]}
+    job["extract_ctx"] = {"lines": lines, "results": results, "dir": str(d), "model": cfg["llm_extractor"]["model"], "markdown": md,
+                          "decisions": {}}
     use_result(job, "off" if mode == "all" else mode)
 
 
@@ -435,10 +437,46 @@ def compare_modes(ctx: dict) -> dict | None:
     return {"modes": list(results), "summary": summary, "rows": rows}
 
 
+_decider = None
+
+
+def decision_stage(job: dict, mode: str, cfg: dict) -> dict:
+    """ขั้น decision (shadow): ถาม decision model กับผลของแบบ ``mode`` (ครั้งแรกต่อแบบ แล้วเก็บไว้) บันทึกอย่างเดียว ไม่เปลี่ยนผล
+    คำถามสร้างด้วย ``decision/questions.build`` ตัวเดียวกับ ``extract --decision on`` · โมเดลโหลดครั้งเดียวต่อเซิร์ฟเวอร์ (CPU)."""
+    global _decider
+    if job["options"].get("decision") != "on":
+        return {"skipped": "ไม่ได้เลือก (ติ๊ก decision model ตอนอัปโหลด)"}
+    from fin_extractor.decision import Decider
+    from fin_extractor.decision.questions import build
+
+    ctx = job["extract_ctx"]
+    res = ctx["results"][mode]["res"]
+    if mode not in ctx["decisions"]:
+        try:
+            if _decider is None:
+                _decider = Decider(cfg["decision"])
+                _decider.backend._load()
+        except Exception as e:  # noqa: BLE001 — ไม่มีโมเดล/แพ็กเกจ: แจ้งบนหน้าเว็บ ไม่ทำให้งานล้ม
+            return {"skipped": f"โหลด decision model ไม่ได้: {type(e).__name__}: {str(e)[:200]}"}
+        pipe = FinanceOCRPipeline(cfg, engine=job["options"]["engine"])
+        qs = build(res.data, ctx["markdown"], pipe.profiles, cfg["decision"])
+        t = time.perf_counter()
+        decs = _decider.ask(qs)
+        ctx["decisions"][mode] = {"decisions": [x.model_dump() for x in decs], "seconds": round(time.perf_counter() - t, 1),
+                                  "asked": len(qs)}
+    out = ctx["decisions"][mode]
+    flat = flatten(res.data)
+    current = {"document_type": res.data.document_type, "document_profile": res.data.document_profile,
+               **{k: flat.get(k) for k in ("vendor.name", "buyer.name")}}
+    levels = {k: rv.level for k, rv in res.review.items()}
+    return {**out, "mode": mode, "model": _decider.backend.name, "current": current, "levels": levels}
+
+
 def use_result(job: dict, mode: str) -> None:
     """ตั้งขั้น 7–9 จากผลของแบบ ``mode`` ที่สกัดไว้แล้ว (ไม่สกัดใหม่ ไม่เรียก LLM) ใช้ทั้งตอนจบขั้นสกัดและตอนผู้ใช้สลับแบบ."""
     ctx = job["extract_ctx"]
     cfg = load_config()
+    decision = decision_stage(job, mode, cfg)  # ก่อนล็อก: โมเดลใช้เวลาหลายวินาที
     d, lines = Path(ctx["dir"]), ctx["lines"]
     pipe = FinanceOCRPipeline(cfg, engine=job["options"]["engine"])
     entry = ctx["results"][mode]
@@ -490,6 +528,7 @@ def use_result(job: dict, mode: str) -> None:
                 {"rule": "โปรไฟล์ไม่ใช่ฉบับร่าง (draft)", "ok": profile.can_auto_approve, "fail_to": "needs_review"},
             ],
         })
+        set_stage(job, "decision", "done", decision)
         set_stage(job, "result", "done", {"json": out, "path": (d / "result.json").relative_to(ROOT).as_posix()})
         text_lines = job_stage(job, "text")["data"]["lines"]
         sections = {f["key"]: sorted({text_lines[i]["section"] for i in f["found"] if text_lines[i]["section"]}) for f in fields}
@@ -587,7 +626,7 @@ def run_job(job: dict) -> None:
     cfg = load_config()
     try:
         for key, _title in STAGES:
-            if key in ("validate", "review", "result"):
+            if key in ("validate", "decision", "review", "result"):
                 continue  # เขียนพร้อมกับ extract
             set_stage(job, key, "running", started=time.time())
             t = time.perf_counter()
@@ -704,13 +743,13 @@ class Handler(BaseHTTPRequestHandler):
             if not 0 < size <= MAX_UPLOAD:
                 return self.json({"error": f"ขนาดไฟล์ต้องไม่เกิน {MAX_UPLOAD // 2**20} MB"}, 400)
             body = self.rfile.read(size)
-            engine, llm = q.get("engine", "openthai"), q.get("llm", "off")
-            if engine not in ENGINES or llm not in (*LLM_MODES, "all"):
+            engine, llm, decision = q.get("engine", "openthai"), q.get("llm", "off"), q.get("decision", "off")
+            if engine not in ENGINES or llm not in (*LLM_MODES, "all") or decision not in ("on", "off"):
                 return self.json({"error": "ตัวเลือกไม่ถูกต้อง"}, 400)
             if not run_lock.acquire(blocking=False):
                 return self.json({"error": "มีงานกำลังรันอยู่ รอให้เสร็จก่อน (รันทีละงานเพื่อไม่ให้ GPU รับงานซ้อน)"}, 409)
             try:
-                job = new_job(name, body, {"engine": engine, "llm": llm, **FLOW_DEFAULTS})
+                job = new_job(name, body, {"engine": engine, "llm": llm, "decision": decision, **FLOW_DEFAULTS})
             except Exception:
                 run_lock.release()
                 raise
