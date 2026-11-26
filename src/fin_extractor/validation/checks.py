@@ -196,7 +196,8 @@ def income_rows_sum(lines: list[str], d: InvoiceData, paid_key: str = "document_
 RELATIONAL_CHECKS = ("items_sum", "discount", "before_vat_plus_vat", "vat_rate", "amount_in_words", "income_rows_sum", "qr_match")
 
 QR_CODE_KEYS = ("invoice_no",)  # ค่าที่เป็นรหัส: ต้องตรงทั้งท่อนของข้อความใน QR (ท่อนสั้นอย่าง "005" ห้ามนับเมื่อเป็นส่วนหนึ่งของ URL)
-QR_TAX_KEYS = ("vendor.tax_id", "buyer.tax_id")  # เลขภาษี 13 หลักที่ผ่าน checksum: พบเป็นส่วนหนึ่งของตัวเลขยาวใน QR ได้ (QR จ่ายบิล = เลขภาษี + suffix)
+# ไม่ยืนยันเลขภาษีด้วย QR: เลขที่พบใน QR บอกว่าอ่านเลขถูก แต่ไม่บอกว่าช่องผู้ขาย/ผู้ซื้อถูกฝ่าย
+# (1314: เลขผู้ขายตรงกับ QR จ่ายบิลของ UPS แต่ชื่อผู้ขายเป็นของผู้ซื้อ ช่องจะขึ้นว่ายืนยันแล้วทั้งที่เอกสารสลับฝ่าย)
 
 
 def qr_match(d: InvoiceData, codes: Collection[str]) -> ValidationCheck:
@@ -206,15 +207,10 @@ def qr_match(d: InvoiceData, codes: Collection[str]) -> ValidationCheck:
     if not payloads:
         return ValidationCheck(name="qr_match", passed=None, detail="ไม่มี QR/บาร์โค้ดที่ถอดรหัสได้")
     tokens = {t.upper() for p in payloads for t in re.split(r"[^0-9A-Za-z\-]+", p) if t}
-    digits = [re.sub(r"\D", "", p) for p in payloads]
     hit = []
     for key in QR_CODE_KEYS:
         v = _get(d, key)
         if v and str(v).strip().upper() in tokens:
-            hit.append(key)
-    for key in QR_TAX_KEYS:
-        v = _get(d, key)
-        if v and is_valid_thai_tax_id(v) and any(str(v) in g for g in digits):
             hit.append(key)
     # QR/บาร์โค้ดจ่ายบิลข้ามธนาคาร: "|" + เลขผู้เสียภาษีของผู้รับเงิน 13 หลัก + suffix 2 หลัก ⏎ Ref1 ⏎ Ref2 ⏎ ยอดเงินหน่วยสตางค์ (ไม่มีจุดทศนิยม)
     # เจอจริงที่ 1313/1314 (UPS: ยอด 41773 = 417.73) ยืนยัน total_amount เมื่อยอดตรงพอดี

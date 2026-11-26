@@ -294,7 +294,7 @@ class FinanceOCRPipeline:
         """missing_hint: ลองใส่ค่าที่โมเดลเสนอลงสำเนาของ data แล้วตรวจซ้ำด้วย check ชุดเดิม
         ``Decision.confirmed_by`` = check เชิงความสัมพันธ์ (``RELATIONAL_CHECKS``) ที่อ้างถึงช่องนั้นและผ่านหลังใส่แต่ไม่ผ่านก่อนใส่
         ใส่ทีละค่า และใส่ทุกค่าพร้อมกัน (check บางตัวต้องมีครบสองช่อง เช่น 50 ทวิ: ยอดจ่ายกับภาษีที่หัก)
-        qr_match ไม่นับกับเลขภาษี (พบใน QR ไม่ได้บอกว่าเป็นของฝ่ายไหน) · ไม่ตั้งเกณฑ์ใหม่ · ไม่เปลี่ยน ``result``."""
+        ไม่ตั้งเกณฑ์ใหม่ · ไม่เปลี่ยน ``result``."""
         from .decision.questions import NOT_FOUND
         from .validation.checks import RELATIONAL_CHECKS
 
@@ -310,7 +310,7 @@ class FinanceOCRPipeline:
                     if c.passed is True and c.name not in before and c.name in RELATIONAL_CHECKS]
 
         def cites(c, key):
-            return key in (c.fields or []) and not (c.name == "qr_match" and key.endswith("tax_id"))
+            return key in (c.fields or [])
 
         together = passed_with(hints) if len(hints) > 1 else []
         for d in hints:

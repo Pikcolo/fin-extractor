@@ -51,12 +51,12 @@ def test_income_rows_sum_uses_dated_two_amount_rows_once():
     assert income_rows_sum(["ไม่มีแถว"], d).passed is None
 
 
-def test_qr_match_confirms_code_and_tax_id_but_never_fails():
+def test_qr_match_confirms_code_never_tax_id_and_never_fails():
     from fin_extractor.validation.checks import qr_match
 
     d = InvoiceData(invoice_no="BI8461-101069", vendor={"tax_id": "0105531076923"})
     c = qr_match(d, ["BI8461-101069", "|0105531076923090000027808081ZJ449G90401270034"])  # 1312 · QR จ่ายบิลของ 1313
-    assert c.passed is True and set(c.fields) == {"invoice_no", "vendor.tax_id"}
+    assert c.passed is True and set(c.fields) == {"invoice_no"}  # เลขภาษีใน QR ไม่บอกว่าเป็นของฝ่ายไหน จึงไม่ยืนยัน
     short = qr_match(InvoiceData(invoice_no="005"), ["https://example.com/order/8461005?s=ee12de83"])  # ท่อนสั้นใน URL ไม่นับ
     assert short.passed is None and short.fields == []
     assert qr_match(d, []).passed is None

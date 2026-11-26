@@ -189,7 +189,7 @@ const STEP_INFO = {
 const CHECK_INFO = {
   amount_in_words: "จำนวนเงินตัวอักษรบนเอกสาร แปลงเป็นตัวเลขแล้วต้องตรงกับช่องเงิน (50 ทวิ: ภาษีที่หัก · ใบสำคัญรับเงิน: ยอดรวม) อ่านตัวอักษรไม่ได้ = ตรวจไม่ได้",
   income_rows_sum: "50 ทวิ: แถวรวม = ผลรวมแถวรายการ (แถวที่มีวันที่จ่าย + ยอดจ่าย + ภาษีที่หัก) ตามนิยามของแบบฟอร์ม",
-  qr_match: "ค่าที่สกัดได้ตรงกับข้อความใน QR/บาร์โค้ด (อ่านด้วยเครื่อง ไม่ผ่าน OCR) เลขที่เอกสาร · เลขภาษี · ยอดเงินจาก QR จ่ายบิล ไม่พบ ≠ ผิด",
+  qr_match: "ค่าที่สกัดได้ตรงกับข้อความใน QR/บาร์โค้ด (อ่านด้วยเครื่อง ไม่ผ่าน OCR) เลขที่เอกสาร · ยอดเงินจาก QR จ่ายบิล (ไม่ยืนยันเลขภาษี: ไม่บอกว่าเป็นของฝ่ายไหน) ไม่พบ ≠ ผิด",
   vendor_tax_id_checksum: "เลขผู้เสียภาษีผู้ขาย 13 หลัก ผ่านสูตร checksum ของกรมสรรพากร",
   buyer_tax_id_checksum: "เลขผู้เสียภาษีผู้ซื้อ 13 หลัก ผ่านสูตร checksum",
   items_sum: "ผลรวมจำนวนเงินทุกรายการ = ยอดใดยอดหนึ่ง (รวมเงิน / ก่อน VAT / ยอดสุทธิ เมื่อราคารวม VAT / ยอดสุทธิ − VAT)",
@@ -734,7 +734,7 @@ RENDER.validate = d => {
   <div class="tablewrap"><table><tr><th>ผล</th><th>check</th><th>ตรวจอะไร</th><th>รายละเอียด</th><th>ฟิลด์ที่ใช้</th></tr>
     ${d.checks.map(c => `<tr><td>${mark(c.passed)}</td><td class="mono">${esc(c.name)}</td><td class="small">${esc(CHECK_INFO[c.name] || "")}</td><td class="small mono">${esc(c.detail)}</td><td class="small">${c.fields.map(f => `<code>${esc(f)}</code>`).join(" ")}</td></tr>`).join("")}</table></div>
   <h3>ระดับรายฟิลด์ (<code>review</code> ในผล)</h3>
-  <p class="small">ยืนยันแล้ว ${count("verified")} · ไม่มีตัวยืนยัน ${count("unverified")} · ขัดแย้ง ${count("conflict")} · หาไม่เจอ ${count("missing")} — กฎ: รูปแบบผิด / check ไม่ผ่าน / ค่าไม่ปรากฏในข้อความ → <b>ขัดแย้ง</b> · มี check ผ่าน → <b>ยืนยันแล้ว</b> · นอกนั้น → <b>ไม่มีตัวยืนยัน</b> (ชื่อ เลขที่ วันที่ ไม่มีตัวตรวจข้าม จึงไม่มีวันเป็น "ยืนยันแล้ว" · เลขภาษีที่ผ่านแค่ checksum ก็ไม่นับ เพราะไม่บอกว่าเป็นของฝ่ายไหน ยกเว้นตรงกับ QR) เรียงตามที่ควรตรวจก่อน</p>
+  <p class="small">ยืนยันแล้ว ${count("verified")} · ไม่มีตัวยืนยัน ${count("unverified")} · ขัดแย้ง ${count("conflict")} · หาไม่เจอ ${count("missing")} — กฎ: รูปแบบผิด / check ไม่ผ่าน / ค่าไม่ปรากฏในข้อความ → <b>ขัดแย้ง</b> · มี check ผ่าน → <b>ยืนยันแล้ว</b> · นอกนั้น → <b>ไม่มีตัวยืนยัน</b> (ชื่อ เลขที่ วันที่ ไม่มีตัวตรวจข้าม จึงไม่มีวันเป็น "ยืนยันแล้ว" · เลขภาษีก็ไม่นับ: checksum และ QR บอกแค่ว่าอ่านเลขถูก ไม่บอกว่าเป็นของฝ่ายไหน) เรียงตามที่ควรตรวจก่อน</p>
   <div class="tablewrap"><table><tr><th>ฟิลด์</th><th>ค่า (จาก <code>data</code>)</th><th>ระดับ</th><th>เหตุผล</th></tr>
     ${lv.filter(([k]) => !k.startsWith("remark[")).map(([k, e]) => `<tr><td>${esc(FIELD_LABEL[k] || k)}<div class="mono muted" style="font-size:11px">${esc(k)}</div></td>
       <td>${esc((((data("extract") || {}).fields || []).find(f => f.key === k) || {}).value ?? "")}</td><td><span class="badge ${LEVEL[e.level][1]}">${LEVEL[e.level][0]}</span></td>
