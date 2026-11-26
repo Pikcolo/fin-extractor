@@ -59,7 +59,17 @@ from fin_extractor.validation.evidence import flatten  # noqa: E402
 import review as R  # noqa: E402  (scripts/demo/review.py)
 
 WORKER = Path(__file__).with_name("ocr_demo_worker.py")
-PAGE = Path(__file__).with_name("ocr_demo.html")
+PAGE = Path(__file__).with_name("ocr_demo.html").read_bytes()  # อ่านครั้งเดียวตอนเริ่ม: สลับ git branch ขณะเซิร์ฟเวอร์รัน หน้าเว็บกับเซิร์ฟเวอร์ยังมาจากรุ่นเดียวกัน
+
+
+def _git(*args: str) -> str:
+    try:
+        return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, timeout=5).stdout.strip()
+    except Exception:  # noqa: BLE001
+        return "?"
+
+
+CODE_VERSION = {"branch": _git("rev-parse", "--abbrev-ref", "HEAD"), "commit": _git("rev-parse", "--short", "HEAD")}  # ตอนเริ่มเซิร์ฟเวอร์
 FONTS = ROOT / "assets" / "fonts"
 MAX_UPLOAD = 50 * 2**20
 # ตั้งค่าของขั้น preprocess/แบ่งส่วน = ค่าตั้งต้นของคำสั่ง sections (ไม่ให้เลือกบนหน้าเว็บ): ตรวจทิศอัตโนมัติ · ไม่ใช้ --fill-aware / --dotted-rules · ระบาย QR/บาร์โค้ด
@@ -646,7 +656,14 @@ def review_request(job: dict, edits: dict, save: bool = False) -> dict:
         res = R.corrected_result(ctx["base"], pipe, data, ctx["lines"], extra, set(edits), ctx.get("sources"))
         (d / "corrected.json").write_text(res.model_dump_json(indent=2), encoding="utf-8")
         log = [{"key": k, "before": (base_items if k == "items" else ctx["original"].get(k) or None), "after": v} for k, v in edits.items()]
-        (d / "edits.json").write_text(json.dumps({"file": job["file"], "edits": log}, ensure_ascii=False, indent=1), encoding="utf-8")
+        # ระดับ/check ของทุกช่องก่อนแก้ ไว้นับว่าช่องแต่ละระดับถูกแก้บ่อยแค่ไหน (scripts/eval/edit_rates.py) ช่องที่ไม่อยู่ใน edits = คนตรวจแล้วไม่แก้
+        base = ctx["base"]
+        (d / "edits.json").write_text(json.dumps({
+            "file": job["file"], "mode": (job_stage(job, "extract").get("data") or {}).get("used"),
+            "profile": base["data"].get("document_profile"), "edits": log,
+            "review": {k: {"level": v["level"], "source": v.get("source")} for k, v in base["review"].items()},
+            "checks": [{"name": c["name"], "passed": c["passed"], "fields": c.get("fields", [])} for c in base["checks"]],
+        }, ensure_ascii=False, indent=1), encoding="utf-8")
         out["saved"] = {"corrected": "corrected.json", "edits": "edits.json", "count": len(log)}
     return out
 
@@ -671,10 +688,10 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = urlparse(self.path).path
         if path == "/":
-            return self.send(200, PAGE.read_bytes(), "text/html; charset=utf-8")
+            return self.send(200, PAGE, "text/html; charset=utf-8")
         if path == "/api/info":
             return self.json({"engines": ENGINES, "llm_modes": LLM_MODES, "llm_model": load_config()["llm_extractor"]["model"],
-                              "busy": run_lock.locked(), "exts": sorted(SUPPORTED_EXTS)})
+                              "busy": run_lock.locked(), "exts": sorted(SUPPORTED_EXTS), "code": CODE_VERSION})
         if m := re.fullmatch(r"/font/(Sarabun-(?:Regular|Bold)\.ttf)", path):
             return self.send(200, (FONTS / m.group(1)).read_bytes(), "font/ttf")
         if m := re.fullmatch(r"/api/job/([\w-]+)", path):

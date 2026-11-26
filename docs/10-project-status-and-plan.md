@@ -2,7 +2,7 @@
 
 > เขียน 2026-11-20 เทียบโค้ดใน repo กับขอบเขตงาน 5 เฟสของหัวข้อ "Microservice-Based Intelligent OCR for Unstructured Financial Document Extraction"
 > และไอเดีย pipeline (สแกน → preprocess → Gemini → decision engine → คน/Excel) ตัวเลขทุกตัวมาจากผลวัดในเอกสารที่อ้าง
-> **อัปเดต 2026-11-26:** เก็บกวาดโค้ด: ลบ OXR, สคริปต์วัดแบบอ่านทั้งหน้า (`scripts/eval/benchmark.py`, `scripts/ocr/benchmark_cer.py` ฯลฯ), คำสั่ง `ocr` และตัวโหลดผลรุ่นเก่า (schema 2.x/3.x) ของที่ลบอยู่ในประวัติ git ถึง commit f6cc6eb · เลิกตั้งค่าผัง regions ตามชื่อไฟล์ (`doc_types.yaml`, template 50 ทวิ) ทุกเอกสารแบ่งแบบเดียวกัน: 50 ทวิดีขึ้น 3 ใบ แย่ลง 1 ใบ (1311) ดู [03-regions](03-regions.md)
+> **อัปเดต 2026-11-26:** เก็บกวาดโค้ด: ลบ OXR, สคริปต์วัดแบบอ่านทั้งหน้า (`scripts/eval/benchmark.py`, `scripts/ocr/benchmark_cer.py` ฯลฯ), คำสั่ง `ocr` และตัวโหลดผลรุ่นเก่า (schema 2.x/3.x) ของที่ลบอยู่ในประวัติ git ถึง commit f6cc6eb · เลิกตั้งค่าผัง regions ตามชื่อไฟล์ (`doc_types.yaml`, template 50 ทวิ) ทุกเอกสารแบ่งแบบเดียวกัน: 50 ทวิดีขึ้น 3 ใบ แย่ลง 1 ใบ (1311) ดู [03-regions](03-regions.md) · check ใหม่ `amount_in_words` (จำนวนเงินตัวอักษร = ตัวเลข) `income_rows_sum` (50 ทวิ: แถวรวม = ผลรวมแถวรายการ) · เลขภาษีไม่นับเป็นยืนยันแล้ว (checksum ไม่บอกว่าเป็นของฝ่ายไหน) · `scripts/eval/edit_rates.py` อัตราการถูกแก้ต่อระดับจาก edits.json · decision model (OpenThai-SystemOne) ทดลองแล้วพักไว้บน branch exp/decision-engine (docs/draft-11 อยู่บน branch นั้น)
 > **ยังไม่มี ground truth ของสแกนจริง** ตัวเลขผลบนสแกนจริงจึงวัด "ความครบ" (ฟิลด์ที่ขาด สถานะ) ไม่ใช่ "ความถูก"
 
 ## 1. สรุปสั้น

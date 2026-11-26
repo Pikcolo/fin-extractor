@@ -29,8 +29,10 @@ from ..extraction.patterns import find_dates, find_numbers, find_percents, find_
 from ..schema import FieldEvidence, FieldReview, InvoiceData, ValidationCheck
 from .tax_id import is_valid_thai_tax_id
 
-# check ที่ผ่านแล้วไม่ได้ยืนยันว่าอ่านค่าถูก (ตรวจแค่ความสมเหตุสมผล) แต่ถ้าไม่ผ่านยังนับว่าขัดแย้ง
-NOT_CORROBORATING = {"date_range"}
+# check ที่ผ่านแล้วไม่ได้ยืนยันว่าอ่านค่าถูก (ตรวจแค่ความสมเหตุสมผล/รูปแบบ) แต่ถ้าไม่ผ่านยังนับว่าขัดแย้ง
+# checksum เลขภาษี: ผ่าน = เป็นเลขภาษีที่ใช้ได้ ไม่บอกว่าเป็นของฝ่ายไหน (เอกสารมีเลขของทั้งผู้ซื้อและผู้ขาย
+# และผู้ซื้อ/ผู้ขายสลับกันเกิดจริงใน 1313 1314 1316) จึงไม่ยกเป็น verified เลขภาษีจึงไม่มีวันเป็น verified
+NOT_CORROBORATING = {"date_range", "vendor_tax_id_checksum", "buyer_tax_id_checksum"}
 
 _SCALARS = ("document_type", "book_no", "invoice_no", "date",
             "subtotal", "discount", "amount_before_vat", "vat_rate", "vat_amount", "total_amount")

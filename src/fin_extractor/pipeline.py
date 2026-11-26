@@ -33,6 +33,7 @@ from .readers import reader_label
 from .readers.lines import normalize_thai
 from .schema import ExtractionResult, InvoiceData, RejectedValue, ValidationCheck
 from .validation import decide_status, run_checks
+from .validation.checks import NOT_APPLICABLE_DETAIL, income_rows_sum
 from .validation.evidence import build_field_evidence, comparable, field_grounding, flatten, review_from_evidence
 
 log = logging.getLogger(__name__)
@@ -200,7 +201,7 @@ class FinanceOCRPipeline:
 
     def _score(self, d: InvoiceData, profile: Profile) -> float:
         checks = run_checks(d, self.cfg["validation"]["amount_tolerance"],
-                            self.cfg["validation"]["default_vat_rate"], applicable=profile.checks)
+                            self.cfg["validation"]["default_vat_rate"], applicable=profile.checks, words=profile.words)
         return sum(c.passed is True for c in checks) - sum(c.passed is False for c in checks)
 
     def _extract_hybrid(self, rules: InvoiceData, profile: Profile, lines: list[str], raw_text: str):
@@ -209,7 +210,7 @@ class FinanceOCRPipeline:
         sources = dict.fromkeys(flatten(rules), "rules")
         na = set(profile.not_applicable)
         checks = run_checks(rules, self.cfg["validation"]["amount_tolerance"],
-                            self.cfg["validation"]["default_vat_rate"], applicable=profile.checks)
+                            self.cfg["validation"]["default_vat_rate"], applicable=profile.checks, words=profile.words)
         unresolved = unresolved_keys(rules, checks, profile.required, na, profile.primary_amount)
         asked = {top_level(k) for k in unresolved}
         if not profile_schema(profile, asked)["properties"]:  # ไม่มีช่องไหนที่ LLM ตอบได้ (เช่น ชนิดนี้ไม่มีช่องนั้น)
@@ -234,7 +235,13 @@ class FinanceOCRPipeline:
         ``lines`` = บรรทัดของข้อความที่อ่านได้ (ใช้ตรวจว่าค่าปรากฏในข้อความไหม)."""
         profile = self.profile_for(data)
         checks = run_checks(data, self.cfg["validation"]["amount_tolerance"],
-                            self.cfg["validation"]["default_vat_rate"], applicable=profile.checks) + list(extra)
+                            self.cfg["validation"]["default_vat_rate"], applicable=profile.checks, words=profile.words)
+        # 50 ทวิ: ยอดรวม = ผลรวมแถวรายการ ต้องใช้บรรทัดข้อความ (แถวรายการไม่ได้เก็บใน data) ชนิดอื่นรายงานว่าไม่ใช้ ให้ทุกผลมีชื่อ check ชุดเดียวกัน
+        if profile.checks is not None and "income_rows_sum" in profile.checks:
+            checks.append(income_rows_sum(lines, data, tol=self.cfg["validation"]["amount_tolerance"]))
+        else:
+            checks.append(ValidationCheck(name="income_rows_sum", passed=None, detail=NOT_APPLICABLE_DETAIL))
+        checks += list(extra)
         na = set(profile.not_applicable)
         missing, status = decide_status(data, checks, not_applicable=na, required=profile.required,
                                         primary_amount=profile.primary_amount,

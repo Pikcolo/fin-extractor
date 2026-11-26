@@ -23,7 +23,8 @@ FIELD_TYPES = ("text", "code", "money", "date", "tax_id", "percent")
 KEY_FIELDS = ("vendor.name", "vendor.tax_id", "invoice_no", "date", "total_amount")
 # ชื่อ check ทั้งหมดของ validation/checks.py (โปรไฟล์ประกาศ ``checks`` จากรายการนี้เท่านั้น)
 KNOWN_CHECKS = ("vendor_tax_id_checksum", "buyer_tax_id_checksum", "items_sum", "discount",
-                "before_vat_plus_vat", "vat_rate", "date_range")
+                "before_vat_plus_vat", "vat_rate", "date_range",
+                "amount_in_words", "income_rows_sum")
 DOC_PREFIX = "document_fields."
 
 
@@ -49,6 +50,7 @@ class FieldSpec:
     of: int | None = None  # money: บรรทัดนั้นต้องมีกี่ยอดพอดี ไม่ครบ = ไม่ให้ค่า (กันหยิบยอดผิดตัวเมื่อ OCR ทำยอดหายไป)
     next_line: bool = False  # text: ถ้าหลังป้ายไม่มีค่าที่ใช้ได้ ลองบรรทัดถัดไป (เช่น 50 ทวิ ชื่ออยู่บรรทัดใต้ป้ายผู้ถูกหักภาษี)
     next_line_caption: bool = False  # text: เหมือน next_line แต่รับเฉพาะบรรทัดถัดไปที่ขึ้นต้นด้วยป้ายกำกับชื่อ ("Name |", "Customer Name:")
+    words_of: str | None = None  # text: ช่องนี้คือจำนวนเงินตัวอักษรของช่องเงินไหน (คีย์แบบ flatten เช่น total_amount, document_fields.total_paid) ใช้กับ check amount_in_words
 
     def __post_init__(self) -> None:
         if self.type not in FIELD_TYPES:
@@ -86,6 +88,11 @@ class Profile:
     def matches(self, squashed_text: str) -> bool:
         return any(a and a in squashed_text for a in self._squashed)
 
+    @property
+    def words(self) -> tuple[tuple[str, str], ...]:
+        """(ช่องจำนวนเงินตัวอักษร, ช่องเงินที่ต้องตรงกัน) ของ check amount_in_words."""
+        return tuple((DOC_PREFIX + f.key, f.words_of) for f in self.fields if f.words_of)
+
     def spec(self, key: str) -> FieldSpec | None:
         return next((f for f in self.fields if f.key == key), None)
 
@@ -106,7 +113,7 @@ def _specs(items, *, core: bool = False) -> tuple[FieldSpec, ...]:
         FieldSpec(key=f["key"], label=f.get("label", f["key"]), type="text" if core else f.get("type", "text"),
                   aliases=tuple(f.get("aliases", ())), source=f.get("source", ""),
                   nth=f.get("nth", 0), of=f.get("of"), next_line=bool(f.get("next_line", False)),
-                  next_line_caption=bool(f.get("next_line_caption", False)))
+                  next_line_caption=bool(f.get("next_line_caption", False)), words_of=f.get("words_of"))
         for f in items or ()
     )
     if core:

@@ -124,6 +124,8 @@ tr.flash td { animation:fl 1.6s; } @keyframes fl { from { background:var(--warn-
 .rv-row.lv-unverified { border-left-color:var(--na); } .rv-row.lv-verified { border-left-color:var(--ok); } .rv-row.lv-edited { border-left-color:var(--accent); }
 .rv-row input { width:100%; font:inherit; padding:5px 8px; border:1px solid var(--line); border-radius:5px; background:var(--panel); color:var(--ink); }
 .rv-row input.changed { background:var(--accent-soft); border-color:var(--accent); }
+.rv-row textarea, .rv-items td textarea { width:100%; font:inherit; font-size:13px; padding:4px 6px; border:1px solid var(--line); border-radius:4px; background:var(--panel); color:var(--ink); resize:vertical; box-sizing:border-box; }
+.rv-row textarea.changed { border-color:var(--acc, var(--accent)); }
 .rv-row ul { margin:0; padding-left:18px; font-size:13px; color:var(--muted); }
 .rv-err { color:var(--bad); font-size:12.5px; margin-top:2px; }
 .rv-items td input { width:100%; font:inherit; font-size:13px; padding:3px 6px; border:1px solid var(--line); border-radius:4px; background:var(--panel); color:var(--ink); }
@@ -140,7 +142,7 @@ tr.flash td { animation:fl 1.6s; } @keyframes fl { from { background:var(--warn-
 .toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:6px 0; }
 </style></head><body>
 <header>
-  <h1>OCR ทีละขั้น</h1>
+  <h1>OCR ทีละขั้น <span class="small muted" id="codever" style="font-weight:400"></span></h1>
   <p>อัปโหลดเอกสาร 1 ไฟล์ แล้วดูว่าแต่ละขั้นของ fin_extractor ทำอะไรกับมัน ตั้งแต่ภาพดิบจนได้ JSON สุดท้าย · คลิกกรอบ/รหัสส่วน (เช่น <span class="sec">s03</span>) ที่ไหนก็ได้เพื่อตามส่วนนั้นข้ามทุกขั้น</p>
 </header>
 <div id="stepper"><div class="in" id="steps"></div></div>
@@ -191,6 +193,8 @@ const CHECK_INFO = {
   before_vat_plus_vat: "มูลค่าก่อน VAT (ไม่มีใช้รวมเงิน − ส่วนลด) + VAT = ยอดสุทธิ",
   vat_rate: "VAT ≈ อัตรา × ฐาน (ค่าตั้งต้น 7%)",
   date_range: "วันที่อยู่ระหว่าง 2000-01-01 ถึงวันนี้ (ไม่นับเป็นตัวยืนยันค่า)",
+  amount_in_words: "จำนวนเงินตัวอักษรบนเอกสาร แปลงเป็นตัวเลขแล้วต้องตรงกับช่องเงิน (50 ทวิ: ภาษีที่หัก · ใบสำคัญรับเงิน: ยอดรวม) อ่านตัวอักษรไม่ได้ = ตรวจไม่ได้",
+  income_rows_sum: "50 ทวิ: แถวรวม = ผลรวมแถวรายการ (แถวที่มีวันที่จ่าย + ยอดจ่าย + ภาษีที่หัก) ตามนิยามของแบบฟอร์ม",
   reader_complete: "ตัวอ่านตอบจบทุกส่วน (ไม่ชนเพดาน token)",
 };
 const FIELD_LABEL = {
@@ -213,6 +217,7 @@ async function init() {
   $("#llm").innerHTML = info.llm_modes.map(m => `<option value="${m}">${LLM_LABEL[m] || m}</option>`).join("")
     + `<option value="all">ทั้ง 3 แบบ เทียบกัน (rules · hybrid · winner)</option>`;
   $("#file").accept = info.exts.join(",");
+  $("#codever").textContent = info.code ? `· branch ${info.code.branch} @ ${info.code.commit} (สลับ branch แล้วรีสตาร์ตเซิร์ฟเวอร์)` : "";
   if (info.busy) $("#msg").textContent = "มีงานกำลังรันอยู่";
   const m = location.hash.match(/^#job=([\w-]+)$/);  // รีเฟรชแล้วกลับมาดูงานเดิมได้ (ระหว่างที่เซิร์ฟเวอร์ยังเปิดอยู่)
   if (m) { jobId = m[1]; $("#msg").textContent = "งาน " + jobId; poll(); }
@@ -671,7 +676,7 @@ RENDER.validate = d => {
   <div class="tablewrap"><table><tr><th>ผล</th><th>check</th><th>ตรวจอะไร</th><th>รายละเอียด</th><th>ฟิลด์ที่ใช้</th></tr>
     ${d.checks.map(c => `<tr><td>${mark(c.passed)}</td><td class="mono">${esc(c.name)}</td><td class="small">${esc(CHECK_INFO[c.name] || "")}</td><td class="small mono">${esc(c.detail)}</td><td class="small">${c.fields.map(f => `<code>${esc(f)}</code>`).join(" ")}</td></tr>`).join("")}</table></div>
   <h3>ระดับรายฟิลด์ (<code>review</code> ในผล)</h3>
-  <p class="small">ยืนยันแล้ว ${count("verified")} · ไม่มีตัวยืนยัน ${count("unverified")} · ขัดแย้ง ${count("conflict")} · หาไม่เจอ ${count("missing")} — กฎ: รูปแบบผิด / check ไม่ผ่าน / ค่าไม่ปรากฏในข้อความ → <b>ขัดแย้ง</b> · มี check ผ่าน → <b>ยืนยันแล้ว</b> · นอกนั้น → <b>ไม่มีตัวยืนยัน</b> (ชื่อ เลขที่ วันที่ ไม่มีตัวตรวจข้าม จึงไม่มีวันเป็น "ยืนยันแล้ว") เรียงตามที่ควรตรวจก่อน</p>
+  <p class="small">ยืนยันแล้ว ${count("verified")} · ไม่มีตัวยืนยัน ${count("unverified")} · ขัดแย้ง ${count("conflict")} · หาไม่เจอ ${count("missing")} — กฎ: รูปแบบผิด / check ไม่ผ่าน / ค่าไม่ปรากฏในข้อความ → <b>ขัดแย้ง</b> · มี check ผ่าน → <b>ยืนยันแล้ว</b> · นอกนั้น → <b>ไม่มีตัวยืนยัน</b> (ชื่อ เลขที่ วันที่ ไม่มีตัวตรวจข้าม จึงไม่มีวันเป็น "ยืนยันแล้ว" · เลขภาษีก็ไม่นับ: checksum บอกแค่ว่าเลขใช้ได้ ไม่บอกว่าเป็นของฝ่ายไหน) เรียงตามที่ควรตรวจก่อน</p>
   <div class="tablewrap"><table><tr><th>ฟิลด์</th><th>ค่า (จาก <code>data</code>)</th><th>ระดับ</th><th>เหตุผล</th></tr>
     ${lv.filter(([k]) => !k.startsWith("remark[")).map(([k, e]) => `<tr><td>${esc(FIELD_LABEL[k] || k)}<div class="mono muted" style="font-size:11px">${esc(k)}</div></td>
       <td>${esc((((data("extract") || {}).fields || []).find(f => f.key === k) || {}).value ?? "")}</td><td><span class="badge ${LEVEL[e.level][1]}">${LEVEL[e.level][0]}</span></td>
@@ -685,6 +690,10 @@ RENDER.validate = d => {
 
 // ------------------------------------------------------------------ ตรวจ/แก้รายฟิลด์ (ไม่ใช้ decision engine: เรียงตามหลักฐานที่ระบบมี)
 let reviewEdits = {}, reviewData = null, reviewErr = {}, reviewSaved = null;
+// ช่องข้อความยาวใช้ textarea ตามชนิดช่อง (ชื่อ ที่อยู่ รายละเอียด ฟิลด์ข้อความของโปรไฟล์) สูงตามเนื้อหา
+const LONG_KEYS = new Set(["vendor.name", "vendor.address", "buyer.name", "buyer.address"]);
+const isLong = r => LONG_KEYS.has(r.key) || (r.key.startsWith("document_fields.") && (r.type === "text" || /_text$|words/.test(r.key)));
+const rowsFor = v => Math.min(8, Math.max(2, Math.ceil(String(v || "").length / 60) + (String(v || "").match(/\n/g) || []).length));
 const RV_LEVEL = { conflict: ["ขัดแย้ง ต้องแก้/ยืนยัน", "b-bad"], missing: ["หาไม่เจอ ต้องกรอก", "b-warn"], unverified: ["ไม่มีตัวยืนยัน ดูเทียบภาพ", ""],
                    edited: ["แก้แล้ว", "b-acc"], verified: ["ยืนยันแล้ว", "b-ok"], empty: ["ไม่มีค่า", ""], not_applicable: ["ไม่มีในชนิดนี้", ""] };
 RENDER.review = d => { if (!reviewData) reviewData = d; return `<div id="reviewBox">${reviewHtml()}</div>`; };
@@ -694,7 +703,9 @@ function rvRow(r) {
   return `<div class="rv-row lv-${r.level}" data-sec="${r.sections[0] || ""}">
     <div><b>${esc(r.label || FIELD_LABEL[r.key] || r.key)}</b><div class="mono muted" style="font-size:11px">${esc(r.key)}</div>
       <div style="margin-top:4px"><span class="badge ${lv[1]}">${lv[0]}</span>${changed && r.level !== "edited" ? ' <span class="badge b-acc">แก้แล้ว</span>' : ""}${srcBadge(r.source)}</div></div>
-    <div><input value="${esc(v)}" class="${changed ? "changed" : ""}" placeholder="${r.level === "missing" ? "กรอกจากภาพ" : "ว่าง"}" onchange="reviewEdit('${r.key}', this.value)">
+    <div>${isLong(r)
+      ? `<textarea rows="${rowsFor(v)}" class="${changed ? "changed" : ""}" placeholder="${r.level === "missing" ? "กรอกจากภาพ" : "ว่าง"}" onchange="reviewEdit('${r.key}', this.value)">${esc(v)}</textarea>`
+      : `<input value="${esc(v)}" class="${changed ? "changed" : ""}" placeholder="${r.level === "missing" ? "กรอกจากภาพ" : "ว่าง"}" onchange="reviewEdit('${r.key}', this.value)">`}
       ${reviewErr[r.key] ? `<div class="rv-err">${esc(reviewErr[r.key])}</div>` : ""}
       <div class="small muted" style="margin-top:3px">${r.edited ? `ระบบอ่านได้: ${esc(r.original || "—")} <a href="#" onclick="reviewReset('${r.key}');return false">คืนค่าเดิม</a>` : ""}
         ${r.sections.length ? ` มาจากส่วน ${r.sections.map(s => secChip(s)).join(" ")}` : ""}</div></div>
@@ -706,7 +717,9 @@ function rvItems(d) {
     <div><b>รายการสินค้า/บริการ</b> <span class="badge ${RV_LEVEL[d.items_edited ? "edited" : d.items_level][1]}">${RV_LEVEL[d.items_edited ? "edited" : d.items_level][0]}</span>
       <span class="small muted"> · ${esc(d.items_reason)}</span></div>
     <div class="tablewrap"><table class="rv-items"><tr><th>รายละเอียด</th><th style="width:80px">จำนวน</th><th style="width:100px">ราคา/หน่วย</th><th style="width:110px">จำนวนเงิน</th><th style="width:30px"></th></tr>
-      ${items.map((it, i) => `<tr>${["description", "quantity", "unit_price", "amount"].map(k => `<td><input data-i="${i}" data-k="${k}" value="${esc(it[k])}" onchange="rvItemsChanged()"></td>`).join("")}
+      ${items.map((it, i) => `<tr>${["description", "quantity", "unit_price", "amount"].map(k => k === "description"
+        ? `<td><textarea data-i="${i}" data-k="${k}" rows="${rowsFor(it[k])}" onchange="rvItemsChanged()">${esc(it[k])}</textarea></td>`
+        : `<td><input data-i="${i}" data-k="${k}" value="${esc(it[k])}" onchange="rvItemsChanged()"></td>`).join("")}
         <td><button onclick="rvItemDel(${i})" title="ลบแถว">×</button></td></tr>`).join("")}</table></div>
     <div><button onclick="rvItemAdd()">+ เพิ่มรายการ</button></div></div>`;
 }
@@ -751,7 +764,7 @@ async function reviewSend(save = false) {
 }
 function reviewEdit(key, value) { reviewEdits[key] = value; reviewSend(); }
 function reviewReset(key) { delete reviewEdits[key]; reviewSend(); }
-function rvItemsRead() { const rows = []; document.querySelectorAll(".rv-items input").forEach(i => { (rows[i.dataset.i] ||= {})[i.dataset.k] = i.value; }); return rows; }
+function rvItemsRead() { const rows = []; document.querySelectorAll(".rv-items input, .rv-items textarea").forEach(i => { (rows[i.dataset.i] ||= {})[i.dataset.k] = i.value; }); return rows; }
 function rvItemsChanged() { reviewEdits.items = rvItemsRead(); reviewSend(); }
 function rvItemDel(i) { const rows = rvItemsRead(); rows.splice(i, 1); reviewEdits.items = rows; reviewSend(); }
 function rvItemAdd() { const rows = rvItemsRead(); rows.push({ description: "", quantity: "", unit_price: "", amount: "" }); reviewEdits.items = rows; $("#reviewBox").innerHTML = reviewHtml(); }
