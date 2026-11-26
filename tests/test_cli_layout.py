@@ -20,6 +20,7 @@ class FakePipe:
 
     def __init__(self, cfg, engine="openthai", use_llm=False, strategy=None):
         self.strategy = strategy or "winner"
+        self.profiles = []
         self.reader = SimpleNamespace(name=engine)
         self.llm = object() if use_llm else None
         self.engine_name = f"{engine}:fake+{'llm' if self.llm else 'rules'}"
@@ -149,4 +150,31 @@ def test_extract_only_selects_files_by_name_suffix_but_keeps_the_per_file_layout
     m = json.loads((ex / "manifest.json").read_text(encoding="utf-8"))
     assert [f["output"] for f in m["files"]] == ["b/b_p1.json"]
     assert not (ex / "a").exists() and not (ex / "c").exists()
+    capsys.readouterr()
+
+
+def test_extract_decision_on_records_decisions_in_shadow_mode(env, capsys, monkeypatch):
+    class FakeBackend:
+        name = "fake"
+
+        def __init__(self, *a, **k):
+            pass
+
+        def choice(self, state, instructions, options):
+            return {k: 1 / len(options) for k in options}, 0.0
+
+        def noul(self, state, instructions):
+            return 0.9
+
+    monkeypatch.setattr("fin_extractor.decision.client.SystemOneBackend", FakeBackend)
+    put_raw(env)
+    final = env.data / "05_extract" / "scans" / "openthai" / "regions-luma" / "rules"
+    run(env, "extract", str(env.src))
+    off = json.loads((final / "a_p1.json").read_text(encoding="utf-8"))
+    run(env, "extract", str(env.src), "--decision", "on")
+    on = json.loads((final / "a_p1.json").read_text(encoding="utf-8"))
+    assert "decisions" not in off and {d["task"] for d in on.pop("decisions")} == {"doc_type", "profile"}
+    assert on == off                                                     # ผลส่วนอื่นเหมือนเดิมทุกค่า (shadow)
+    m = json.loads((final / "manifest.json").read_text(encoding="utf-8"))
+    assert m["settings"]["decision_model"] == "fake"
     capsys.readouterr()

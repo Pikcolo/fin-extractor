@@ -58,6 +58,10 @@ def cmd_extract(args, cfg) -> None:
     pipe = FinanceOCRPipeline(cfg, engine=args.engine, use_llm=use_llm,
                               strategy="hybrid" if args.llm == "hybrid" else None)
     extractor = ("hybrid" if pipe.strategy == "hybrid" else "llm") if pipe.llm else "rules"
+    from .decision import make_decider
+    from .decision.questions import build as build_questions
+
+    decider = make_decider(cfg, {"on": True, "off": False, None: None}[args.decision])
     base = Path(args.out) if args.out else None
     raw_dir = base / "04_ocr" / args.variant if base else paths.raw_data(args.engine, dataset, args.variant)
     final_dir = base / "05_extract" / args.variant / extractor if base else paths.final(args.engine, dataset, extractor, args.variant)
@@ -65,6 +69,7 @@ def cmd_extract(args, cfg) -> None:
         "engine": pipe.engine_name, "variant": args.variant, "profile": args.profile,
         "keep_raw": args.keep_raw, "raw_data": Path(os.path.relpath(raw_dir, final_dir)).as_posix(),
         **({"llm_model": cfg["llm_extractor"]["model"]} if pipe.llm else {}),
+        **({"decision_model": decider.backend.name, "decision_tasks": decider.tasks} if decider else {}),
     }
     with Run("extract", args.input, cfg, final_dir, settings) as run:
         all_files = list(iter_input_files(args.input))
@@ -77,6 +82,8 @@ def cmd_extract(args, cfg) -> None:
                 print(f"ข้าม {f.name}: ไม่มีข้อความดิบใน {raw_dir} (รัน sections --engine {args.engine} --to ocr ก่อน)")
                 continue
             for page_no, r in ((no, pipe.process_raw(str(f), no, *load_raw(p))) for no, p in pages):
+                if decider:  # shadow mode: บันทึกคำตอบอย่างเดียว ไม่แตะ data / review / status
+                    r.decisions = decider.ask(build_questions(r.data, r.raw_text, pipe.profiles, decider.cfg))
                 seconds = round(time.perf_counter() - t0, 2)
                 if not args.keep_raw:
                     r.raw_text = None
@@ -240,6 +247,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--engine", choices=SECTION_ENGINES, default="openthai", help="อ่านข้อความจาก 04_ocr/<dataset>/<engine>/<วิธี>/")
     s.add_argument("--variant", choices=["luma", "flat", "bin", "color", "regions-luma"], default="regions-luma",
                    help="ภาพรายส่วนแบบไหนที่ใช้ตอนอ่าน (โฟลเดอร์ <วิธี>) regions-luma = ภาพ region (ค่าตั้งต้นของ flow) · luma/flat/bin/color = ผัง section แบบเดิม")
+    s.add_argument("--decision", choices=["on", "off"], default=None,
+                   help="decision model แบบ shadow (บันทึก decisions อย่างเดียว ไม่เปลี่ยนผล) ไม่ใส่ = ตาม config decision.enabled (docs/draft-11)")
     s.add_argument("--llm", choices=["auto", "on", "off", "hybrid"], default="off",
                    help="off = rules อย่างเดียว | on/auto = rules และ LLM สกัดแยก เลือกชุดที่ check ดีกว่า | "
                         "hybrid = rules นำ LLM เติมเฉพาะช่องที่ยังไม่เสร็จ ค่าต้องผ่านด่านก่อนรับ (ผลลง <extractor>/hybrid/)")

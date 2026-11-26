@@ -88,6 +88,27 @@ coverage_check:
   enabled: true
   engine: openthai-text
 
+# decision model (docs/draft-11-openthai-systemone-plan.md) ขั้น P2 shadow: บันทึก decisions ในผลอย่างเดียว ไม่เปลี่ยน data/review/status
+# เปิดด้วย extract --decision on · โมเดล: hf download iapp/OpenThai-SystemOne --local-dir models/OpenThai-SystemOne (Apache-2.0) · pip install openthai-systemone
+# P0 (2026-11-26, CPU เครื่องนี้): ~1.1 วินาทีต่อคำถาม · RAM เพิ่ม ~2.9 GB (float32 บน CPU) · ผลอยู่ data/etc/compare/systemone_spike.json
+decision:
+  enabled: false
+  backend: systemone
+  model: models/OpenThai-SystemOne
+  device: cpu                  # ไม่ใช้ GPU (เครื่องนี้เคยดับตอนงาน GPU หนัก) P0 วัดบน CPU แล้วพอ
+  tasks: [doc_type, profile, party_name]
+  # ตัวเลือกของงาน doc_type: ชนิดตามที่พิมพ์บนเอกสาร จากรายการที่ผู้ใช้ให้มา (2026-11-26 ครอบคลุมสแกน 18 ใบ) ยังรอผู้ใช้ยืนยันว่า
+  # หมายเหตุในวงเล็บ ("ENG ล้วน", "ลายมือ") และชื่อรวมหลายชนิดนับอย่างไร (docs/draft-11 หัวข้อ 9)
+  doc_types:
+    - ใบแจ้งหนี้/ใบเสร็จ
+    - หนังสือรับรองการหักภาษี ณ ที่จ่าย
+    - ใบเสร็จรับเงิน/ใบกำกับภาษี
+    - ใบส่งของ/ใบเสร็จรับเงิน/ใบกำกับภาษี
+    - ใบเสร็จ (ENG ล้วน)
+    - ใบเสร็จรับเงิน
+    - ต้นฉบับใบส่งสินค้า/สำเนาใบกำกับภาษี
+    - ใบสำคัญรับเงิน (ลายมือ)
+
 llm_extractor:
   # LLM ที่แปลง text/markdown → JSON ตาม schema (ใช้เมื่อ --llm on/auto/hybrid)
   provider: ollama

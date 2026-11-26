@@ -146,6 +146,21 @@ class FieldReview(BaseModel):
         return d
 
 
+class Decision(BaseModel):
+    """คำตอบของ decision model ต่อหนึ่งคำถาม (shadow mode: บันทึกอย่างเดียว ไม่เปลี่ยน data / review / status ดู decision/)."""
+
+    task: str = Field(description="doc_type | profile | party_name")
+    key: str = Field(description="ฟิลด์ที่คำถามนี้เกี่ยวข้อง เช่น document_type, vendor.name")
+    type: Literal["choice", "noul"]
+    answer: str = Field(description="ตัวเลือกที่ความน่าจะเป็นสูงสุด (noul: yes/no)")
+    probabilities: dict[str, float] = Field(description="ความน่าจะเป็นของทุกตัวเลือก (choice: เฉลี่ยจากทุกลำดับตัวเลือกที่ถาม)")
+    abstain: float | None = Field(None, description="ความน่าจะเป็นของช่อง abstain ที่โมเดลรายงาน (สูงสุดจากทุกลำดับ) noul ไม่มี")
+    orders: int = Field(1, description="จำนวนลำดับตัวเลือกที่ถาม (สลับลำดับเพราะคำตอบพลิกตามลำดับได้)")
+    agreed: bool = Field(True, description="ทุกลำดับเลือกตัวเลือกเดียวกันไหม")
+    model: str
+    state: dict = Field(default_factory=dict, description="ข้อมูลที่ป้อนเข้าโมเดลจริง (ไว้ตรวจย้อนหลัง)")
+
+
 class ExtractionResult(BaseModel):
     schema_version: str = SCHEMA_VERSION
     source_file: str
@@ -162,6 +177,7 @@ class ExtractionResult(BaseModel):
     ocr_confidence: float | None = Field(None, ge=0, le=1, description="ค่าเฉลี่ยที่ OCR engine รายงานเอง (มีเฉพาะ Paddle / OpenThai Text) ไม่มี = ไม่มีคีย์")
     raw_text: str | None = Field(None, description="ข้อความดิบจากตัวอ่าน (เฉพาะเมื่อสั่ง --keep-raw) ไว้ debug")
     rejected: list[RejectedValue] = Field(default_factory=list, description="ค่าที่ LLM เสนอแต่ไม่ถูกรับ (โหมด hybrid) พร้อมเหตุผล ไม่มี = ไม่มีคีย์")
+    decisions: list[Decision] = Field(default_factory=list, description="คำตอบของ decision model (extract --decision on) บันทึกอย่างเดียว ไม่มี = ไม่มีคีย์")
 
     @property
     def missing_fields(self) -> list[str]:
@@ -175,6 +191,7 @@ class ExtractionResult(BaseModel):
         for k in ("ocr_confidence", "raw_text"):
             if d.get(k) is None:
                 d.pop(k, None)
-        if not d.get("rejected"):
-            d.pop("rejected", None)
+        for k in ("rejected", "decisions"):
+            if not d.get(k):
+                d.pop(k, None)
         return d
