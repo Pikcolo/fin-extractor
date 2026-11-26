@@ -76,12 +76,18 @@
           "type": "object"
         },
         "confirmed_by": {
-          "description": "missing_hint: check ที่ผ่านเมื่อลองใส่ค่าที่เสนอ (และไม่ผ่าน/ตรวจไม่ได้ก่อนใส่) ว่าง = ไม่มี check ยืนยัน ไม่ได้แปลว่าผิด",
+          "description": "missing_hint: check เชิงความสัมพันธ์ที่อ้างถึงช่องนี้และผ่านเมื่อลองใส่ค่าที่เสนอ (ก่อนใส่ไม่ผ่าน/ตรวจไม่ได้) ว่าง = ไม่มี check ยืนยัน ไม่ได้แปลว่าผิด",
           "items": {
             "type": "string"
           },
           "title": "Confirmed By",
           "type": "array"
+        },
+        "filled": {
+          "default": false,
+          "description": "missing_hint: ค่าที่เสนอถูกเติมลง data แล้ว (ผ่านด่านของ decision.fill_confirmed)",
+          "title": "Filled",
+          "type": "boolean"
         }
       },
       "required": [
@@ -641,7 +647,7 @@
       "type": "array"
     },
     "decisions": {
-      "description": "คำตอบของ decision model (extract --decision on) บันทึกอย่างเดียว ไม่มี = ไม่มีคีย์",
+      "description": "คำตอบของ decision model (extract --decision on) ไม่มี = ไม่มีคีย์ · ค่าที่เติมจากคำตอบ (decision.fill_confirmed) มี review.<ฟิลด์>.source = decision",
       "items": {
         "$ref": "#/$defs/Decision"
       },

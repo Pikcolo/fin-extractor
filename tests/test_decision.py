@@ -129,3 +129,63 @@ def test_missing_hint_is_confirmed_only_by_checks_that_pass_with_the_suggested_v
     assert "before_vat_plus_vat" in right.confirmed_by
     assert wrong.confirmed_by == [] and none.confirmed_by == []
     assert r.data.total_amount is None  # shadow: ผลจริงไม่เปลี่ยน
+
+
+def _hint(key, v):
+    from fin_extractor.schema import Decision
+
+    return Decision(task="missing_hint", key=key, type="choice", answer=v, probabilities={v: 1.0}, model="fake")
+
+
+def _receipt(pipe, extra=""):
+    return pipe.process_raw("x.pdf", 1, "<!-- s00 -->\nใบกำกับภาษี\nเลขที่ INV-1 วันที่ 01/10/2026\n"
+                                        "มูลค่าก่อนภาษี 100.00\nภาษีมูลค่าเพิ่ม 7.00\n" + extra)
+
+
+def test_fill_writes_only_check_confirmed_values_with_source_decision_and_never_auto_approves():
+    from fin_extractor.pipeline import FinanceOCRPipeline
+
+    pipe = FinanceOCRPipeline(CFG, engine="openthai")
+    r = _receipt(pipe, "ชำระ 107.00\n")  # ค่าที่เสนอมาจากบรรทัด OCR เสมอ (ตัวเลือกของ missing_hint)
+    assert r.data.total_amount is None
+    right = _hint("total_amount", "107.00")
+    pipe.confirm_hints(r, [right])
+    out = pipe.apply_hints(r, [right])
+    assert str(out.data.total_amount) == "107.00" and right.filled
+    assert out.review["total_amount"].source == "decision" and out.review["total_amount"].level == "verified"
+    assert out.status != "auto_approved"
+    assert r.data.total_amount is None  # ผลเดิมไม่ถูกแก้ในที่
+
+    wrong = _hint("total_amount", "100.00")
+    pipe.confirm_hints(r, [wrong])
+    assert pipe.apply_hints(r, [wrong]) is r and not wrong.filled
+
+
+def test_tax_id_hint_is_never_filled_even_when_the_checksum_passes():
+    from fin_extractor.pipeline import FinanceOCRPipeline
+
+    pipe = FinanceOCRPipeline(CFG, engine="openthai")
+    r = _receipt(pipe)
+    tid = _hint("vendor.tax_id", "0105549019026")  # ผ่าน checksum แต่ไม่บอกว่าเป็นของฝ่ายไหน
+    pipe.confirm_hints(r, [tid])
+    assert tid.confirmed_by == [] and pipe.apply_hints(r, [tid]) is r
+
+
+def test_fill_is_dropped_when_it_makes_another_check_fail():
+    from fin_extractor.pipeline import FinanceOCRPipeline
+    from fin_extractor.schema import ValidationCheck
+
+    pipe = FinanceOCRPipeline(CFG, engine="openthai")
+    r = _receipt(pipe)
+    h = _hint("total_amount", "107.00")
+    h.confirmed_by = ["before_vat_plus_vat"]
+    # จำลอง check ที่ผ่านอยู่เดิม: ถ้าเติมแล้ว check นี้กลายเป็นไม่ผ่าน ต้องไม่เติม
+    r.checks = [*r.checks, ValidationCheck(name="items_sum", passed=True, detail="")]
+    orig = pipe.assess
+
+    def assess(data, *a, **k):
+        checks, *rest = orig(data, *a, **k)
+        return ([c if c.name != "items_sum" else ValidationCheck(name="items_sum", passed=False, detail="") for c in checks], *rest)
+
+    pipe.assess = assess
+    assert pipe.apply_hints(r, [h]) is r and not h.filled

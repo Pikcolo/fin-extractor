@@ -14,7 +14,7 @@ from datetime import date as Date
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serializer
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator, model_serializer
 
 SCHEMA_VERSION = "4.0"  # 4.0: field_evidence → review (ระดับ + เหตุผล) · ตัด missing_fields/handwritten_fields ออกจาก JSON (ดู docs/05-validation-output.md)
 _CENT = Decimal("0.01")
@@ -161,7 +161,10 @@ class Decision(BaseModel):
     instructions: str = Field("", description="คำถามที่ถามโมเดล")
     state: dict = Field(default_factory=dict, description="ข้อมูลที่ป้อนเข้าโมเดลจริง (ไว้ตรวจย้อนหลัง)")
     confirmed_by: list[str] = Field(default_factory=list, description=(
-        "missing_hint: check ที่ผ่านเมื่อลองใส่ค่าที่เสนอ (และไม่ผ่าน/ตรวจไม่ได้ก่อนใส่) ว่าง = ไม่มี check ยืนยัน ไม่ได้แปลว่าผิด"))
+        "missing_hint: check เชิงความสัมพันธ์ที่อ้างถึงช่องนี้และผ่านเมื่อลองใส่ค่าที่เสนอ (ก่อนใส่ไม่ผ่าน/ตรวจไม่ได้) "
+        "ว่าง = ไม่มี check ยืนยัน ไม่ได้แปลว่าผิด"))
+    filled: bool = Field(False, description="missing_hint: ค่าที่เสนอถูกเติมลง data แล้ว (ผ่านด่านของ decision.fill_confirmed)")
+    _partners: set = PrivateAttr(default_factory=set)  # ช่องที่ต้องเติมคู่กันจึงจะยืนยันได้
 
 
 class ExtractionResult(BaseModel):
@@ -180,7 +183,10 @@ class ExtractionResult(BaseModel):
     ocr_confidence: float | None = Field(None, ge=0, le=1, description="ค่าเฉลี่ยที่ OCR engine รายงานเอง (มีเฉพาะ Paddle / OpenThai Text) ไม่มี = ไม่มีคีย์")
     raw_text: str | None = Field(None, description="ข้อความดิบจากตัวอ่าน (เฉพาะเมื่อสั่ง --keep-raw) ไว้ debug")
     rejected: list[RejectedValue] = Field(default_factory=list, description="ค่าที่ LLM เสนอแต่ไม่ถูกรับ (โหมด hybrid) พร้อมเหตุผล ไม่มี = ไม่มีคีย์")
-    decisions: list[Decision] = Field(default_factory=list, description="คำตอบของ decision model (extract --decision on) บันทึกอย่างเดียว ไม่มี = ไม่มีคีย์")
+    decisions: list[Decision] = Field(default_factory=list, description=(
+        "คำตอบของ decision model (extract --decision on) ไม่มี = ไม่มีคีย์ · ค่าที่เติมจากคำตอบ (decision.fill_confirmed) มี review.<ฟิลด์>.source = decision"))
+    # ข้อมูลระหว่างทางของ build_result (บรรทัด ผู้ให้ค่า ความตรงกันของ rules/LLM) ไว้ตรวจซ้ำหลังเติมค่า ไม่บันทึกลงไฟล์
+    _trace: dict = PrivateAttr(default_factory=dict)
 
     @property
     def missing_fields(self) -> list[str]:

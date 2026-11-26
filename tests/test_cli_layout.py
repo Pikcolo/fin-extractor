@@ -37,6 +37,9 @@ class FakePipe:
     def confirm_hints(self, result, decisions, codes=()):
         pass
 
+    def apply_hints(self, result, decisions, codes=()):
+        return result
+
 
 @pytest.fixture
 def env(tmp_path, monkeypatch):

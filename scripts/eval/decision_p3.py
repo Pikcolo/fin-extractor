@@ -4,12 +4,12 @@ T1 ชนิดเอกสาร (เฉลย: data/etc/groundtruth/<dataset>/
     ตรงตัว   ชื่อชนิดหลังตัดหมายเหตุในวงเล็บ ต้องตรงทั้งชุด (rules ตอบได้แค่ 4 ค่าภาษาอังกฤษ จึงไม่มีคะแนนระดับนี้)
     กลุ่ม    กลุ่มที่มีผลกับงานบัญชี: withholding (50 ทวิ) · voucher (ใบสำคัญรับเงิน) · tax_invoice (ชื่อมีคำว่า ใบกำกับภาษี) · other
              กลุ่มของ rules มาจากโปรไฟล์ (50 ทวิ / ใบสำคัญรับเงิน) แล้วจาก document_type (tax_invoice → tax_invoice ที่เหลือ other)
-T2 จาก Excel ตรวจผลที่ผู้ใช้กรอก (data/etc/compare/check_rule_hybrid_filled.xlsx หรือ check_rule_hybrid.xlsx ชีท rule)
-    แถว = ฟิลด์ที่ขาด/ไม่ถูก (ระบบใส่ให้) + ที่ผู้ใช้เพิ่ม · ฟิลด์ถือว่า "ผิด" เมื่อ ผลตรวจ ไม่ว่างและไม่ใช่ "ถูก" หรือ ค่าที่ถูกต้อง ต่างจากค่าที่ระบบได้
-    name_only: ชื่อที่ผิดตามชีท ↔ โมเดลตอบ no ไหม · ชื่อที่ไม่อยู่ในชีทนับเป็น "ไม่ทราบ" ไม่เดาว่าถูก
-    missing_hint: ค่าที่โมเดลเสนอ ↔ ค่าที่ถูกต้องที่ผู้ใช้กรอก
+T2 ไม่ใช้เฉลยที่คนกรอก (ผู้ใช้ไม่กรอก): เทียบผลที่เติมค่าแล้ว (extract --decision on, decision.fill_confirmed) กับผลก่อนเติม (--before)
+    นับต่อใบ: ช่องที่ขาด ก่อน → หลัง · ข้อเสนอ · ข้อเสนอที่ check ยืนยัน (ชื่อ check) · ที่เติมจริง · สถานะ ก่อน → หลัง
+    และยืนยันว่าค่าที่มีอยู่ก่อนไม่เปลี่ยน (เติมได้แค่ช่องที่ว่าง) · ด่านของการเติม = check ในเอกสารเอง จึงวัดได้โดยไม่มีเฉลย
+    สิ่งที่วัดไม่ได้โดยไม่มีเฉลย: name_only ว่าจับชื่อผิดได้กี่ชื่อ (รายงานแค่จำนวนที่ตอบ no) และข้อเสนอที่ไม่มี check ยืนยันถูกหรือไม่
 
-    .venv/Scripts/python -X utf8 scripts/eval/decision_p3.py [--extract <โฟลเดอร์ผล rules>] [--md]
+    .venv/Scripts/python -X utf8 scripts/eval/decision_p3.py [--extract <ผลที่เติมแล้ว>] --before <ผล extract --decision off>
 """
 
 from __future__ import annotations
@@ -55,6 +55,7 @@ def group_of_rules(doc_type: str | None, profile: str | None) -> str | None:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--extract", type=Path, default=EXTRACT)
+    ap.add_argument("--before", type=Path, help="ผล extract --decision off ของชุดเดียวกัน (สำหรับ T2)")
     args = ap.parse_args()
     truth = {k: normalize(v) for k, v in json.loads((GT / "doc_types.json").read_text(encoding="utf-8"))["as_given"].items()}
 
@@ -97,47 +98,35 @@ def main() -> None:
         print(f"| {x['file']} | {x['truth']} | {x['model']} | {'✓' if x['exact_ok'] else '✗'} | {'✓' if x['agreed'] else '✗'} | "
               f"{x['p_top']:.2f} | {x['group_truth']} / {x['group_model']} / {x['group_rules']} |")
 
-    xl = next((p for p in (ROOT / "data/etc/compare/check_rule_hybrid_filled.xlsx", ROOT / "data/etc/compare/check_rule_hybrid.xlsx")
-               if p.exists()), None)
-    if xl is None:
-        print("\nT2 ข้าม: ยังไม่มีไฟล์ตรวจผล")
+    if args.before is None:
+        print("\nT2 ข้าม: ใส่ --before <โฟลเดอร์ผล extract --decision off> เพื่อเทียบก่อน/หลังเติม")
         return
-    from openpyxl import load_workbook
-
-    ws = load_workbook(xl, data_only=True)["rule"]
-    col = {c.value: c.column - 1 for c in ws[1] if c.value}
-    marks = {}
-    for row in ws.iter_rows(min_row=2, values_only=True):
-        if not row[col["ไฟล์"]]:
-            continue
-        verdict, fix, got = row[col["ผลตรวจ"]], row[col["ค่าที่ถูกต้อง"]], row[col["ค่าที่ระบบได้"]]
-        if verdict is None and fix is None:
-            continue  # ยังไม่ได้ตรวจแถวนี้
-        wrong = (verdict is not None and str(verdict).strip() != "ถูก") or (fix is not None and str(fix).strip() != str(got or "").strip())
-        marks[(str(row[col["ไฟล์"]]), row[col["ฟิลด์ (key)"]])] = (wrong, fix)
-    print(f"\nT2 จาก {xl.name} · แถวที่ตรวจแล้ว {len(marks)}")
-    if not marks:
-        print("  ยังไม่มีแถวที่กรอก ผลตรวจ / ค่าที่ถูกต้อง")
-        return
-    flagged = {"tp": 0, "fp": 0, "fn": 0, "tn": 0, "unknown": 0}
-    hints = []
+    flat = lambda d, pre="": {k2: v2 for k, v in d.items() for k2, v2 in (flat(v, f"{pre}{k}.").items() if isinstance(v, dict) else [(pre + k, v)])}
+    tot = {"missing_before": 0, "missing_after": 0, "hints": 0, "confirmed": 0, "filled": 0, "changed": 0, "name_no": 0, "names": 0}
+    print("\nT2 เติมค่าที่ check ยืนยัน (ไม่ใช้เฉลย)\n| ไฟล์ | ขาด ก่อน → หลัง | ข้อเสนอ | check ยืนยัน | เติม | สถานะ ก่อน → หลัง |\n|---|---|---|---|---|---|")
     for p in sorted(args.extract.rglob("*_p1.json")):
-        fno = p.stem.split("_")[-2]
-        for d in json.loads(p.read_text(encoding="utf-8")).get("decisions", []):
-            m = marks.get((fno, d["key"]))
-            if d["task"] == "name_only":
-                if m is None:
-                    flagged["unknown"] += 1
-                    continue
-                bad, no = m[0], d["answer"] == "no"
-                flagged["tp" if bad and no else "fn" if bad else "fp" if no else "tn"] += 1
-            elif d["task"] == "missing_hint" and m and m[1] is not None:
-                hints.append((fno, d["key"], d["answer"], str(m[1]), d["agreed"]))
-    print(f"  name_only: ชื่อที่ผิดจริง {flagged['tp'] + flagged['fn']} (โมเดลตอบ no {flagged['tp']}) · "
-          f"ชื่อที่ถูก {flagged['fp'] + flagged['tn']} (โมเดลตอบ no {flagged['fp']}) · ไม่อยู่ในชีท {flagged['unknown']}")
-    for fno, key, ans, fix, agreed in hints:
-        print(f"  missing_hint {fno} {key}: เสนอ {ans} · ค่าที่ถูก {fix} · {'ตรง' if ans.replace(',', '') == fix.replace(',', '') else 'ไม่ตรง'}"
-              f"{'' if agreed else ' (ลำดับตัวเลือกให้คำตอบต่างกัน)'}")
+        q = next(args.before.rglob(p.name), None)
+        if q is None:
+            continue
+        a, b = json.loads(p.read_text(encoding="utf-8")), json.loads(q.read_text(encoding="utf-8"))
+        miss = lambda r: [k for k, v in r["review"].items() if v["level"] == "missing"]
+        decs = a.get("decisions", [])
+        hints = [d for d in decs if d["task"] == "missing_hint"]
+        names = [d for d in decs if d["task"] == "name_only"]
+        fa, fb = flat(a["data"]), flat(b["data"])
+        changed = [k for k, v in fb.items() if v not in (None, "", [], {}) and fa.get(k) != v]
+        tot["missing_before"] += len(miss(b)); tot["missing_after"] += len(miss(a)); tot["hints"] += len(hints)
+        tot["confirmed"] += sum(bool(d.get("confirmed_by")) for d in hints); tot["filled"] += sum(bool(d.get("filled")) for d in hints)
+        tot["changed"] += len(changed); tot["names"] += len(names); tot["name_no"] += sum(d["answer"] == "no" for d in names)
+        print(f"| {p.stem.split('_')[-2]} | {len(miss(b))} → {len(miss(a))} | "
+              f"{', '.join(f'{d['key']}={d['answer']}' for d in hints) or '—'} | "
+              f"{', '.join(f'{d['key']}: {'+'.join(d['confirmed_by'])}' for d in hints if d.get('confirmed_by')) or '—'} | "
+              f"{', '.join(d['key'] for d in hints if d.get('filled')) or '—'} | {b['status']} → {a['status']} |"
+              + (f" ค่าเดิมเปลี่ยน: {changed}" if changed else ""))
+    print(f"\nรวม: ช่องที่ขาด {tot['missing_before']} → {tot['missing_after']} · ข้อเสนอ {tot['hints']} · check ยืนยัน {tot['confirmed']} · "
+          f"เติม {tot['filled']} · ค่าเดิมที่เปลี่ยน {tot['changed']} (ต้องเป็น 0)")
+    print(f"name_only: ถาม {tot['names']} ชื่อ ตอบว่าไม่ใช่ชื่อล้วน {tot['name_no']} (ไม่มีเฉลย จึงบอกไม่ได้ว่าจับถูกกี่ชื่อ)")
+
 
 if __name__ == "__main__":
     main()

@@ -88,6 +88,8 @@ def cmd_extract(args, cfg) -> None:
                 if decider:  # shadow mode: บันทึกคำตอบอย่างเดียว ไม่แตะ data / review / status
                     r.decisions = decider.ask(build_questions(r.data, r.raw_text, pipe.profiles, decider.cfg, r.missing_fields))
                     pipe.confirm_hints(r, r.decisions, codes)
+                    if decider.cfg.get("fill_confirmed"):  # เติมเฉพาะค่าที่ check ยืนยัน (docs/draft-11 P4)
+                        r = pipe.apply_hints(r, r.decisions, codes)
                 seconds = round(time.perf_counter() - t0, 2)
                 if not args.keep_raw:
                     r.raw_text = None

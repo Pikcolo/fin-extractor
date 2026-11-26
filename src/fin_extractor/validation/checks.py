@@ -191,6 +191,10 @@ def income_rows_sum(lines: list[str], d: InvoiceData, paid_key: str = "document_
     return ValidationCheck(name="income_rows_sum", passed=ok, detail=f"{detail} เทียบยอดรวม {paid} / {tax}", fields=[paid_key, tax_key])
 
 
+# check ที่เทียบค่าของช่องหนึ่งกับค่าอื่นในเอกสาร (ยืนยันได้ว่า "ค่านี้คือค่าของช่องนี้") ต่างจาก checksum / date_range ที่บอกแค่ว่ารูปแบบใช้ได้
+# (เลขภาษีที่ผ่าน checksum อาจเป็นของอีกฝ่าย วันที่ในช่วงอาจเป็นวันอื่นบนเอกสาร) ใช้เป็นด่านเติมค่าที่ decision model เสนอ
+RELATIONAL_CHECKS = ("items_sum", "discount", "before_vat_plus_vat", "vat_rate", "amount_in_words", "income_rows_sum", "qr_match")
+
 QR_CODE_KEYS = ("invoice_no",)  # ค่าที่เป็นรหัส: ต้องตรงทั้งท่อนของข้อความใน QR (ท่อนสั้นอย่าง "005" ห้ามนับเมื่อเป็นส่วนหนึ่งของ URL)
 QR_TAX_KEYS = ("vendor.tax_id", "buyer.tax_id")  # เลขภาษี 13 หลักที่ผ่าน checksum: พบเป็นส่วนหนึ่งของตัวเลขยาวใน QR ได้ (QR จ่ายบิล = เลขภาษี + suffix)
 

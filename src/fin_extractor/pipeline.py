@@ -261,43 +261,95 @@ class FinanceOCRPipeline:
             # ค่าจากตัวอ่านเสริมที่ไม่มี check ยืนยัน ต้องให้คนดู: ตัวอ่านเสริมอ่านวันที่/เลขที่เพี้ยนได้ (1318: 16/10 แทน 15/10, ST69100-0036)
             status = "needs_review"
         review = review_from_evidence(evidence, checks, self.profile_for(data).primary_amount)
-        return ExtractionResult(
+        result = ExtractionResult(
             source_file=source_file, page=page, engine=self.engine_name, data=data,
             checks=checks, review=review, ocr_confidence=round(ocr_conf, 4) if ocr_conf is not None else None,
             status=status, raw_text=raw_text,
             rejected=[RejectedValue(key=k, reason=why) for k, why in (self.last_rejected if self.strategy == "hybrid" else [])],
         )
+        result._trace = {"lines": lines, "sources": sources, "agree": agree, "extra": list(extra), "codes": list(codes)}
+        return result
+
+    def _trace_of(self, result: ExtractionResult, codes) -> dict:
+        t = result._trace or {}
+        return {"lines": t.get("lines") or self.lines_from_raw(result.raw_text or ""),
+                "sources": dict(t.get("sources") or {k: rv.source for k, rv in result.review.items() if rv.source}),
+                "agree": t.get("agree"), "extra": t.get("extra", []), "codes": list(codes) or t.get("codes", [])}
+
+    @staticmethod
+    def _with_values(data: InvoiceData, pairs) -> InvoiceData | None:
+        raw = data.model_dump(mode="json")
+        for key, value in pairs:
+            *path, last = key.split(".")
+            node = raw
+            for part in path:
+                node = node.setdefault(part, {})
+            node[last] = value
+        try:
+            return InvoiceData.model_validate(raw)
+        except Exception:  # noqa: BLE001 — ค่าที่เสนอแปลงเป็นชนิดของช่องไม่ได้
+            return None
 
     def confirm_hints(self, result: ExtractionResult, decisions: list, codes: list[str] | tuple = ()) -> None:
-        """missing_hint (shadow): ลองใส่ค่าที่โมเดลเสนอลงสำเนาของ data แล้วตรวจซ้ำด้วย check ชุดเดิม
-        เติม ``Decision.confirmed_by`` = check ที่ผ่านหลังใส่แต่ไม่ผ่านก่อนใส่ (เช่น 50 ทวิ: ผลรวมแถวรายการ = ยอดที่เสนอ)
-        ไม่ตั้งเกณฑ์ใหม่: ใช้ check และค่าคลาดเคลื่อนเดียวกับผลจริง · ไม่เปลี่ยน ``result``."""
+        """missing_hint: ลองใส่ค่าที่โมเดลเสนอลงสำเนาของ data แล้วตรวจซ้ำด้วย check ชุดเดิม
+        ``Decision.confirmed_by`` = check เชิงความสัมพันธ์ (``RELATIONAL_CHECKS``) ที่อ้างถึงช่องนั้นและผ่านหลังใส่แต่ไม่ผ่านก่อนใส่
+        ใส่ทีละค่า และใส่ทุกค่าพร้อมกัน (check บางตัวต้องมีครบสองช่อง เช่น 50 ทวิ: ยอดจ่ายกับภาษีที่หัก)
+        qr_match ไม่นับกับเลขภาษี (พบใน QR ไม่ได้บอกว่าเป็นของฝ่ายไหน) · ไม่ตั้งเกณฑ์ใหม่ · ไม่เปลี่ยน ``result``."""
         from .decision.questions import NOT_FOUND
+        from .validation.checks import RELATIONAL_CHECKS
 
-        lines = self.lines_from_raw(result.raw_text or "")
+        t = self._trace_of(result, codes)
         before = {c.name for c in result.checks if c.passed is True}
         hints = [d for d in decisions if d.task == "missing_hint" and d.answer != NOT_FOUND]
 
         def passed_with(ds) -> list[ValidationCheck]:
-            raw = result.data.model_dump(mode="json")
-            for d in ds:
-                *path, last = d.key.split(".")
-                node = raw
-                for part in path:
-                    node = node.setdefault(part, {})
-                node[last] = d.answer
-            try:
-                data = InvoiceData.model_validate(raw)
-            except Exception:  # noqa: BLE001 — ค่าที่เสนอแปลงเป็นชนิดของช่องไม่ได้: ไม่มี check ยืนยัน
+            data = self._with_values(result.data, [(d.key, d.answer) for d in ds])
+            if data is None:
                 return []
-            return [c for c in self.assess(data, lines, codes=codes)[0] if c.passed is True and c.name not in before]
+            return [c for c in self.assess(data, t["lines"], codes=t["codes"])[0]
+                    if c.passed is True and c.name not in before and c.name in RELATIONAL_CHECKS]
 
-        # ใส่ทีละค่า และใส่ทุกค่าพร้อมกัน (check บางตัวต้องมีครบสองช่อง เช่น 50 ทวิ: ยอดจ่ายกับภาษีที่หัก) ค่าพร้อมกันนับเฉพาะ check ที่อ้างถึงช่องนั้น
+        def cites(c, key):
+            return key in (c.fields or []) and not (c.name == "qr_match" and key.endswith("tax_id"))
+
         together = passed_with(hints) if len(hints) > 1 else []
         for d in hints:
-            names = [c.name for c in passed_with([d])]
-            names += [c.name for c in together if d.key in (c.fields or []) and c.name not in names]
-            d.confirmed_by = names
+            alone = [c.name for c in passed_with([d]) if cites(c, d.key)]
+            joint = [c for c in together if cites(c, d.key) and c.name not in alone]
+            d.confirmed_by = alone + [c.name for c in joint]
+            d._partners = {k for c in joint for k in (c.fields or []) if k != d.key}  # ยืนยันได้เฉพาะเมื่อเติมคู่กัน
+
+    def apply_hints(self, result: ExtractionResult, decisions: list, codes: list[str] | tuple = ()) -> ExtractionResult:
+        """เติมค่าที่ check ยืนยันแล้วลง data (``decision.fill_confirmed``) ด่านเดียวกับที่ hybrid ใช้กับค่าของ LLM:
+        ค่ามาจากบรรทัด OCR (ตัวเลือกของ missing_hint) · มี check เชิงความสัมพันธ์ยืนยัน · check ที่ไม่เคยล้มต้องไม่ล้มหลังเติม
+        ค่าที่ยืนยันได้เฉพาะเมื่อเติมคู่กันต้องผ่านด่านครบทั้งคู่ · ผู้ให้ค่า = decision · เอกสารที่มีค่าจาก decision ไม่ auto_approve
+        คืนผลใหม่ (ไม่มีค่าผ่านด่าน = ผลเดิม) ไม่ต้องมีเฉลย: ด่านคือตัวเลขในเอกสารเอง."""
+        hints = {d.key: d for d in decisions if d.task == "missing_hint" and d.confirmed_by}
+        keep = set(hints)
+        while True:  # ตัดค่าที่คู่ของมันไม่ผ่านด่าน จนไม่เปลี่ยน
+            drop = {k for k in keep if not hints[k]._partners <= keep}
+            if not drop:
+                break
+            keep -= drop
+        if not keep:
+            return result
+        t = self._trace_of(result, codes)
+        data = self._with_values(result.data, [(k, hints[k].answer) for k in keep])
+        if data is None:
+            return result
+        sources = {**t["sources"], **{k: "decision" for k in keep}}
+        checks, _missing, status, evidence = self.assess(data, t["lines"], sources, t["agree"], t["extra"], t["codes"])
+        failed_before = {c.name for c in result.checks if c.passed is False}
+        if any(c.passed is False and c.name not in failed_before for c in checks):
+            return result  # เติมแล้วมี check ล้มเพิ่ม: ไม่เติมเลย
+        if status == "auto_approved":
+            status = "needs_review"  # ค่าจาก decision model ต้องให้คนดูอย่างน้อยหนึ่งครั้ง
+        for k in keep:
+            hints[k].filled = True
+        review = review_from_evidence(evidence, checks, self.profile_for(data).primary_amount, sources)
+        out = result.model_copy(update={"data": data, "checks": checks, "status": status, "review": review})
+        out._trace = {**t, "sources": sources}
+        return out
 
     def process_raw(self, source_file: str, page_no: int, raw_text: str, meta: dict | None = None,
                     codes: list[str] | tuple = ()) -> ExtractionResult:

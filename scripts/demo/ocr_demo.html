@@ -580,6 +580,7 @@ function lineChips(found) {
 }
 // ป้ายที่มาของค่า: llm หรือตัวอ่านเสริม (rules ไม่แสดง)
 const srcBadge = s => !s || s === "rules" ? "" : s === "llm" ? ' <span class="badge b-acc" title="ค่านี้มาจาก LLM">LLM</span>'
+  : s === "decision" ? ' <span class="badge b-acc" title="decision model เลือกจากบรรทัด OCR และ check ยืนยัน">decision</span>'
   : s === "human" ? "" : ` <span class="badge b-warn" title="ค่านี้มาจากตัวอ่านเสริม">${esc(s)}</span>`;
 function llmHtml(l) {
   if (!l) return "";
@@ -654,7 +655,7 @@ RENDER.decision = d => {
     if (x.task === "name_only") { const lv = d.levels[x.key]; return `ค่าในระบบ: <b>${esc(d.current[x.key] || "—")}</b> · ระดับหลักฐาน ${lv ? `<span class="badge ${LEVEL[lv][1]}">${LEVEL[lv][0]}</span>` : "—"}`; }
     if (x.task === "missing_hint") return `ช่องนี้ระบบหาไม่เจอ · โมเดลเสนอ <b>${esc(x.answer)}</b> ·
       ${(x.confirmed_by || []).length ? `<span class="badge b-ok">ลองใส่แล้วผ่าน ${esc(x.confirmed_by.join(", "))}</span>` : '<span class="badge">ลองใส่แล้วไม่มี check ยืนยัน</span>'}
-      <span class="small muted">(ข้อเสนอเท่านั้น ไม่เขียนลงผล ถ้าถูกให้กรอกเองในขั้นตรวจ/แก้)</span>`;
+      ${x.filled ? '<span class="badge b-acc">เติมลงผลแล้ว (ผู้ให้ค่า = decision)</span>' : '<span class="small muted">(ข้อเสนอเท่านั้น ไม่เขียนลงผล ถ้าถูกให้กรอกเองในขั้นตรวจ/แก้)</span>'}`;
     const sys = d.current[x.key];
     return `ระบบ (rules) ได้: <b>${esc(sys || "—")}</b>${x.task === "profile" ? (sys === x.answer ? ' <span class="badge b-ok">ตรงกัน</span>' : ' <span class="badge b-warn">ต่างกัน</span>') : ' <span class="small muted">(rules ตอบได้แค่ tax_invoice/receipt/invoice/quotation จึงเทียบตรง ๆ ไม่ได้)</span>'}`;
   };
@@ -670,7 +671,9 @@ RENDER.decision = d => {
   const shown = d.decisions.filter(notable), quiet = d.decisions.filter(x => !notable(x));
   const line = x => `${esc(TASK_INFO[x.task] || x.task)} <span class="mono muted">${esc(x.key)}</span> → <b>${esc(x.answer)}</b>`;
   return `<div class="explain"><b>ขั้นนี้ (shadow):</b> ถาม decision model <code>${esc(d.model)}</code> บน CPU กับผลของแบบ <b>${esc(MODE_NAME[d.mode] || d.mode)}</b>
-      ${d.asked} คำถาม · ${d.seconds} วินาที (รวมทุกลำดับตัวเลือก) · <b>บันทึกอย่างเดียว ไม่เปลี่ยนค่า ระดับหลักฐาน หรือสถานะ</b> (<code>src/fin_extractor/decision/</code>, docs/draft-11)
+      ${d.asked} คำถาม · ${d.seconds} วินาที (รวมทุกลำดับตัวเลือก) · คำตอบไม่เปลี่ยนค่า ระดับหลักฐาน หรือสถานะ
+      <b>ยกเว้น</b>${d.fill_confirmed ? "" : " (ปิดอยู่)"} ค่าของช่องที่ขาดที่ <b>check เชิงความสัมพันธ์ยืนยัน</b> และไม่ทำให้ check อื่นล้มเพิ่ม: เติมลงผล ผู้ให้ค่า = decision และเอกสารนั้นไม่อนุมัติอัตโนมัติ
+      (<code>decision.fill_confirmed</code>, <code>src/fin_extractor/decision/</code>, docs/draft-11)
       <br><b>ไม่ยึดหน้าตาเอกสาร:</b> ไม่มี template หรือ keyword ของผัง ค่าที่ให้เลือกหาจาก<b>รูปแบบ</b>อย่างเดียว (ยอดเงิน วันที่ เลขภาษี ในบรรทัด OCR) แล้วให้โมเดลเลือก ·
       ค่าที่เสนอถูก<b>ลองใส่แล้วตรวจด้วย check เดิม</b> ผ่าน = มีหลักฐานจากตัวเลขในเอกสารเอง ไม่ต้องเชื่อโมเดล
       <br>คำถามแบบเลือกตอบถาม 3 ลำดับตัวเลือกแล้วเฉลี่ย เพราะคำตอบพลิกตามลำดับได้ · ความน่าจะเป็นยังไม่ได้เทียบกับเฉลยของเอกสารเรา (P3) อย่าใช้ตัดสินแทนคน
@@ -758,6 +761,7 @@ function decisionBadge(key) {
   if (x.task === "name_only") return x.answer === "no"
     ? ` <span class="badge b-warn" title="decision model: ไม่ใช่ชื่อล้วน (shadow ไม่เปลี่ยนระดับ)">decision: อาจมีข้อความอื่นปน ${(x.probabilities.no * 100).toFixed(0)}%</span>`
     : ` <span class="badge" title="decision model (shadow)">decision: ชื่อล้วน ${(x.probabilities.yes * 100).toFixed(0)}%</span>`;
+  if (x.task === "missing_hint" && x.filled) return ` <span class="badge b-acc" title="decision model เลือกจากบรรทัด OCR และ check ยืนยัน">เติมโดย decision · ผ่าน ${esc(x.confirmed_by.join(", "))}</span>`;
   if (x.task === "missing_hint") return ` <span class="badge b-acc" title="ข้อเสนอของ decision model ไม่เขียนลงผล">decision เสนอ: ${esc(x.answer)}${x.agreed ? "" : " (ลำดับตัวเลือกตอบไม่ตรงกัน)"}</span>`
     + ((x.confirmed_by || []).length ? ` <span class="badge b-ok" title="ลองใส่ค่าที่เสนอแล้ว check นี้ผ่าน">ผ่าน ${esc(x.confirmed_by.join(", "))}</span>` : "");
   return "";

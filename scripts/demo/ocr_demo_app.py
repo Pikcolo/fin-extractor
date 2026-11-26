@@ -93,7 +93,7 @@ FLOW_DEFAULTS = {"layout": "regions", "orientation": "auto", "fill": False, "dot
 
 STAGES = [("input", "อินพุต"), ("preprocess", "ปรับภาพ (preprocess)"), ("layout", "แบ่งเป็นส่วน (layout)"),
           ("crops", "ภาพรายส่วนก่อน OCR"), ("ocr", "OCR ทีละส่วน"), ("text", "รวมข้อความ → บรรทัด"),
-          ("extract", "สกัดฟิลด์"), ("validate", "ตรวจความสอดคล้อง + สถานะ"), ("decision", "decision model (shadow)"),
+          ("extract", "สกัดฟิลด์"), ("validate", "ตรวจความสอดคล้อง + สถานะ"), ("decision", "decision model"),
           ("review", "ตรวจ/แก้รายฟิลด์"),
           ("result", "JSON สุดท้าย")]
 
@@ -488,9 +488,12 @@ def decision_stage(job: dict, mode: str, cfg: dict) -> dict:
         t = time.perf_counter()
         decs = _decider.ask(qs)
         pipe.confirm_hints(res, decs, ctx.get("codes", []))
+        if cfg["decision"].get("fill_confirmed"):  # เติมค่าที่ check ยืนยัน: ขั้นสกัด/ตรวจ/แก้/ผลของแบบนี้ใช้ผลที่เติมแล้ว (use_result)
+            ctx.setdefault("filled", {})[mode] = pipe.apply_hints(res, decs, ctx.get("codes", []))
         ctx["decisions"][mode] = {"decisions": [x.model_dump() for x in decs], "seconds": round(time.perf_counter() - t, 1),
                                   "asked": len(qs)}
     out = ctx["decisions"][mode]
+    out["fill_confirmed"] = bool(cfg["decision"].get("fill_confirmed"))
     flat = flatten(res.data)
     current = {"document_type": res.data.document_type, "document_profile": res.data.document_profile,
                **{k: flat.get(k) for k in ("vendor.name", "buyer.name")}}
@@ -507,6 +510,8 @@ def use_result(job: dict, mode: str) -> None:
     pipe = FinanceOCRPipeline(cfg, engine=job["options"]["engine"])
     entry = ctx["results"][mode]
     res = entry["res"]
+    if job["options"].get("decision") == "on" and mode in ctx.get("filled", {}):
+        res = ctx["filled"][mode]  # มีค่าที่ decision model เติม (check ยืนยันแล้ว) ทุกขั้นหลังจากนี้ใช้ผลนี้
     llm_info = None
     if mode != "off":
         rules = ctx["results"]["off"]["res"]

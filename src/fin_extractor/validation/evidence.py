@@ -202,7 +202,9 @@ def _reasons(key: str, ev: FieldEvidence, checks: list[ValidationCheck], primary
         out.append("ค่านี้ไม่ปรากฏในข้อความที่ OCR อ่านได้: ระบบอาจหยิบผิดบรรทัดหรือแปลงผิด")
     if ev.sources_agree is False:
         out.append("rules กับ LLM ได้ค่าไม่ตรงกัน")
-    if source not in (None, "rules", "llm", "human") and ev.value not in (None, ""):
+    if source == "decision" and ev.value not in (None, ""):
+        out.append("ระบบหาไม่เจอ ค่านี้ decision model เลือกจากบรรทัด OCR และเติมเพราะ check ยืนยัน ให้ดูเทียบกับภาพ")
+    elif source not in (None, "rules", "llm", "human") and ev.value not in (None, ""):
         out.append(f"ค่านี้มาจากตัวอ่านเสริม {source} (ตัวอ่านหลักอ่านส่วนนี้ไม่ครบ) ตัวอ่านเสริมอ่านตัวอักษรเพี้ยนได้ ให้ดูเทียบกับภาพ")
     if by_human and level == "conflict" and ev.format_valid is not False and not ev.checks_failed and ev.sources_agree is not False:
         level = "unverified"  # ขัดแย้งแค่เพราะไม่อยู่ในข้อความ OCR ซึ่งไม่ใช่เหตุสำหรับค่าที่คนแก้
