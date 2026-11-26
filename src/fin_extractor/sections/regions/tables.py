@@ -17,7 +17,7 @@ from __future__ import annotations
 import cv2
 import numpy as np
 
-from .masks import to_gray
+from ...preprocessing.enhance import to_gray
 
 Box = tuple[int, int, int, int]
 

@@ -13,7 +13,7 @@ from fin_extractor.config import load_config
 from fin_extractor.doctypes import (
     CORE_LABEL_KEYS, GENERIC_PROFILE, FieldSpec, core_labels_for, load_core_labels, load_profiles)
 from fin_extractor.extraction import extract_fields
-from fin_extractor.extraction.core_labels import extract_buyer_name, extract_party_name, split_branch
+from fin_extractor.extraction.core_labels import extract_party_name, split_branch
 from fin_extractor.extraction.llm_extractor import normalize_llm_output
 from fin_extractor.schema import InvoiceData
 
@@ -23,7 +23,7 @@ PROFILES = {p.name: p for p in load_profiles(CFG["document_types"])}
 
 
 def buyer(lines, profile=GENERIC_PROFILE):
-    return extract_buyer_name(lines, core_labels_for(profile, DEFAULTS))
+    return extract_party_name(lines, core_labels_for(profile, DEFAULTS), "buyer.name")
 
 
 # ---------- รูปแบบป้ายที่เห็นจริง (ค่าตั้งต้น) ----------
@@ -150,7 +150,7 @@ def _pipe():
 
     p = object.__new__(FinanceOCRPipeline)
     p.cfg = {"validation": {"amount_tolerance": 0.02, "default_vat_rate": 0.07}}
-    p.llm, p.profiles, p.doc_table, p.core_labels = None, list(PROFILES.values()), {}, DEFAULTS
+    p.llm, p.profiles, p.core_labels = None, list(PROFILES.values()), DEFAULTS
     p.reader = SimpleNamespace(name="test")  # engine_name ใช้ตอนสร้างผล
     return p
 

@@ -25,6 +25,7 @@ import numpy as np
 import yaml
 
 from ...config import PROJECT_ROOT
+from ...io import save_image
 from ...preprocessing import clean as clean_ops
 from ...preprocessing import enhance
 from .. import images as I
@@ -44,7 +45,6 @@ VARIANT_FUNCS = {  # ชื่อเดียวกับภาพ section (sect
 CLEAN_METHODS = {  # วิธีลบพื้น/ลายน้ำบนสำเนา (ตาม preprocess_finance/preprocess/clean.py) ภาพ variant ปกติตัดจากภาพที่ไม่ clean เสมอ
     "none": lambda img: img,
     "suppress_color": clean_ops.suppress_color,
-    "max_channel": lambda img: cv2.cvtColor(I.gray_value_channel(img), cv2.COLOR_GRAY2BGR),
 }
 
 
@@ -79,7 +79,7 @@ def run_page(full: np.ndarray, stem: str, src_dpi: float, rc: RegionConfig, page
 
     def snap(name: str, img: np.ndarray) -> None:
         if debug_images:
-            draw.imwrite(page_dir / f"{name}.png", img)
+            save_image(page_dir / f"{name}.png", img)
 
     doc_type, overrides = doc_types.classify(stem, rc.doc_types)
     tpl = rc.template(doc_type)
@@ -110,12 +110,7 @@ def run_page(full: np.ndarray, stem: str, src_dpi: float, rc: RegionConfig, page
                "stages": {"normalize": {"content_bbox": [int(v) for v in cb], "crop_box": [int(v) for v in nbox],
                                         "size": [int(img.shape[1]), int(img.shape[0])]}}}
 
-    anchor = opts.get("anchor", "content")
-    frame = content
-    if anchor == "frame":
-        fb = geometry.frame_bbox(img, cfg["regions"]["frame_min_area_frac"])
-        frame = fb if fb is not None else content
-        anchor = "frame" if fb is not None else "content(fallback)"
+    frame = content  # สัดส่วนของ template วัดจากกรอบเนื้อหา (กรอบเส้นของฟอร์มขาดบ่อยในสแกน ดู templates/wht_50tawi.yaml)
 
     # mask: QR/บาร์โค้ด (ถอดรหัสเก็บไว้) + พื้นที่ ignore ของ template (ลายเซ็น/ตรายาง) ระบายขาวก่อนหา region
     found = codes.find_codes(img, cfg["mask"]) if opts.get("mask_codes", True) else []
@@ -151,7 +146,7 @@ def run_page(full: np.ndarray, stem: str, src_dpi: float, rc: RegionConfig, page
         regs = split.generic_regions(img, frame, {**cfg["regions"], **cfg["generic"]}, hlines)
     overlay = draw.draw_regions(img, regs, frame, hlines)
     snap("04_regions", overlay)
-    m["stages"]["regions"] = {"anchor": anchor, "frame": list(frame), "hlines": hlines,
+    m["stages"]["regions"] = {"frame": list(frame), "hlines": hlines,
                               "regions": [{**r, "box": list(r["box"])} for r in regs]}
 
     # tables: เส้นตั้งแบ่งแถบเป็นช่อง แถวแรก = หัว (key)
@@ -193,7 +188,7 @@ def run_page(full: np.ndarray, stem: str, src_dpi: float, rc: RegionConfig, page
         first = ""
         for v, vimg in out.items():
             p = crops_dir / f"{name}__{v}.png"
-            draw.imwrite(p, vimg)
+            save_image(p, vimg)
             rel = p.relative_to(page_dir).as_posix()
             first = first or rel
             files.append({**meta, "variant": v, "box": [int(x) for x in box], "box_page": pb, "path": rel})
@@ -276,7 +271,7 @@ def run_page(full: np.ndarray, stem: str, src_dpi: float, rc: RegionConfig, page
     return m
 
 
-OCR_VARIANT = "luma"  # ภาพ region ที่ขั้น OCR อ่าน (ตัวอ่านรายส่วนอ่านภาพเทาช่องเดียว ดู sections/read.read_clean_image)
+OCR_VARIANT = "luma"  # ภาพ region ที่ขั้น OCR อ่าน (ตัวอ่านรายส่วนอ่านภาพเทาช่องเดียวเป็น BGR ดู sections/read.read_dataset)
 
 
 def write_ocr_index(page_dir: Path, files: list[dict]) -> None:
@@ -345,6 +340,6 @@ def run_dataset(paths, dataset: str, cfg: dict, profile: str, only: list[str] | 
               + (f" · {', '.join(codes_found)}" if codes_found else ""), flush=True)
     if not only:
         (root / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
-        draw.imwrite(root / "contact_sheet.png", draw.contact_sheet(sheet))
+        save_image(root / "contact_sheet.png", draw.contact_sheet(sheet))
     print(f"รวม {len(stems)} ไฟล์ → {root}")
     return summary

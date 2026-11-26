@@ -11,15 +11,13 @@
     03_sections/<dataset>/<profile>/             แบ่งหน้าเป็นส่วน (section) จาก final/ ไว้ดู/debug
         layout/<ไฟล์>.json         ผังการแบ่ง (bbox, ชนิด, keep) + ลักษณะภาพ ·  <ไฟล์>_layout.png ภาพตรวจด้วยตา
         images/<วิธี>/<ไฟล์>/      ภาพส่วนที่เตรียมก่อน OCR: sNN.png + index.json  (วิธี = luma | flat | bin)
-        regions/<ไฟล์>/            โหมดแบ่ง region/ตาราง (คำสั่ง regions): ภาพแต่ละขั้น, crops/ (region), crops/tables/ (ช่อง), manifest.json
-    04_ocr/<dataset>/<engine>/                   ข้อความจาก OCR ของตัวอ่านหนึ่งตัว (paddle, typhoon, openthai, oxr)
-        <วิธี>/<ไฟล์>/   ``page`` = อ่านทั้งหน้า · ``luma|flat|bin|color`` = อ่านทีละ section (มี .sections.json .md .chunks.json)
-        visualize/       ภาพให้ดูว่าอ่านอย่างไร
+        regions/<ไฟล์>/            ผัง regions (ค่าตั้งต้นของ flow): ภาพแต่ละขั้น, crops/ (region), crops/tables/ (ช่อง), manifest.json, sections.json
+    04_ocr/<dataset>/<engine>/                   ข้อความจาก OCR ของตัวอ่านหนึ่งตัว (openthai, openthai21, openthai-text, typhoon, paddle)
+        <วิธี>/<ไฟล์>/   อ่านทีละส่วนเท่านั้น: ``regions-luma`` (ค่าตั้งต้น) · ``luma|flat|bin|color`` (ผังแบบเดิม) มี .sections.json .md .chunks.json
     05_extract/<dataset>/<engine>/<วิธี>/<extractor>/<ไฟล์>_p<หน้า>.json   ผลตาม schema extractor = rules | llm | hybrid
-    etc/benchmarks/  etc/compare/                งานทดสอบ/เปรียบเทียบที่ข้าม engine/ข้ามไฟล์
-    etc/experiments/<ชื่อ>/                      การทดลองครั้งเดียวที่ไม่ใช่ส่วนของ pipeline
+    etc/compare/<ไฟล์>/                          ตารางเทียบผลสกัดรายฟิลด์ (scripts/eval/compare_file.py)
     etc/groundtruth/<dataset>/<ไฟล์>.json        ค่าที่ถูกตามเอกสาร คนกรอกในเครื่อง (scripts/eval/groundtruth_app.py)
-    reports/                                     รายงานภาพ
+    etc/demo/<งาน>/                              ผลของหน้าเว็บเดโม (scripts/demo/ocr_demo_app.py)
 
 ถ้ารันหนึ่งครั้งมีไฟล์อินพุตมากกว่า ``NEST_OVER`` (2) ไฟล์ ผลของแต่ละไฟล์จะอยู่ในโฟลเดอร์ย่อยชื่อไฟล์ ถ้าไม่เกินก็วางตรง ๆ
 ผู้เขียนใช้ ``doc_dir`` ผู้อ่านใช้ ``find_dir`` (รับได้ทั้งสองแบบ) ชื่อไฟล์ผลใช้ ``<ไฟล์>_p<หน้า>`` เหมือนกันทุกขั้น
@@ -38,16 +36,12 @@ FONT_DIR = "assets/fonts"
 MODEL_DIR = "models"
 
 DEFAULT_FOLDERS = {
-    "raw": "01_input",
     "preprocess": "02_preprocess",
     "sections": "03_sections",
     "ocr": "04_ocr",
     "extract": "05_extract",
-    "benchmarks": "etc/benchmarks",
     "compare": "etc/compare",
-    "experiments": "etc/experiments",
     "groundtruth": "etc/groundtruth",
-    "reports": "reports",
 }
 DEFAULT_PROFILE = "default"
 NEST_OVER = 2  # รันที่มีไฟล์อินพุตเกินจำนวนนี้ → โฟลเดอร์ย่อยต่อไฟล์
@@ -58,12 +52,6 @@ STEPS_DIR = "steps"  # ภาพ preprocess ทีละขั้น
 LAYOUT_DIR = "layout"  # ผังแบ่ง section ใต้ 03_sections/<dataset>/<profile>/
 IMAGES_DIR = "images"  # ภาพส่วนที่เตรียมก่อน OCR (images/<วิธี>/<ไฟล์>/)
 REGIONS_DIR = "regions"  # โหมดแบ่ง region/ตาราง (regions/<ไฟล์>/ ภาพแต่ละขั้น + crops/ + manifest.json)
-PAGE = "page"  # "วิธี" ของผลที่อ่านทั้งหน้า (ไม่แบ่ง section) ใต้ 04_ocr/…/<engine>/ และ 05_extract/…/<engine>/
-
-
-def variant_of(variant: str | None) -> str:
-    """ชื่อโฟลเดอร์ระดับ <วิธี>: อ่านทั้งหน้า = ``page`` นอกนั้นคือวิธีเตรียมภาพของ section (luma | flat | bin | color)."""
-    return variant or PAGE
 
 
 def slug(text: str) -> str:
@@ -121,10 +109,7 @@ class DataPaths:
     def _top(self, key: str) -> Path:
         return self.root / self._names[key]
 
-    # อินพุต / preprocess
-    def raw(self, dataset: str | None = None) -> Path:
-        return self._top("raw") / slug(dataset) if dataset else self._top("raw")
-
+    # preprocess
     def preprocess(self, dataset: str, profile: str = DEFAULT_PROFILE) -> Path:
         return self._top("preprocess") / slug(dataset) / slug(profile)
 
@@ -135,21 +120,15 @@ class DataPaths:
     def ocr_engine(self, engine: str, dataset: str) -> Path:
         return self._top("ocr") / slug(dataset) / slug(engine)
 
-    def raw_data(self, engine: str, dataset: str, variant: str | None = None) -> Path:
-        """ข้อความดิบจาก OCR: ``04_ocr/<dataset>/<engine>/<วิธี>/`` (วิธี = page เมื่ออ่านทั้งหน้า)."""
-        return self.ocr_engine(engine, dataset) / variant_of(variant)
+    def raw_data(self, engine: str, dataset: str, variant: str) -> Path:
+        """ข้อความดิบจาก OCR รายส่วน: ``04_ocr/<dataset>/<engine>/<วิธี>/`` (วิธี = regions-luma | luma | flat | bin | color)."""
+        return self.ocr_engine(engine, dataset) / variant
 
-    def final(self, engine: str, dataset: str, extractor: str, variant: str | None = None) -> Path:
+    def final(self, engine: str, dataset: str, extractor: str, variant: str) -> Path:
         """ผลตาม schema: ``05_extract/<dataset>/<engine>/<วิธี>/<extractor>/``."""
-        return self._top("extract") / slug(dataset) / slug(engine) / variant_of(variant) / slug(extractor)
+        return self._top("extract") / slug(dataset) / slug(engine) / variant / slug(extractor)
 
-    def visualize(self, engine: str, dataset: str) -> Path:
-        return self.ocr_engine(engine, dataset) / "visualize"
-
-    # ข้ามengine / ข้ามไฟล์
-    def benchmarks(self) -> Path:
-        return self._top("benchmarks")
-
+    # ข้ามไฟล์
     def compare(self, name: str | None = None) -> Path:
         return self._top("compare") / slug(name) if name else self._top("compare")
 
@@ -162,7 +141,7 @@ class DataPaths:
         return self.sections(dataset, profile) / LAYOUT_DIR
 
     def section_images(self, dataset: str, stem: str | None = None, variant: str | None = None, profile: str = DEFAULT_PROFILE) -> Path:
-        """ภาพส่วนที่เตรียมก่อน OCR ``images/<วิธี>/<ไฟล์>/`` (สร้างด้วย scripts/sections/make_clean_sections.py) วิธี = luma | flat | bin"""
+        """ภาพส่วนที่เตรียมก่อน OCR ``images/<วิธี>/<ไฟล์>/`` (``sections --layout sections --to images``) วิธี = luma | flat | bin"""
         base = self.sections(dataset, profile) / IMAGES_DIR
         if variant:
             base = base / variant
@@ -173,16 +152,6 @@ class DataPaths:
         base = self.sections(dataset, profile) / REGIONS_DIR
         return base / slug(stem) if stem else base
 
-    # ชื่อเดิม (ใช้ในสคริปต์/notebook ที่ยังไม่ย้าย)
-    section_features = section_layout
-    section_clean = section_images
-
     def groundtruth(self, dataset: str) -> Path:
         """ground truth ที่คนกรอก: ``etc/groundtruth/<dataset>/<ไฟล์>.json`` (ดู groundtruth.py)."""
         return self._top("groundtruth") / slug(dataset)
-
-    def experiments(self, name: str | None = None) -> Path:
-        return self._top("experiments") / slug(name) if name else self._top("experiments")
-
-    def reports(self, name: str | None = None) -> Path:
-        return self._top("reports") / slug(name) if name else self._top("reports")

@@ -2,14 +2,14 @@
 
   preprocess  ปรับภาพแล้วเก็บภาพสุดท้ายไว้ให้ทุก engine ใช้ร่วมกัน (ดูผลทีละขั้นด้วย --steps)
   sections    flow หลัก: preprocess → แบ่งเป็น region (ค่าตั้งต้น --layout regions) → อ่านทีละส่วน → สกัด (ทุก engine อ่านทีละส่วนเท่านั้น)
-  extract     สกัดซ้ำจากข้อความรายส่วนที่เก็บไว้ (ไม่อ่านภาพ) · ocr ปิดแล้ว (ห้ามอ่านทั้งหน้า)
-  regions     ขั้น 3 แบบทางเลือก: แบ่ง region (template/แถบตามเส้น) + ตาราง → ช่อง + key/value + ระบาย QR (CPU ไม่ OCR)
+  extract     สกัดซ้ำจากข้อความรายส่วนที่เก็บไว้ (ไม่อ่านภาพ) · ไม่มีคำสั่งอ่านทั้งหน้า
+  regions     รันเฉพาะขั้น 3 ของผัง regions: แบ่ง region (template/แถบตามเส้น) + ตาราง → ช่อง + key/value + ระบาย QR (CPU ไม่ OCR)
   compare     เทียบผลสกัดข้ามวิธี luma/flat/bin
   schema      export JSON Schema
 
 ผลอยู่ใต้ data/ ตามโครงใน fin_extractor/paths.py:
   02_preprocess/<dataset>/<profile>/{final,steps}/   04_ocr/<dataset>/<engine>/<วิธี>/   05_extract/<dataset>/<engine>/<วิธี>/<extractor>/
-  (วิธี = luma|flat|bin|color ภาพรายส่วนที่ส่งเข้า OCR · โฟลเดอร์ page/ ของรุ่นเก่าที่อ่านทั้งหน้าไม่ถูกสร้างอีก) ดู docs/03-sections.md
+  (วิธี = regions-luma ค่าตั้งต้น · luma|flat|bin|color ผังแบบเดิม) ดู docs/03-regions.md
 (รันที่มีไฟล์อินพุตเกิน 2 ไฟล์ ผลแต่ละไฟล์อยู่ในโฟลเดอร์ย่อยชื่อไฟล์ ดู paths.nest_per_file)
 พร้อม manifest.json (รายละเอียดดู fin_extractor/runs.py)
 """
@@ -26,7 +26,7 @@ from pathlib import Path
 
 from .config import load_config, resolve_path
 from .io import iter_input_files
-from .paths import DEFAULT_PROFILE, FINAL_DIR, DataPaths, dataset_of, doc_dir, find_dir, nest_per_file, variant_of
+from .paths import DEFAULT_PROFILE, FINAL_DIR, DataPaths, dataset_of, doc_dir, find_dir, nest_per_file
 from .runs import Run
 from .readers import ENGINES as SECTION_ENGINES
 from .stages import load_raw, prepared_pages, raw_pages
@@ -49,27 +49,18 @@ def cmd_preprocess(args, cfg) -> None:
     print(f"manifest: {run.dir / 'manifest.json'}")
 
 
-WHOLE_PAGE_BLOCKED = ("ห้ามอ่านทั้งหน้า: ทุก engine อ่านทีละ section เท่านั้น — ใช้ "
-                      "python -m fin_extractor sections <input> --engine {engine} (เฉพาะอ่าน: --to ocr · สกัดซ้ำจากข้อความที่มี: --from extract)")
-
-
-def cmd_ocr(args, cfg) -> None:
-    """ปิดไว้: การอ่านทั้งหน้าถูกห้าม (ข้อความดิบมาจากคำสั่ง sections ขั้น ocr เท่านั้น)."""
-    sys.exit(WHOLE_PAGE_BLOCKED.format(engine=args.engine))
-
-
 def cmd_extract(args, cfg) -> None:
     """สกัดจากข้อความที่อ่านทีละ section แล้ว (04_ocr/<dataset>/<engine>/<วิธี>/) ไม่อ่านภาพเอง: การอ่านทั้งหน้าถูกห้าม."""
     from .pipeline import FinanceOCRPipeline
 
     paths, dataset = DataPaths(cfg), dataset_of(args.input)
     use_llm = {"on": True, "off": False, "auto": True, "hybrid": True}[args.llm]
-    pipe = FinanceOCRPipeline(cfg, engine=args.engine, use_llm=use_llm, with_reader=False,
+    pipe = FinanceOCRPipeline(cfg, engine=args.engine, use_llm=use_llm,
                               strategy="hybrid" if args.llm == "hybrid" else None)
     extractor = ("hybrid" if pipe.strategy == "hybrid" else "llm") if pipe.llm else "rules"
     base = Path(args.out) if args.out else None
-    raw_dir = base / "04_ocr" / variant_of(args.variant) if base else paths.raw_data(args.engine, dataset, args.variant)
-    final_dir = base / "05_extract" / variant_of(args.variant) / extractor if base else paths.final(args.engine, dataset, extractor, args.variant)
+    raw_dir = base / "04_ocr" / args.variant if base else paths.raw_data(args.engine, dataset, args.variant)
+    final_dir = base / "05_extract" / args.variant / extractor if base else paths.final(args.engine, dataset, extractor, args.variant)
     settings = {
         "engine": pipe.engine_name, "variant": args.variant, "profile": args.profile,
         "keep_raw": args.keep_raw, "raw_data": Path(os.path.relpath(raw_dir, final_dir)).as_posix(),
@@ -244,11 +235,6 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--out", help="โฟลเดอร์ profile เอง (ค่าตั้งต้น data/02_preprocess/<dataset>/<profile>)")
     s.set_defaults(func=cmd_preprocess)
 
-    s = sub.add_parser("ocr", help="ปิดแล้ว: ห้ามอ่านทั้งหน้า ใช้ sections --to ocr")
-    s.add_argument("input")
-    s.add_argument("--engine", choices=SECTION_ENGINES, default="openthai")
-    s.set_defaults(func=cmd_ocr)
-
     s = sub.add_parser("extract", help="สกัด field → JSON จากข้อความที่อ่านทีละ section แล้ว (ไม่อ่านภาพ)")
     s.add_argument("input")
     s.add_argument("--engine", choices=SECTION_ENGINES, default="openthai", help="อ่านข้อความจาก 04_ocr/<dataset>/<engine>/<วิธี>/")
@@ -294,7 +280,7 @@ def build_parser() -> argparse.ArgumentParser:
     profile_arg(s)
     s.set_defaults(func=cmd_sections)
 
-    s = sub.add_parser("regions", help="แบ่ง region + ตาราง/ช่อง/key-value จากภาพ final (ทางเลือกของขั้น 3 ไม่ส่งเข้า OCR) ตั้งค่าที่ configs/regions/")
+    s = sub.add_parser("regions", help="แบ่ง region + ตาราง/ช่อง/key-value จากภาพ final (ขั้น 3 ของ flow อย่างเดียว ไม่ส่งเข้า OCR) ตั้งค่าที่ configs/regions/")
     s.add_argument("input", help="ไฟล์หรือโฟลเดอร์อินพุต (ใช้เอาชื่อชุดข้อมูล ต้อง preprocess แล้ว: sections <input> --to preprocess)")
     s.add_argument("--only", nargs="*", help="เลขท้ายชื่อไฟล์ เช่น 1307 (ไม่ใส่ = ทุกไฟล์ และเขียน summary.json + contact_sheet.png)")
     s.add_argument("--no-debug-images", action="store_true", help="ไม่เขียนภาพแต่ละขั้น (เหลือ crops/ + manifest.json)")

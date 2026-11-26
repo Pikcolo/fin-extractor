@@ -1,13 +1,11 @@
 """Orchestrator: ข้อความที่อ่านได้ → extract → validate → ExtractionResult (ตัวอ่านทุก engine ใช้ทางเดียวกัน ดู readers/).
 
-คำสั่ง ``extract`` ใช้ ``process_raw`` (สกัดจากข้อความรายส่วนที่เก็บไว้ ไม่สร้างตัวอ่าน)
-``process_page``/``process_file`` อ่านภาพที่ส่งมาทั้งภาพ มีไว้ให้สคริปต์วัดผลเท่านั้น (CLI ห้ามอ่านทั้งหน้า)
+คำสั่ง ``extract`` ใช้ ``process_raw`` (สกัดจากข้อความรายส่วนที่เก็บไว้ ไม่สร้างตัวอ่าน ไม่อ่านภาพ)
 """
 
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Literal
 
@@ -16,7 +14,6 @@ from .doctypes import (
     Profile,
     classify,
     core_labels_for,
-    legacy_not_applicable,
     load_core_labels,
     load_profiles,
     squash,
@@ -32,9 +29,7 @@ from .extraction.profile_extractor import (
     extract_remark,
     extract_unmapped,
 )
-from .io import load_pages
-from .preprocessing import preprocess
-from .readers import make_reader, reader_label
+from .readers import reader_label
 from .readers.lines import normalize_thai
 from .schema import ExtractionResult, InvoiceData, RejectedValue, ValidationCheck
 from .validation import decide_status, run_checks
@@ -71,10 +66,9 @@ class FinanceOCRPipeline:
         cfg: dict[str, Any],
         engine: str = "openthai",
         use_llm: bool = False,
-        with_reader: bool = True,
         strategy: Literal["winner", "hybrid"] | None = None,
     ):
-        """``with_reader=False``: ไม่สร้างตัวอ่าน ใช้สกัดซ้ำจากข้อความดิบที่เก็บไว้ (process_raw) โดยไม่แตะ GPU."""
+        """สกัดจากข้อความที่อ่านไว้แล้วเท่านั้น (ไม่สร้างตัวอ่าน ไม่แตะ GPU) ``engine`` ใช้แค่ตั้งชื่อในผล."""
         self.cfg = cfg
         self.use_llm = use_llm
         # winner = rules กับ LLM สกัดแยกกัน แล้วเลือกชุดที่ check ดีกว่า | hybrid = rules นำ LLM เติมเฉพาะช่องที่ยังไม่เสร็จ (extraction/hybrid.py)
@@ -83,11 +77,8 @@ class FinanceOCRPipeline:
             raise ValueError(f"unknown extraction strategy: {self.strategy}")
         self.last_rejected: list[tuple[str, str]] = []  # ค่าที่ LLM เสนอแต่ด่านของ hybrid ปัดตก (คีย์, เหตุผล) ของหน้าล่าสุด
 
-        # ไม่สร้างตัวอ่าน: ใช้แค่ชื่อให้ engine_name ตรงกับตอนอ่านจริง
-        self.reader = make_reader(engine, cfg) if with_reader else SimpleNamespace(name=reader_label(engine, cfg))
-        self.profile = cfg["preprocessing"]
-        self.doc_table = cfg.get("document_types") or {}
-        self.profiles = load_profiles(self.doc_table)
+        self.reader = SimpleNamespace(name=reader_label(engine, cfg))  # ชื่อเดียวกับตัวอ่านจริง ให้ engine_name ตรงกับตอนอ่าน
+        self.profiles = load_profiles(cfg.get("document_types") or {})
         self.core_labels = load_core_labels(cfg.get("core_labels"))
 
         self.llm = None
@@ -102,12 +93,6 @@ class FinanceOCRPipeline:
             return f"{self.reader.name}+rules+{self.llm.name}"
         return self.reader.name + ("+" + self.llm.name if self.llm else "+rules")
 
-    def read_prepared(self, img):
-        """อ่านข้อความจากภาพที่ผ่าน preprocess แล้ว คืน (lines, raw_text, ocr_confidence, extra_checks)."""
-        res = self.reader.recognize(img)
-        extra = [self._incomplete_check()] if res.truncated else []
-        return markdown_to_lines(res.text), res.text, res.confidence, extra
-
     @staticmethod
     def _incomplete_check() -> ValidationCheck:
         return ValidationCheck(name="reader_complete", passed=False, detail="ตัวอ่านตอบไม่จบ (ชนเพดาน token) — ข้อมูลอาจขาด")
@@ -115,7 +100,7 @@ class FinanceOCRPipeline:
     @staticmethod
     def _chunks_of(lines: list[str], raw_text: str) -> list[str | None] | None:
         """รหัส section ของแต่ละบรรทัด (ขนานกับ ``lines``) จากคอมเมนต์ ``<!-- sNN -->`` ใน Markdown ของขั้น OCR รายส่วน
-        None ถ้าอ่านทั้งหน้า/ไม่มีคอมเมนต์ หรือบรรทัดไม่ตรงกับ ``lines`` (ไม่เดา)."""
+        None ถ้าไม่มีคอมเมนต์ หรือบรรทัดไม่ตรงกับ ``lines`` (ไม่เดา)."""
         if "<!-- s" not in raw_text:
             return None
         pairs = lines_with_chunks(raw_text)
@@ -136,9 +121,6 @@ class FinanceOCRPipeline:
     def profile_for(self, data: InvoiceData) -> Profile:
         """โปรไฟล์ชนิดเอกสารที่ใช้สกัดผลนี้ (ชื่ออยู่ใน ``data.document_profile``)."""
         return next((p for p in self.profiles if p.name == data.document_profile), GENERIC_PROFILE)
-
-    def extract(self, lines: list[str], raw_text: str) -> InvoiceData:
-        return self.extract_traced(lines, raw_text)[0]
 
     def extract_traced(
         self, lines: list[str], raw_text: str
@@ -225,7 +207,7 @@ class FinanceOCRPipeline:
         """rules นำ → หาช่องที่ยังไม่เสร็จ → ถาม LLM เฉพาะช่องนั้น → รับค่าที่ผ่านด่าน (ดู extraction/hybrid.py)."""
         self.last_rejected = []
         sources = dict.fromkeys(flatten(rules), "rules")
-        na = set(profile.not_applicable) | legacy_not_applicable(self.doc_table, rules.document_type)
+        na = set(profile.not_applicable)
         checks = run_checks(rules, self.cfg["validation"]["amount_tolerance"],
                             self.cfg["validation"]["default_vat_rate"], applicable=profile.checks)
         unresolved = unresolved_keys(rules, checks, profile.required, na, profile.primary_amount)
@@ -253,7 +235,7 @@ class FinanceOCRPipeline:
         profile = self.profile_for(data)
         checks = run_checks(data, self.cfg["validation"]["amount_tolerance"],
                             self.cfg["validation"]["default_vat_rate"], applicable=profile.checks) + list(extra)
-        na = set(profile.not_applicable) | legacy_not_applicable(self.doc_table, data.document_type)
+        na = set(profile.not_applicable)
         missing, status = decide_status(data, checks, not_applicable=na, required=profile.required,
                                         primary_amount=profile.primary_amount,
                                         can_auto_approve=profile.can_auto_approve)
@@ -278,20 +260,9 @@ class FinanceOCRPipeline:
             rejected=[RejectedValue(key=k, reason=why) for k, why in (self.last_rejected if self.strategy == "hybrid" else [])],
         )
 
-    def process_page(self, source_file: str, page_no: int, img) -> ExtractionResult:
-        """ภาพที่ผ่าน preprocess แล้ว → อ่าน → สกัด → ผลของหน้านั้น."""
-        lines, raw_text, ocr_conf, extra = self.read_prepared(img)
-        return self.build_result(source_file, page_no, lines, raw_text, ocr_conf, extra)
-
     def process_raw(self, source_file: str, page_no: int, raw_text: str, meta: dict | None = None) -> ExtractionResult:
         """สกัดซ้ำจากข้อความดิบที่เก็บไว้ (ไม่เรียก OCR) ``meta`` = ไฟล์ .meta.json ของข้อความนั้น."""
         meta = meta or {}
         extra = [self._incomplete_check()] if meta.get("truncated") else []
         return self.build_result(source_file, page_no, self.lines_from_raw(raw_text), raw_text,
                                  meta.get("ocr_confidence"), extra)
-
-    def process_file(self, path: str | Path) -> list[ExtractionResult]:
-        """ไฟล์ → preprocess ในหน่วยความจำ → ผล (ไม่เก็บภาพ ใช้ใน script วัดผล; คำสั่ง CLI ใช้ stages.prepared_pages)."""
-        path = Path(path)
-        return [self.process_page(str(path), page_no, preprocess(img, self.profile).image)
-                for page_no, img in enumerate(load_pages(path, self.cfg["loader"]["pdf_dpi"]), start=1)]

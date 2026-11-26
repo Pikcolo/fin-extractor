@@ -1,23 +1,25 @@
 # ขั้นที่ 4: อ่านข้อความ (OCR)
 
-> **ห้ามอ่านทั้งหน้า:** ทุก engine อ่านทีละภาพ section ผ่าน `python -m fin_extractor sections --engine openthai|typhoon|paddle|oxr` เท่านั้น
-> (คำสั่ง `ocr` ถูกปิด `extract` สกัดจากข้อความรายส่วนที่เก็บไว้เท่านั้น) ตัวเลขผลวัด "ทั้งหน้า" ในเอกสารนี้เป็นบันทึกของรุ่นก่อน เทียบกับผลรายส่วนตรง ๆ ไม่ได้
+> **ห้ามอ่านทั้งหน้า:** ทุก engine อ่านทีละภาพ section ผ่าน `python -m fin_extractor sections --engine openthai|openthai21|openthai-text|typhoon|paddle` เท่านั้น
+> (คำสั่ง `ocr` ถูกลบแล้ว `extract` สกัดจากข้อความรายส่วนที่เก็บไว้เท่านั้น) ตัวเลขผลวัด "ทั้งหน้า" ในเอกสารนี้เป็นบันทึกของรุ่นก่อน เทียบกับผลรายส่วนตรง ๆ ไม่ได้
 
-การแบ่งหน้าเป็น section ดู [03-sections.md](03-sections.md) · OpenThai ดู [04-openthai-ocr.md](04-openthai-ocr.md) · OXR ดู [archive/oxr.md](archive/oxr.md)
+การแบ่งหน้า (ผังค่าตั้งต้น) ดู [03-regions.md](03-regions.md) · ผังแถบเต็มหน้าแบบเดิม ดู [03-sections.md](03-sections.md) · OpenThai ดู [04-openthai-ocr.md](04-openthai-ocr.md)
+OXR ลองแล้วอ่านภาษาไทยไม่ได้ จึงลบออก (โค้ดและบันทึกผลอยู่ในประวัติ git ถึง commit f6cc6eb)
 
 ## ตัวอ่านทุกตัวใช้ทางเดียวกัน (`src/fin_extractor/readers/`)
 
 ```python
 from fin_extractor.readers import make_reader
-res = make_reader("openthai", cfg).recognize(img)   # img = ภาพ BGR → ReadResult(engine, text, finish_reason, confidence)
+res = make_reader("openthai", cfg).recognize(img)   # img = ภาพ BGR → ReadResult(engine, text, finish_reason, confidence, blocks)
 ```
 
 - **สร้างตัวอ่าน:** `make_reader(engine, cfg)` ยังไม่โหลดโมเดล โมเดลโหลดตอนอ่านภาพแรก และไม่ import torch หรือ paddle ของตัวที่ไม่ได้เลือก
-- **ค่าตั้ง:** อยู่ใน `configs/default.yaml` ใต้คีย์ชื่อเดียวกับ engine (`openthai:` `typhoon:` `paddle:` `oxr:`)
+- **ค่าตั้ง:** อยู่ใน `configs/default.yaml` ใต้คีย์ชื่อเดียวกับ engine (`openthai:` `openthai21:` `openthai-text:` `typhoon:` `paddle:`)
 - **ผลรูปแบบเดียวกันทุกตัว** (`ReadResult` ใน `readers/base.py`):
   - `text`: Markdown (ตารางเป็น HTML) หรือบรรทัดล้วน แล้วแต่ engine ขั้นสกัดแปลงเป็นบรรทัดด้วย `markdown_to_lines` ตัวเดียวกันทุก engine
   - `finish_reason`: `"length"` เมื่อชนเพดาน token ขั้นสกัดจะเพิ่ม check `reader_complete ✗` (Paddle ไม่มีเพดานจึงเป็น `None`)
-  - `confidence`: ความมั่นใจเฉลี่ยที่ engine รายงานเอง มีเฉพาะ Paddle บันทึกเป็น `ocr_confidence`
+  - `confidence`: ความมั่นใจเฉลี่ยที่ engine รายงานเอง มีเฉพาะ Paddle และ OpenThai Text (`openthai-text`) บันทึกเป็น `ocr_confidence`
+  - `blocks`: กรอบบล็อกที่ engine บอกว่าอ่านจากตรงไหน (`class`, `box` [x, y, w, h] px บนภาพที่ส่งเข้า, `text`) มีเฉพาะ OpenThai (`openthai` / `openthai21`) เก็บใน `.sections.json` ของแต่ละส่วน ตัวอื่นเป็น `None`
 - **ชื่อในผล:** `<engine>:<โมเดล>` เช่น `openthai:OpenThai2.0-OCR-Markdown` หรือ `typhoon:scb10x/typhoon-ocr1.5-3b` ส่วน Paddle คือ `paddle`
   - ผลที่สกัดก่อน 2026-11-20 ใช้ชื่อ `vlm:<โมเดล>` และ check ชื่อ `vlm_complete`
 
@@ -28,11 +30,10 @@ res = make_reader("openthai", cfg).recognize(img)   # img = ภาพ BGR → Re
 | `paddle` | `readers/paddle.py` (+ `readers/lines.py`) | ตรวจกรอบคำแล้วอ่านทีละกรอบ | บรรทัดล้วน + ความมั่นใจรายคำ | ห้ามอยู่ process เดียวกับ torch (cuDNN คนละรุ่น) |
 | `openthai21` | `readers/openthai.py` | ตัวเดียวกับ `openthai` weights 2.1 (torch ในเครื่อง) | Markdown | ผลแยกโฟลเดอร์ ดู [04-openthai-ocr.md](04-openthai-ocr.md) หัวข้อ 6 |
 | `openthai-text` | `readers/openthai_text.py` | ตัวตรวจบรรทัด + ตัวอ่าน CTC (ONNX บน CPU) | ข้อความทีละบรรทัด + ความมั่นใจ | ไม่มีตาราง ลายมือแย่ ดู [04-openthai-ocr.md](04-openthai-ocr.md) หัวข้อ 6 |
-| `oxr` | `readers/oxr.py` | โมเดลภาพ 1.3B (torch ในเครื่อง) | ข้อความ | อ่านไทยไม่ได้ ดู [archive/oxr.md](archive/oxr.md) |
 
 ตัวเรียกโมเดลแบบแชต (`llm_client.py`) ใช้ร่วมกันระหว่าง Typhoon กับ LLM ตัวสกัดของขั้นที่ 5 ส่วน prompt ของ LLM ตัวสกัดอยู่ที่ `extraction/prompts.py`
 
-ไม่มีขั้นตรวจภาษาหรือเลือกภาษา: Typhoon, OpenThai และ OXR อ่านทุกภาษาด้วยโมเดลเดียว (ได้เท่าที่โมเดลเคยฝึก)
+ไม่มีขั้นตรวจภาษาหรือเลือกภาษา: Typhoon และ OpenThai อ่านทุกภาษาด้วยโมเดลเดียว (ได้เท่าที่โมเดลเคยฝึก)
 ส่วน Paddle ใช้พจนานุกรมตัวอักษรตามที่ตั้ง (`paddle.lang: th` มีไทย ละติน และตัวเลข)
 
 **ภาษาไทยมีเรื่องเฉพาะสองเรื่อง** ที่ต้องแก้หลังอ่านทุกครั้ง
@@ -88,12 +89,12 @@ Tesseract (`tha+eng`) และ EasyOCR (`th, en`) เคยรองรับ �
 4. `group_into_lines` (ของโปรเจกต์ ไม่ใช่ของ Paddle) รวมกรอบคำเป็นบรรทัด
 
 พิกัดทุกกรอบอ้างอิงภาพที่ส่งเข้า ดังนั้น preprocess มีผลทางอ้อม: ภาพเอียงทำให้กรอบหลวม หมุนผิดทิศทำให้ตรวจจับแย่ลง
-ตัวอ่านอื่นไม่มีขั้นตรวจจับกรอบและไม่มีความมั่นใจรายคำ
-ผลที่ขั้น ocr เก็บมีแค่ข้อความ กรอบไม่ถูกเก็บ ดูกรอบด้วย `scripts/ocr/visualize_bbox.py` ซึ่งให้ Paddle อ่านภาพใหม่เฉพาะไฟล์ที่ระบุ (ผลที่ `04_ocr/<dataset>/paddle/visualize/`)
+กรอบคำของ Paddle ไม่ถูกเก็บในผลขั้น ocr (เก็บแค่ข้อความ) สคริปต์วาดกรอบ `scripts/ocr/visualize_bbox.py` ถูกลบแล้ว (อยู่ในประวัติ git ถึง commit f6cc6eb)
+ตัวอ่านอื่นไม่มีความมั่นใจรายคำ ยกเว้น OpenThai Text ที่มีความมั่นใจรายบรรทัด ส่วน OpenThai คืนกรอบระดับบล็อก (`blocks` ข้างบน) เก็บใน `.sections.json` และหน้า demo (`scripts/demo/ocr_demo_app.py`) วาดกรอบนี้ให้ดู
 
 ### ผลเทียบสาม engine บนเครื่องนี้
 
-> วัดตอนที่ยังรองรับสาม engine อ่านทั้งหน้า และใช้ preprocessing แบบเก่า (สอง profile) ปัจจุบันเหลือ Paddle ตัวเดียวกับ preprocessing ชุดเดียว
+> วัดตอนที่ยังรองรับสาม engine อ่านทั้งหน้า และใช้ preprocessing แบบเก่า (สอง profile) ปัจจุบัน Tesseract/EasyOCR ถูกลบแล้ว และอ่านทีละส่วนแทนทั้งหน้า
 > เวลาเตรียมภาพในตารางจึงสูงกว่าปัจจุบัน (NL-means ที่ใช้ตอนนั้นปิดแล้ว ดู [02-preprocessing.md](02-preprocessing.md))
 
 รันไปป์ไลน์เต็มแบบอ่านทั้งหน้า (รุ่นเก่า `--mode ocr` ถอดแล้ว) บน RTX 4050 6 GB, CUDA 13 เวลาวัดหลังอุ่นเครื่องแล้ว
@@ -173,10 +174,10 @@ Tesseract (`tha+eng`) และ EasyOCR (`th, en`) เคยรองรับ �
 
 > **หมายเหตุ (2026-11-11):** ตัวเลขและข้อสังเกตในหัวข้อนี้มาจากรันของ 2026-11-10 ก่อนมีโปรไฟล์ชนิดเอกสาร ผลดิบชุดนั้น (รวม `ocr-llm`) ถูกแทนที่แล้ว
 > รันใหม่ได้ paddle/rules 15 `needs_review`/3 `failed`, typhoon/llm 18 `needs_review` (ดู [README](README.md)) ข้อสังเกตเรื่องค่าผิดของ LLM ด้านล่างยังไม่ได้ตรวจซ้ำกับรอบใหม่
-> ตาราง `data/etc/benchmarks/compare_modes.md` เป็นของรอบเก่า
+> ตาราง `data/etc/benchmarks/compare_modes.md` เป็นของรอบเก่า สคริปต์ที่สร้าง (`scripts/eval/compare_modes.py`) และโฟลเดอร์ผลทั้งหน้า (`page/`) ถูกลบแล้ว (สคริปต์อยู่ในประวัติ git ถึง commit f6cc6eb)
 
 ชุดที่เทียบ (ตัวเลขในตารางเป็นของรอบ 2026-11-10): ชุด A = Paddle ทั้งหน้า + rules ชุด B = Typhoon OCR ทั้งหน้า + `qwen2.5:3b` + rules
-โฟลเดอร์ผลของสองชุดนี้ (`data/05_extract/finance_doc_scan/paddle/page/rules/` และ `.../typhoon/page/llm/`) ไม่มีในเครื่องนี้แล้ว ตารางเทียบรายใบ: `data/etc/benchmarks/compare_modes.md` (สร้างด้วย `scripts/eval/compare_modes.py` ซึ่งอ่านสองโฟลเดอร์นั้นเป็นค่าตั้งต้น) ไม่มีเฉลย
+โฟลเดอร์ผลของสองชุดนี้ (`data/05_extract/finance_doc_scan/paddle/page/rules/` และ `.../typhoon/page/llm/`) ไม่มีในเครื่องนี้แล้ว ตารางเทียบรายใบ: `data/etc/benchmarks/compare_modes.md` (สร้างด้วย `scripts/eval/compare_modes.py` ซึ่งลบแล้ว) ไม่มีเฉลย
 
 | | A: Paddle | B: Typhoon |
 |---|---|---|

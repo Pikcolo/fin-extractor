@@ -161,14 +161,3 @@ def classify(profiles: list[Profile], text: str, document_type: str | None = Non
             if squash(p.name) == sd or (p.title and squash(p.title) == sd):
                 return p
     return GENERIC_PROFILE
-
-
-def legacy_not_applicable(table: dict[str, Any] | None, document_type: str | None) -> set[str]:
-    """รูปแบบเก่า: ``not_applicable`` ต่อชื่อชนิดเอกสารที่ตรงกับ ``document_type`` ตรง ๆ (เทียบแบบตัดช่องว่าง)."""
-    if not document_type or not table:
-        return set()
-    sd = squash(document_type)
-    for name, spec in table.items():
-        if squash(name) == sd:
-            return set((spec or {}).get("not_applicable", []))
-    return set()

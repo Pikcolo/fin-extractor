@@ -26,16 +26,19 @@ from pathlib import Path
 import numpy as np
 
 from ..extraction.patterns import find_amounts, find_dates, fix_ocr_numbers
+from ..io import read_image
 from ..paths import DataPaths, doc_dir
 from ..readers import TORCH_ENGINES, make_reader
 from ..readers.lines import normalize_thai
 from .read import (
+    coverage_file,
+    joined_halves,
+    split_file,
     clean_index,
     fingerprint,
     image_locator,
     images_dir,
     layout_file,
-    read_clean_image,
     write_markdown,
 )
 
@@ -133,18 +136,6 @@ def _blank_runs(ink: np.ndarray) -> list[tuple[int, int]]:
     return runs
 
 
-def coverage_file(sections_json: Path) -> Path:
-    return sections_json.with_name(sections_json.name.removesuffix(".sections.json") + ".coverage.json")
-
-
-def split_file(sections_json: Path) -> Path:
-    return sections_json.with_name(sections_json.name.removesuffix(".sections.json") + ".split.json")
-
-
-def joined_halves(r: dict) -> str:
-    return r["left"].strip() + "\n\n" + r["right"].strip()
-
-
 def _load(path: Path, layout: list[dict], redo: bool) -> dict | None:
     if redo or not path.exists():
         return None
@@ -176,7 +167,7 @@ def check_dataset(paths: DataPaths, cfg: dict, dataset: str, stems: list[str], e
             first = {s["id"]: s.get("text") or "" for s in json.loads(src.read_text(encoding="utf-8"))["sections"]}
             clean_dir = images_dir(paths, dataset, stem, variant)
             entries = clean_index(clean_dir, layout, stem)
-            image = lambda sid: read_clean_image(clean_dir, entries[sid], variant)  # noqa: E731
+            image = lambda sid: read_image(clean_dir / entries[sid]["file"])  # noqa: E731
 
             prev = _load(coverage_file(src), layout, redo)
             if prev:

@@ -1,10 +1,10 @@
-"""ขั้นที่ใช้ร่วมกันของคำสั่ง preprocess / ocr / extract.
+"""ขั้นที่ใช้ร่วมกันของคำสั่ง preprocess / sections / extract.
 
 1. ``prepared_pages``: หน้าที่ผ่าน preprocess แล้ว เก็บภาพสุดท้ายไว้ที่ ``preprocess/<dataset>/<profile>/final/``
    ทุก engine ใช้ภาพชุดเดียวกัน (ไม่ preprocess ซ้ำ) ถ้าตั้งค่า preprocess เปลี่ยนจากที่เก็บไว้ ต้องใช้ ``--profile`` ใหม่
    หรือ ``--force`` (ล้างโฟลเดอร์ profile นั้นแล้วทำใหม่) กันภาพคนละตั้งค่าปนกันใน profile เดียว
-2. ``save_raw`` / ``load_raw``: ข้อความดิบจาก OCR ที่ ``04_ocr/<dataset>/<engine>/page/<ไฟล์>_p<หน้า>.(txt|md)``
-   พร้อม ``.meta.json`` (ความมั่นใจ, ตอบไม่จบหรือไม่, ตั้งค่า profile) ใช้สกัดซ้ำด้วย rules หรือ LLM โดยไม่เรียก OCR อีก
+2. ``raw_pages`` / ``load_raw``: ข้อความดิบรายส่วนที่ขั้น OCR เขียนไว้ (``04_ocr/<dataset>/<engine>/<วิธี>/<ไฟล์>_p<หน้า>.md``)
+   พร้อม ``.meta.json`` ถ้ามี ใช้สกัดซ้ำด้วย rules หรือ LLM โดยไม่เรียก OCR อีก
 """
 
 from __future__ import annotations
@@ -79,14 +79,6 @@ def meta_path_of(image_path: Path) -> Path:
 def read_meta(image_path: Path) -> dict[str, Any]:
     p = meta_path_of(image_path)
     return json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
-
-
-def save_raw(raw_dir: Path, stem: str, text: str, ext: str, meta: dict[str, Any]) -> Path:
-    raw_dir.mkdir(parents=True, exist_ok=True)
-    out = raw_dir / f"{stem}.{ext}"
-    out.write_text(text, encoding="utf-8")
-    (raw_dir / f"{stem}.meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
-    return out
 
 
 def raw_pages(raw_dir: Path, file_stem: str, ext: str) -> list[tuple[int, Path]]:

@@ -91,8 +91,7 @@ def normalize_llm_output(raw: dict[str, Any], profile: Profile | None = None) ->
         it["description"] = str(it.get("description") or "-")
         items.append(it)
     out["items"] = items
-    remark = _normalize_extra(out.pop("remark", None) or out.pop("extra_fields", None))
-    out.pop("extra_fields", None)
+    remark = _normalize_extra(out.pop("remark", None))
     out["document_fields"], leftover = _normalize_doc_fields(out.get("document_fields"), profile)
     out["remark"] = remark + leftover  # คีย์ที่โปรไฟล์ไม่ได้ประกาศ/อ่านค่าไม่ได้ ไม่ทิ้ง เก็บเป็นหมายเหตุ
     return out

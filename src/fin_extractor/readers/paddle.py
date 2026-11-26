@@ -16,7 +16,7 @@ import numpy as np
 
 from ..paths import model_dir
 from .base import ReadResult
-from .lines import OCREngine, OCRResult, OCRWord, group_into_lines, polygon_to_bbox
+from .lines import OCRResult, OCRWord, group_into_lines, polygon_to_bbox
 
 
 def use_project_model_cache() -> None:
@@ -72,7 +72,7 @@ def _expose_nvidia_dlls() -> None:
     os.environ["PATH"] = os.pathsep.join([*dirs, os.environ.get("PATH", "")])
 
 
-class PaddleEngine(OCREngine):
+class PaddleEngine:
     name = "paddle"
 
     def __init__(self, lang: str = "th", use_angle_cls: bool = True):

@@ -2,14 +2,15 @@
 
 > เขียน 2026-11-20 เทียบโค้ดใน repo กับขอบเขตงาน 5 เฟสของหัวข้อ "Microservice-Based Intelligent OCR for Unstructured Financial Document Extraction"
 > และไอเดีย pipeline (สแกน → preprocess → Gemini → decision engine → คน/Excel) ตัวเลขทุกตัวมาจากผลวัดในเอกสารที่อ้าง
+> **อัปเดต 2026-11-26:** เก็บกวาดโค้ด: ลบ OXR, สคริปต์วัดแบบอ่านทั้งหน้า (`scripts/eval/benchmark.py`, `scripts/ocr/benchmark_cer.py` ฯลฯ), คำสั่ง `ocr` และตัวโหลดผลรุ่นเก่า (schema 2.x/3.x) ของที่ลบอยู่ในประวัติ git ถึง commit f6cc6eb
 > **ยังไม่มี ground truth ของสแกนจริง** ตัวเลขผลบนสแกนจริงจึงวัด "ความครบ" (ฟิลด์ที่ขาด สถานะ) ไม่ใช่ "ความถูก"
 
 ## 1. สรุปสั้น
 
 - **ทำไปแล้วลึกที่สุดคือเฟส 2** (preprocess, OCR, สกัด, ตรวจ) ซึ่งเป็นแกนของโปรเจกต์ มีผลวัดประกอบทุกการตัดสินใจ
-- **Data contract (เฟส 1) มีแล้ว** เป็น JSON Schema 3.0 ที่สร้างจาก Pydantic
+- **Data contract (เฟส 1) มีแล้ว** เป็น JSON Schema 4.0 ที่สร้างจาก Pydantic
 - **ยังไม่มีเลย:** FastAPI service (เฟส 3), การเชื่อมระบบบัญชีและหน้าตรวจ (เฟส 4), Docker (เฟส 5)
-- **วัดผล (เฟส 5):** มีเครื่องมือครบ (CER บนชุดสังเคราะห์, field accuracy ด้วย ground truth ที่กรอกในเครื่อง) แต่ยังไม่มีคนกรอก ground truth ของสแกนจริง
+- **วัดผล (เฟส 5):** มีเครื่องมือ field accuracy ด้วย ground truth ที่กรอกในเครื่อง (สคริปต์ CER บนชุดสังเคราะห์ถูกลบ 2026-11-26) แต่ยังไม่มีคนกรอก ground truth ของสแกนจริง
 - **ลำดับที่แนะนำ:** กรอก ground truth ก่อน แล้วใช้มันปรับ preprocess → OCR → post-process ทีละตัวแปร จากนั้นค่อยห่อเป็น service
 
 ## 2. เทียบกับขอบเขตงาน 5 เฟส
@@ -18,8 +19,8 @@
 
 | หัวข้อ | สถานะ | อยู่ที่ไหน / หมายเหตุ |
 |---|---|---|
-| Data contract (JSON Schema) | **ทำแล้ว** | `schemas/invoice.schema.json` สร้างจาก `src/fin_extractor/schema.py` (schema 3.0: แกนกลาง + `document_fields` ประจำชนิด + `remark`) |
-| ช่อง `confidence_score` | **ทำแล้วในรูปอื่น** | ไม่ใช้คะแนนตัวเดียว ใช้ `field_evidence` รายช่อง (`verified` / `unverified` / `conflict` / `missing`) + `status` ของใบ เหตุผลใน [06](06-design-and-roadmap.md) หัวข้อ 4.3 |
+| Data contract (JSON Schema) | **ทำแล้ว** | `schemas/invoice.schema.json` สร้างจาก `src/fin_extractor/schema.py` (schema 4.0: แกนกลาง + `document_fields` ประจำชนิด + `remark` + `review` รายช่อง) |
+| ช่อง `confidence_score` | **ทำแล้วในรูปอื่น** | ไม่ใช้คะแนนตัวเดียว ใช้ `review` รายช่อง (`verified` / `unverified` / `conflict` / `missing`) + `status` ของใบ เหตุผลใน [06](06-design-and-roadmap.md) หัวข้อ 4.3 |
 | Sync REST / Async task + webhook/polling | **ยังไม่ทำ** | ออกแบบได้ทันที: OCR ใช้ 10–30 วินาทีต่อหน้า จึงควรเป็น async เป็นหลัก |
 
 ### เฟส 2: Core OCR & Extraction Engine
@@ -29,7 +30,7 @@
 | Preprocess: deskew / rotate | **ทำแล้ว ใช้อยู่** | หมุนด้วยตัวจำแนกทิศของ Paddle (แยก 90° กับ 270° ได้), deskew [02](02-preprocessing.md) |
 | Preprocess: denoise / binarize / CLAHE | **ทำแล้ว ปิดไว้** | วัดแล้วไม่ช่วย binarize ทำให้อ่านเลขภาษีได้น้อยลง ([02](02-preprocessing.md) หัวข้อ 2.6–2.8) |
 | แบ่งหน้าเป็นส่วนก่อน OCR | **ทำแล้ว** (เกินขอบเขต) | **ค่าตั้งต้นเป็นผัง regions ตั้งแต่ 2026-11-24** ([03-regions](03-regions.md): กรอบชิดข้อความ ตารางตามเส้น ระบาย QR/บาร์โค้ด ท่อนที่ไม่มีข้อความไม่ส่ง OCR) ผู้ใช้เลือกหลังดูภาพ ทั้งที่ผลวัดเดิมขาดฟิลด์ 20 เทียบผัง section 14 (ไม่มีเฉลย ต้องวัดซ้ำ) ผัง section แบบเดิมยังใช้ได้ด้วย `--layout sections` ([03-sections](03-sections.md)) |
-| OCR engine | **ทำแล้ว 6 ตัว** | OpenThai 2.0 (ค่าตั้งต้น), OpenThai 2.1 Markdown (≈ 2.0 บน 18 ใบ), OpenThai 2.1 Text (CPU ไม่มีตาราง ลายมือแย่), Typhoon, PaddleOCR, OXR (เลิกใช้: อ่านไทยไม่ได้) ผลเทียบ [04-openthai-ocr](04-openthai-ocr.md) หัวข้อ 6 |
+| OCR engine | **ทำแล้ว 5 ตัว** | OpenThai 2.0 (ค่าตั้งต้น), OpenThai 2.1 Markdown (≈ 2.0 บน 18 ใบ), OpenThai 2.1 Text (CPU ไม่มีตาราง ลายมือแย่ ใช้เป็นตัวอ่านเสริมของชั้นตรวจความครบ), Typhoon, PaddleOCR · OXR ลองแล้วอ่านไทยไม่ได้ ลบออก 2026-11-26 ผลเทียบ [04-openthai-ocr](04-openthai-ocr.md) หัวข้อ 6 |
 | Regex เลขภาษี / วันที่ / ยอดเงิน | **ทำแล้ว** | `extraction/` + โปรไฟล์ชนิดเอกสาร ([05-extraction](05-extraction.md)) |
 | Cross-check ตัวเลข | **ทำแล้ว** | checksum เลขภาษี, ผลรวมรายการ, ส่วนลด, ก่อน VAT + VAT = รวม, อัตรา VAT, ช่วงวันที่ ([05-validation-output](05-validation-output.md)) |
 | LLM ช่วยสกัด | **ทำแล้ว ปิดเป็นค่าตั้งต้น** | `--llm on/hybrid` ใช้ Ollama ในเครื่อง (`qwen2.5:3b`) วัดบนผัง regions 2026-11-26: winner แต่งค่า 35 ค่า · hybrid failed 2 → 1, auto 5 → 6 ไม่มีค่าที่ไม่อยู่ในข้อความ ([05-extraction](05-extraction.md) §5D) ยังให้ rules นำ |
@@ -51,10 +52,10 @@
 | หัวข้อ | สถานะ |
 |---|---|
 | Dockerfile / docker-compose | **ยังไม่ทำ** ข้อจำกัดที่ต้องรู้: Paddle กับ torch ใช้ cuDNN คนละรุ่น อยู่ใน process เดียวกันไม่ได้ (แก้ในโค้ดแล้วด้วยการแยก process) |
-| CER | **มีเครื่องมือ** `scripts/ocr/benchmark_cer.py` ใช้กับชุดสังเคราะห์ที่รู้ข้อความจริง |
+| CER | **ไม่มีเครื่องมือแล้ว** `scripts/ocr/benchmark_cer.py` (ชุดสังเคราะห์ อ่านทั้งหน้า) ถูกลบ 2026-11-26 อยู่ในประวัติ git ถึง commit f6cc6eb ต้องเขียนใหม่แบบรายส่วนถ้าจะวัด (A3) |
 | Field-level accuracy | **มีเครื่องมือ รอข้อมูล** `scripts/eval/groundtruth_app.py` + `score_groundtruth.py` |
 | Latency | **วัดบางส่วน** OCR รายส่วน 18 ใบ: OpenThai 3.4–3.8 นาที (โหมด regions, VRAM 1.4 GB), Typhoon 8.1 นาที (ผัง section) ยังไม่มีตัวเลขต่อหน้าแยกขั้นแบบเป็นระบบ |
-| Unit tests | **ทำแล้ว** 270 test |
+| Unit tests | **ทำแล้ว** 301 test (2026-11-26) |
 | เอกสาร | **ทำแล้ว** `docs/` เรียงตามขั้น ยังไม่มี Swagger (เพราะยังไม่มี API) |
 
 ## 3. ไอเดีย pipeline: ความเห็นทีละข้อ
@@ -65,7 +66,7 @@
 | 2 | preprocess ด้วย Python (greyscale) ก่อนเข้า LLM | ไม่แน่ใจว่าทำไมต้องเข้า LLM อาจสลับลำดับตอน OCR | preprocess → **OCR** → สกัด เป็นลำดับที่ใช้อยู่ ภาพทั้งหน้าคงสี ภาพรายส่วนที่ส่ง OCR เป็นเทา (`luma`) | ความเห็นของผู้เสนอถูก: ภาพควรเข้า **OCR** ไม่ใช่ LLM ส่วน LLM (ถ้าใช้) รับข้อความหลัง OCR greyscale เป็นตัวเลือกที่วัดแล้วดีที่สุดกับ OpenThai (ฟิลด์ขาด luma 14 · flat 16 · bin 28) แต่ทั้งหน้าคงสีไว้เพราะตัวอ่านภาพอ่านภาพสีได้ดีกว่า |
 | 3 | Gemini 1.5 Flash API ขอ raw JSON | ไม่แน่ใจ ใช้โมเดล OCR แทนจะไม่เสีย cost | ใช้ OpenThai / Typhoon ในเครื่องแทน ไม่มี cost ต่อหน้า ข้อมูลไม่ออกนอกเครื่อง | เห็นด้วยกับผู้เสนอ เหตุผลหลักไม่ใช่แค่ราคา: ส่งเอกสารการเงินขึ้น cloud ต้องมีนโยบายข้อมูลอนุญาตก่อน และการขอ JSON ตรงจากโมเดลเคยวัดแล้วได้ฟิลด์ถูก 28.6% เทียบกับ 92.9% เมื่ออ่านเป็นข้อความแล้วสกัดแยก ([04](04-ocr.md)) รุ่น 1.5 เป็นรุ่นเก่า ควรเช็คว่ายังเปิดให้ใช้ไหม ถ้าจะเทียบกับ cloud ให้ใช้เป็น baseline บนชุดสังเคราะห์เท่านั้น |
 | 4 | Decision engine ด้วย Jev API | อาจเทียบกับ Laya เพราะไม่เสีย cost | ยังไม่ทำ มีแผน ([draft-08](draft-08-decision-model.md), [draft-09](draft-09-decision-engine-confidence-plan.md)) | ใช้ได้เป็นสัญญาณเสริมหลังขั้นสกัด ไม่ใช่ตัวตัดสินว่าค่าถูก (มันไม่เห็นภาพ) Jev เป็น cloud ใช้กับสแกนจริงไม่ได้ถ้าห้ามข้อมูลออก Laya รันในเครื่องได้แต่ยังไม่มีหลักฐานภาษาไทย งานที่คุ้มสุดคือแนะนำรหัสบัญชีและจัดคิวตรวจ ไม่ควรทำก่อนมี ground truth |
-| 5 | Human flag หรือ auto-populate ลง Excel | เป็นประเด็นที่น่าคิด | `field_evidence` + `status` พร้อมไฮไลต์ ยังไม่มีหน้าตรวจหรือ export | ทำทั้งสองอย่างแต่เรียงลำดับ: คนตรวจก่อนเข้าบัญชีเสมอ export Excel/CSV เป็นทางออกที่ทำง่ายและเหมาะกับเดโม (ใส่คอลัมน์สถานะและระดับหลักฐานต่อช่อง ให้ Excel ทำหน้าที่เป็นหน้าตรวจชั่วคราว) แต่ห้าม auto-populate ลงบัญชีโดยไม่มีคนยืนยัน ระบบตอนนี้ยังไม่มีใบไหนผ่านเกณฑ์ `auto_approved` |
+| 5 | Human flag หรือ auto-populate ลง Excel | เป็นประเด็นที่น่าคิด | `review` + `status` พร้อมไฮไลต์ ยังไม่มีหน้าตรวจหรือ export | ทำทั้งสองอย่างแต่เรียงลำดับ: คนตรวจก่อนเข้าบัญชีเสมอ export Excel/CSV เป็นทางออกที่ทำง่ายและเหมาะกับเดโม (ใส่คอลัมน์สถานะและระดับหลักฐานต่อช่อง ให้ Excel ทำหน้าที่เป็นหน้าตรวจชั่วคราว) แต่ห้าม auto-populate ลงบัญชีโดยไม่มีคนยืนยัน ตอนนี้ rules บนผัง regions ได้ `auto_approved` 5 จาก 18 ใบ ([05-extraction](05-extraction.md) §5D) ซึ่งแปลว่าตัวเลขสอดคล้องกันเอง ไม่ได้แปลว่าถูก |
 
 ## 4. ความเห็นภาพรวม
 
@@ -94,7 +95,7 @@
 | B1 | ลบเส้นสกปรกจากเครื่องสแกน (`remove_streaks`) | เจอใน 1320/1322 มีโค้ดแล้ว ยังไม่ได้วัดผลต่อ OCR |
 | B2 | ความละเอียดภาพที่ส่ง OCR (ขยายภาพ section เล็ก / ย่อภาพใหญ่) | ภาพรายส่วนตอนนี้ตัดที่ 300 dpi ไม่เคยวัดว่าขนาดไหนดีสุดกับ OpenThai |
 | B3 | `color` เทียบ `luma` เทียบ `flat` สำหรับใบพื้นสี/ลายน้ำ (1308/1309/1317–1319) | `color` ยังไม่เคยวัด `flat` อาจช่วยเฉพาะใบพื้นสี |
-| B4 | ผัง section เทียบ regions ด้วย field accuracy (เดิมเทียบแค่ฟิลด์ที่ขาด 14 กับ 20) | ตัดสินว่าจะรวมเทคนิค regions เข้า flow หลักไหม |
+| B4 | ผัง section เทียบ regions ด้วย field accuracy (เดิมเทียบแค่ฟิลด์ที่ขาด 14 กับ 20) | **ตัดสินแล้ว** regions เป็นค่าตั้งต้นตั้งแต่ 2026-11-24 (ผู้ใช้เลือกหลังดูภาพ) ยังควรวัดซ้ำด้วย field accuracy |
 | B5 | ตัวตรวจทิศล้ม → แจ้งเตือนแล้ว ยังไม่มีทางสำรองอัตโนมัติ | 1315 เคยตะแคงเงียบ ๆ |
 
 ### C. OCR (วัดด้วย A)
@@ -102,7 +103,7 @@
 | # | งาน | เหตุผล |
 |---|---|---|
 | C1 | ตาราง accuracy รายช่องต่อ engine (OpenThai / Typhoon / Paddle) | เลือก engine ต่อชนิดช่องหรือชนิดเอกสารจากตัวเลข |
-| C2 | สัญญาณ "สอง engine อ่านตรงกันไหม" (`engines_agree`) เข้า `field_evidence` | มีผล OpenThai กับ Typhoon ครบ 18 ใบอยู่แล้ว ทำด้วย CPU |
+| C2 | สัญญาณ "สอง engine อ่านตรงกันไหม" (`engines_agree`) เข้า `review` | มีผล OpenThai กับ Typhoon ครบ 18 ใบอยู่แล้ว ทำด้วย CPU |
 | C3 | Escalation: ใบที่เช็คไม่ผ่านหรือช่องขาด ส่งอ่านซ้ำด้วย engine ที่สอง | ลดงานคนโดยไม่รัน 2 engine ทุกใบ |
 | C4 | ความมั่นใจของ Paddle ลงถึงช่อง (`model_conf`) แล้ววัดว่าสัมพันธ์กับความถูกไหม | ถ้าไม่สัมพันธ์ให้เลิก ([draft-09](draft-09-decision-engine-confidence-plan.md) P1) |
 
@@ -113,7 +114,7 @@
 | D1 | จับคู่ป้ายกับค่าเมื่อ OCR อ่านป้ายเป็นบรรทัดและค่าเป็นตาราง | 1306 กล่องยอดรวม |
 | D2 | ยอดที่บาทกับสตางค์อยู่คนละช่องตาราง (`106,250 \| .00`) ส่วนแบบมีช่องว่าง (`106,250 .00`) แก้แล้วใน `markdown_to_lines` | 1323 (50 ทวิ) และไล่สาเหตุของ 1321 ซึ่งยังไม่ทราบ |
 | D3 | จำแนกชนิดเอกสารผิด | 1323 ถูกจัดเป็นใบกำกับภาษี |
-| D4 | วัดว่า `field_evidence` ไฮไลต์ถูกไหม: นับช่อง `verified` ที่จริงผิด (ต้องเป็นศูนย์) และช่องผิดที่ถูกไฮไลต์ | เกณฑ์ HITL ([draft-09](draft-09-decision-engine-confidence-plan.md) หัวข้อ 4.3) |
+| D4 | วัดว่า `review` ไฮไลต์ถูกไหม: นับช่อง `verified` ที่จริงผิด (ต้องเป็นศูนย์) และช่องผิดที่ถูกไฮไลต์ | เกณฑ์ HITL ([draft-09](draft-09-decision-engine-confidence-plan.md) หัวข้อ 4.3) |
 | D5 | วัด `--llm hybrid` ด้วย ground truth | ตัดสินว่าจะเปิด LLM ไหม |
 
 ### E. Service และการใช้งาน (หลัง B–D นิ่ง)

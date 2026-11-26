@@ -4,7 +4,7 @@
 import json
 
 from fin_extractor.config import load_config
-from fin_extractor.extraction.rule_extractor import lines_with_chunks, supplement_of
+from fin_extractor.extraction.rule_extractor import chunk_lines
 from fin_extractor.pipeline import FinanceOCRPipeline
 from fin_extractor.sections.coverage import missing_values, normalize_digits
 from fin_extractor.sections.read import markdown_of, write_markdown
@@ -50,9 +50,9 @@ def test_supplement_block_goes_after_every_main_block_and_is_marked():
                         {"id": "s02", "kind": "strip_02", "text": "รายการ"}]}
     md = markdown_of(doc)
     assert md.index("<!-- s02") < md.index("<!-- s01 strip_01 supplement openthai-text -->")
-    rows = list(zip(lines_with_chunks(md), supplement_of(md), strict=True))
-    assert rows[-1] == (("วันที่ 15/10/2569", "s01"), "openthai-text")
-    assert all(s is None for (_ln, c), s in rows[:-1])
+    rows = chunk_lines(md)
+    assert rows[-1] == ("วันที่ 15/10/2569", "s01", "openthai-text")
+    assert all(s is None for _ln, _c, s in rows[:-1])
 
 
 def test_write_markdown_attaches_only_flagged_sections(tmp_path):
@@ -70,7 +70,7 @@ def test_values_found_only_in_the_supplement_are_attributed_and_need_review():
         {"id": "s00", "kind": "k", "text": "บริษัท อี พาวเวอร์ เซอร์วิส จำกัด\nใบกำกับภาษี"},
         {"id": "s01", "kind": "k", "text": VLM_1317, "supplement": {"engine": "openthai-text", "text": normalize_digits(TEXT_1317)}},
         {"id": "s02", "kind": "k", "text": "รวมทั้งสิ้น 100.00"}]})
-    pipe = FinanceOCRPipeline(load_config(), engine="openthai", use_llm=False, with_reader=False)
+    pipe = FinanceOCRPipeline(load_config(), engine="openthai", use_llm=False)
     res = pipe.build_result("x", 1, pipe.lines_from_raw(md), md, None, [])
     assert res.data.invoice_no == "ST6910-0036"
     assert res.review["invoice_no"].source == "openthai-text" and res.review["date"].source == "openthai-text"

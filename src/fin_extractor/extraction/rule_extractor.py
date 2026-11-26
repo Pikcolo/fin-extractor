@@ -80,12 +80,8 @@ def lines_with_chunks(markdown: str) -> list[tuple[str, str | None]]:
     return [(ln, c) for ln, c, _s in chunk_lines(markdown)]
 
 
-def supplement_of(markdown: str) -> list[str | None]:
-    """ขนานกับ ``lines_with_chunks``: ชื่อตัวอ่านเสริมของบรรทัดที่มาจากท่อนเสริม (``<!-- sNN kind supplement <engine> -->``) อื่น ๆ None."""
-    return [s for _ln, _c, s in chunk_lines(markdown)]
-
-
 def chunk_lines(markdown: str) -> list[tuple[str, str | None, str | None]]:
+    """(บรรทัด, รหัส section, ชื่อตัวอ่านเสริมถ้าบรรทัดมาจากท่อน supplement) ของทุกบรรทัด ``lines_with_chunks`` คือสองช่องแรก."""
     out: list[tuple[str, str | None, str | None]] = []
     chunk: str | None = None
     supplement: str | None = None

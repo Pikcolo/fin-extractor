@@ -14,7 +14,7 @@ from __future__ import annotations
 import cv2
 import numpy as np
 
-from .masks import ink_mask, line_masks
+from .masks import ink_mask
 
 Box = tuple[int, int, int, int]  # x0, y0, x1, y1 in pixels
 
@@ -38,24 +38,6 @@ def content_bbox(img: np.ndarray, min_area_frac: float = 2e-5, edge_px: int = 8)
         return 0, 0, w, h
     arr = np.array(keep)
     return int(arr[:, 0].min()), int(arr[:, 1].min()), int(arr[:, 2].max()), int(arr[:, 3].max())
-
-
-def frame_bbox(img: np.ndarray, min_area_frac: float = 0.35) -> Box | None:
-    """Largest ruled rectangle covering at least min_area_frac of the page, else None."""
-    mask = ink_mask(img)
-    h, w = mask.shape
-    horiz, vert = line_masks(mask, min_frac=0.15)
-    grid = cv2.dilate(cv2.bitwise_or(horiz, vert), np.ones((5, 5), np.uint8))
-    contours, _ = cv2.findContours(grid, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    best = None
-    for c in contours:
-        x, y, bw, bh = cv2.boundingRect(c)
-        if bw * bh >= min_area_frac * h * w and (best is None or bw * bh > best[2] * best[3]):
-            best = (x, y, bw, bh)
-    if best is None:
-        return None
-    x, y, bw, bh = best
-    return x, y, x + bw, y + bh
 
 
 def pad_box(box: Box, shape: tuple[int, ...], pad_px: int) -> Box:

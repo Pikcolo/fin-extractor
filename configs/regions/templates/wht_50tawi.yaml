@@ -1,13 +1,12 @@
 # หนังสือรับรองการหักภาษี ณ ที่จ่าย ตามมาตรา 50 ทวิ
 # Ratios [x0, y0, x1, y1] are fractions of the CONTENT bbox of the normalized page
 # (top = "ฉบับที่ 1" line, bottom = "หมายเหตุ" footnote). Measured on 001307/001321,
-# checked on 001311/001323. Re-measure with: python scripts/ratio_grid.py --doc <id>
+# checked on 001311/001323 (scripts/ratio_grid.py used for this is not part of this repo).
 #
-# Note: the outer form border is often broken in scans, so anchor "frame" is unreliable here.
+# Ratios use the content bbox, not the ruled form border: the border is often broken in scans.
 
 options:
   mode: template
-  anchor: content
 
 regions:
   - name: doc_header          # เล่มที่ / เลขที่ (certificate number)

@@ -11,10 +11,10 @@ from fin_extractor.sections.regions.run import RegionConfig, run_page
 
 def test_classify_exact_pattern_and_default():
     cfg = {"default_type": "generic",
-           "documents": {"A": "wht_50tawi", "B": {"type": "invoice", "clean": "max_channel"}},
+           "documents": {"A": "wht_50tawi", "B": {"type": "invoice", "clean": "suppress_color"}},
            "patterns": {"UPS_*": "invoice"}}
     assert doc_types.classify("A", cfg) == ("wht_50tawi", {})
-    assert doc_types.classify("B", cfg) == ("invoice", {"clean": "max_channel"})
+    assert doc_types.classify("B", cfg) == ("invoice", {"clean": "suppress_color"})
     assert doc_types.classify("UPS_001", cfg) == ("invoice", {})
     assert doc_types.classify("zzz", cfg) == ("generic", {})
 

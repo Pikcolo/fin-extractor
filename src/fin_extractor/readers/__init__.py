@@ -5,7 +5,6 @@
     openthai-text  OpenThai 2.1 OCR Text (ONNX บน CPU คืนบรรทัด + ความมั่นใจ ไม่มีตาราง)
     typhoon        Typhoon OCR ผ่าน Ollama / vLLM / API
     paddle         PaddleOCR (มีความมั่นใจรายคำ ห้ามอยู่ร่วม process กับ torch: cuDNN คนละรุ่น ดู readers/paddle.py)
-    oxr            OXR-1.0 (torch ในเครื่อง อ่านไทยไม่ได้ ดู docs/archive/oxr.md)
 
 import ตอนสร้างตัวอ่าน จึงไม่โหลด torch/paddle ของ engine ที่ไม่ได้เลือก ค่าตั้งของแต่ละตัวอยู่ใน config คีย์ชื่อเดียวกับ engine
 """
@@ -16,8 +15,8 @@ from typing import Any
 
 from .base import ReadResult
 
-ENGINES = ("openthai", "openthai21", "openthai-text", "typhoon", "paddle", "oxr")
-TORCH_ENGINES = ("openthai", "openthai21", "oxr")  # ตัวที่ใช้ torch ในเครื่อง (typhoon เรียก Ollama, paddle ห้ามอยู่ร่วม process กับ torch, openthai-text ใช้ onnxruntime)
+ENGINES = ("openthai", "openthai21", "openthai-text", "typhoon", "paddle")
+TORCH_ENGINES = ("openthai", "openthai21")  # ตัวที่ใช้ torch ในเครื่อง (typhoon เรียก Ollama, paddle ห้ามอยู่ร่วม process กับ torch, openthai-text ใช้ onnxruntime)
 
 
 def make_reader(engine: str, cfg: dict[str, Any]):
@@ -34,17 +33,14 @@ def make_reader(engine: str, cfg: dict[str, Any]):
     if engine == "paddle":
         from .paddle import PaddleReader
         return PaddleReader(cfg.get("paddle", {}))
-    if engine == "oxr":
-        from .oxr import OXRLocal
-        return OXRLocal(cfg["oxr"])
     raise ValueError(f"ไม่รู้จัก engine '{engine}' เลือกจาก {ENGINES}")
 
 
 def reader_label(engine: str, cfg: dict[str, Any]) -> str:
     """ชื่อตัวอ่านที่บันทึกในผล (``<ชนิด>:<โมเดล>``) เท่ากับ ``make_reader(...).name`` โดยไม่ต้องสร้างตัวอ่าน
-    openthai/openthai21/openthai-text/oxr = ชื่อโฟลเดอร์ weights (openthai21 ใช้ตัวอ่าน openthai จึงขึ้นต้น ``openthai:``)
+    openthai/openthai21/openthai-text = ชื่อโฟลเดอร์ weights (openthai21 ใช้ตัวอ่าน openthai จึงขึ้นต้น ``openthai:``)
     typhoon = ชื่อโมเดลใน Ollama/API · paddle = ``paddle``."""
-    if engine in ("openthai", "openthai21", "openthai-text", "oxr"):
+    if engine in ("openthai", "openthai21", "openthai-text"):
         kind = "openthai" if engine == "openthai21" else engine
         return f"{kind}:" + cfg[engine]["model_dir"].replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
     if engine == "typhoon":

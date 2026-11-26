@@ -150,11 +150,13 @@ tr.flash td { animation:fl 1.6s; } @keyframes fl { from { background:var(--warn-
     <div id="drop"><b>ลากไฟล์มาวาง</b> หรือคลิกเพื่อเลือก · jpg / png / tif / pdf (PDF ใช้หน้าแรก)<input type="file" id="file" hidden></div>
     <div class="opts">
       <label>ตัวอ่าน OCR <select id="engine"></select></label>
+      <label>สกัดฟิลด์ <select id="llm"></select></label>
       <button class="primary" id="run" disabled>รัน</button>
       <button id="cancel" hidden>หยุด</button>
       <span id="msg" class="small muted"></span>
     </div>
     <p class="small muted" style="margin:10px 0 0">ปรับภาพและแบ่งส่วนด้วยค่าตั้งต้นของ flow หลัก (<code>sections</code>) ให้อัตโนมัติ: ตรวจทิศหน้าเอง · แก้เอียง · คงสี · ระบาย QR/บาร์โค้ด · แบ่งเป็น region ชิดข้อความ (<code>--layout regions</code>)</p>
+    <div class="note">LLM (hybrid / winner) เรียก Ollama ในเครื่อง ต้องเปิด Ollama และมีโมเดลตาม <code>llm_extractor.model</code> ถ้าเรียกไม่ได้จะถอยไปใช้ rules และแจ้งในขั้นสกัด · วัดบน 18 ใบ: hybrid ไม่เพิ่มค่าที่ไม่อยู่ในข้อความ winner แต่งค่าได้ (docs/05-extraction.md §5D)</div>
     <div class="note">ขั้น OCR ใช้ GPU (openthai โหลดโมเดลในเครื่อง · typhoon ต้องเปิด Ollama · paddle) รันได้ทีละงาน และอ่านทีละส่วนเหมือน flow จริง ไฟล์ 1 หน้ามักมี 10–25 ส่วน</div>
   </section>
   <div id="stages"></div>
@@ -204,8 +206,12 @@ const STATUS = { auto_approved: ["อนุมัติอัตโนมัต�
 async function init() {
   const info = await (await fetch("/api/info")).json();
   const LABEL = { openthai: "OpenThai 2.0 Markdown (GPU) · ค่าตั้งต้น", openthai21: "OpenThai 2.1 Markdown (GPU)", "openthai-text": "OpenThai 2.1 Text (CPU)",
-                  typhoon: "Typhoon (Ollama)", paddle: "PaddleOCR", oxr: "OXR (อ่านไทยไม่ได้)" };
+                  typhoon: "Typhoon (Ollama)", paddle: "PaddleOCR" };
   $("#engine").innerHTML = info.engines.map(e => `<option value="${e}">${e}${LABEL[e] ? " — " + LABEL[e] : ""}</option>`).join("");
+  const LLM_LABEL = { off: "rules อย่างเดียว · ค่าตั้งต้น", hybrid: `hybrid: rules นำ LLM เติมช่องที่ขาด (${info.llm_model})`,
+                      on: `winner: rules กับ LLM สกัดแยก เลือกชุดที่ check ดีกว่า (${info.llm_model})` };
+  $("#llm").innerHTML = info.llm_modes.map(m => `<option value="${m}">${LLM_LABEL[m] || m}</option>`).join("")
+    + `<option value="all">ทั้ง 3 แบบ เทียบกัน (rules · hybrid · winner)</option>`;
   $("#file").accept = info.exts.join(",");
   if (info.busy) $("#msg").textContent = "มีงานกำลังรันอยู่";
   const m = location.hash.match(/^#job=([\w-]+)$/);  // รีเฟรชแล้วกลับมาดูงานเดิมได้ (ระหว่างที่เซิร์ฟเวอร์ยังเปิดอยู่)
@@ -219,7 +225,7 @@ drop.ondrop = e => { e.preventDefault(); drop.classList.remove("over"); pick(e.d
 $("#file").onchange = e => pick(e.target.files[0]);
 function pick(f) { if (!f) return; file = f; drop.innerHTML = `<b>${esc(f.name)}</b> · ${(f.size / 1024).toFixed(0)} KB — คลิกเพื่อเปลี่ยนไฟล์`; $("#run").disabled = false; }
 $("#run").onclick = async () => {
-  const q = new URLSearchParams({ engine: $("#engine").value });
+  const q = new URLSearchParams({ engine: $("#engine").value, llm: $("#llm").value });
   $("#run").disabled = true; $("#msg").textContent = "กำลังอัปโหลด…";
   const r = await fetch("/api/run?" + q, { method: "POST", headers: { "X-Filename": encodeURIComponent(file.name) }, body: file });
   const j = await r.json();
@@ -272,7 +278,6 @@ const ENGINE_INFO = {
   "openthai-text": "OpenThai 2.1 OCR Text (PP-OCRv6-tiny ONNX บน CPU ไม่ใช้ GPU) คืนข้อความทีละบรรทัดพร้อมความมั่นใจ ไม่มีตาราง (ช่องซ้าย/ขวามักรวมเป็นบรรทัดเดียว) อ่านลายมือได้แย่",
   typhoon: "Typhoon OCR ผ่าน Ollama/API (ใช้ GPU ผ่าน Ollama)",
   paddle: "PaddleOCR ตรวจจับบรรทัดแล้วอ่านทีละบรรทัด มีความมั่นใจรายคำ (เฉลี่ยให้ดู)",
-  oxr: "OXR-1.0 — <b>อ่านภาษาไทยไม่ได้</b> (ฝึกจีน+อังกฤษ) ส่วนที่มีไทยจะได้ข้อความมั่วและอักษรจีน ใช้ดูเฉพาะตัวเลข/อังกฤษ",
 };
 const PRE_HELP = `<div class="explain">รายละเอียดเต็มอยู่ใน <code>worker_preprocess.log</code> ของโฟลเดอร์งาน (ตัวตรวจทิศของ Paddle ที่ล้มจะไม่ทำให้ขั้นนี้ล้ม: ใช้ 0° แล้วแจ้งเตือนในผล)</div>`;
 const INTRO = {
@@ -282,7 +287,7 @@ const INTRO = {
   crops: "ตัดภาพแต่ละส่วนจากภาพเต็มความละเอียด แล้วแปลงเป็นภาพเทา (luma)",
   ocr: "ส่งภาพทีละส่วนเข้าตัวอ่าน ได้ข้อความ Markdown ของแต่ละส่วน",
   text: "ต่อข้อความทุกส่วนเป็นเอกสาร .md แล้วแปลงเป็นบรรทัดล้วน",
-  extract: "หาค่าแต่ละฟิลด์ด้วย keyword + regex ทีละบรรทัด",
+  extract: "หาค่าแต่ละฟิลด์ด้วย keyword + regex ทีละบรรทัด (+ LLM ถ้าเลือก hybrid / winner)",
   validate: "ตรวจตัวเลข/เลขภาษีให้สอดคล้องกัน แล้วตัดสินสถานะ",
   review: "เรียงฟิลด์ตามที่ควรตรวจก่อน บอกเหตุผล ให้แก้ค่าแล้วตรวจใหม่ทันที",
   result: "ผลตาม schema 3.0",
@@ -563,14 +568,69 @@ function lineChips(found) {
   const lines = data("text").lines;
   return found.length ? found.map(i => `<span class="sec" onclick="gotoLine(${i})" title="${esc(lines[i].text)}">#${i}${lines[i].section ? " " + lines[i].section : ""}</span>`).join(" ") : '<span class="muted small">ไม่พบตรง ๆ</span>';
 }
+// ป้ายที่มาของค่า: llm หรือตัวอ่านเสริม (rules ไม่แสดง)
+const srcBadge = s => !s || s === "rules" ? "" : s === "llm" ? ' <span class="badge b-acc" title="ค่านี้มาจาก LLM">LLM</span>'
+  : s === "human" ? "" : ` <span class="badge b-warn" title="ค่านี้มาจากตัวอ่านเสริม">${esc(s)}</span>`;
+function llmHtml(l) {
+  if (!l) return "";
+  const how = l.mode === "hybrid"
+    ? "rules สกัดก่อน แล้วถาม LLM <b>เฉพาะช่องที่ยังไม่เสร็จ</b> (ฟิลด์ที่ต้องมีแต่ว่าง + ฟิลด์ใน check ที่ไม่ผ่าน) ค่าที่ LLM ตอบต้องผ่านด่าน: อยู่ในข้อความ · เลขภาษีผ่าน checksum · check รวมไม่แย่ลง (<code>extraction/hybrid.py</code>)"
+    : "rules กับ LLM สกัด<b>แยกกันทั้งชุด</b> แล้วเลือกชุดที่ check ผ่าน − ไม่ผ่าน มากกว่า (เสมอ = LLM) จากนั้นเติมช่องที่ยังว่างจากอีกชุด <b>ไม่มีด่านตรวจว่าค่าอยู่ในข้อความ</b> (<code>pipeline._extract</code>)";
+  const ch = l.changes.length
+    ? `<div class="tablewrap"><table><tr><th>ฟิลด์</th><th>rules อย่างเดียว</th><th>ผลสุดท้าย</th><th>ที่มา</th></tr>${l.changes.map(c =>
+        `<tr><td>${esc(FIELD_LABEL[c.key] || c.key)}<div class="mono muted" style="font-size:11px">${esc(c.key)}</div></td><td>${esc(c.rules) || '<span class="muted">—</span>'}</td><td><b>${esc(c.final) || '<span class="muted">—</span>'}</b></td><td>${c.source === "llm" ? '<span class="badge b-acc">LLM</span>' : esc(c.source)}</td></tr>`).join("")}</table></div>`
+    : '<p class="small muted">LLM ไม่ได้เปลี่ยนค่าใดจาก rules</p>';
+  const rej = l.rejected.length
+    ? `<p class="small">ด่านปัดตก: ${l.rejected.map(r => `<span class="badge">${esc(FIELD_LABEL[r.key] || r.key)} · ${esc(r.reason)}</span>`).join(" ")}</p>` : "";
+  const err = l.errors.length ? `<p class="small"><span class="badge b-bad">LLM ใช้ไม่ได้ → ใช้ rules</span> ${esc(l.errors.join(" · "))}</p>` : "";
+  return `<h3>แบบที่ใช้อยู่: ${l.mode === "hybrid" ? "hybrid" : "winner"} · <code>${esc(l.model)}</code> · ${l.seconds}s</h3>
+    <div class="explain small">${how}</div>${err}
+    <p class="small">สถานะถ้าใช้ rules อย่างเดียว: <span class="badge ${STATUS[l.rules_status][1]}">${STATUS[l.rules_status][0]}</span> · ค่าที่ต่างจาก rules ${l.changes.length} ช่อง</p>${ch}${rej}`;
+}
+// เทียบทุกแบบที่สกัดไว้ (เลือก "ทั้ง 3 แบบ") · ปุ่ม "ใช้แบบนี้" สลับผลที่ใช้กับขั้นตรวจ/JSON โดยไม่สกัดใหม่
+const MODE_NAME = { off: "rules", hybrid: "hybrid", on: "winner" };
+function compareHtml(c, used) {
+  if (!c) return "";
+  const sm = Object.fromEntries(c.summary.map(x => [x.mode, x]));
+  const head = c.modes.map(m => `<th>${MODE_NAME[m]}${m === used ? ' <span class="badge b-acc">ใช้อยู่</span>' : ` <button class="small" onclick="useMode('${m}')">ใช้แบบนี้</button>`}</th>`).join("");
+  const stat = (label, f) => `<tr><td class="small">${label}</td>${c.modes.map(m => `<td class="small">${f(sm[m])}</td>`).join("")}</tr>`;
+  const cell = (r, m) => { const x = r.cells[m];
+    return `<td${r.differs ? ' style="background:color-mix(in srgb, var(--warn) 9%, transparent)"' : ""}>${esc(x.value) || '<span class="muted">—</span>'}${srcBadge(x.source)}${x.level === "conflict" ? ' <span class="badge b-bad">ขัดแย้ง</span>' : ""}</td>`; };
+  const ndiff = c.rows.filter(r => r.differs).length;
+  return `<h3>เทียบ 3 แบบ</h3>
+    <div class="explain small"><b>rules</b> = keyword + regex อย่างเดียว · <b>hybrid</b> = rules นำ ถาม LLM เฉพาะช่องที่ยังขาด ค่าต้องผ่านด่าน (อยู่ในข้อความ · checksum · check รวมไม่แย่ลง) ·
+      <b>winner</b> = rules กับ LLM สกัดแยกทั้งชุด เลือกชุดที่ check ผ่าน − ไม่ผ่าน มากกว่า แล้วเติมช่องว่างจากอีกชุด <b>ไม่มีด่านตรวจว่าค่าอยู่ในข้อความ</b> ·
+      แถวสีเหลือง = สามแบบได้ค่าไม่ตรงกัน · ขั้นตรวจ/แก้และ JSON ด้านล่างใช้แบบที่ "ใช้อยู่" กด "ใช้แบบนี้" เพื่อสลับ (ไม่สกัดใหม่ ค่าที่แก้ไว้ในหน้าตรวจจะถูกล้าง)</div>
+    <div class="tablewrap"><table><tr><th></th>${head}</tr>
+      ${stat("สถานะ", x => `<span class="badge ${STATUS[x.status][1]}">${STATUS[x.status][0]}</span>`)}
+      ${stat("ฟิลด์ที่ต้องมีแต่ขาด", x => x.missing)}
+      ${stat("check ผ่าน / ไม่ผ่าน", x => `${x.pass} / ${x.fail}`)}
+      ${stat("ค่าที่ไม่พบในข้อความ", x => x.not_in_text.length ? `<span class="badge b-bad">${x.not_in_text.length}</span> <span class="mono">${esc(x.not_in_text.join(", "))}</span>` : "0")}
+      ${stat("ฟิลด์ที่ได้จาก LLM", x => x.from_llm.length)}
+      ${stat("ด่านปัดตก", x => x.rejected.length ? x.rejected.map(r => `<span class="badge">${esc(r.key)} · ${esc(r.reason)}</span>`).join(" ") : "—")}
+      ${stat("เวลา", x => `${x.seconds}s`)}
+      ${c.summary.some(x => x.errors.length) ? stat("LLM ใช้ไม่ได้", x => x.errors.length ? `<span class="badge b-bad">ถอยไปใช้ rules</span>` : "—") : ""}
+    </table></div>
+    <p class="small">ค่ารายฟิลด์ · ต่างกัน ${ndiff} ฟิลด์ (ขึ้นก่อน)</p>
+    <div class="tablewrap" style="max-height:520px;overflow:auto"><table><tr><th>ฟิลด์</th>${c.modes.map(m => `<th>${MODE_NAME[m]}</th>`).join("")}</tr>
+      ${c.rows.map(r => `<tr><td>${esc(FIELD_LABEL[r.key] || r.key)}<div class="mono muted" style="font-size:11px">${esc(r.key)}</div></td>${c.modes.map(m => cell(r, m)).join("")}</tr>`).join("")}</table></div>`;
+}
+async function useMode(m) {
+  const r = await fetch(`/api/job/${jobId}/use?mode=${m}`, { method: "POST" });
+  if (!r.ok) { alertMsg((await r.json()).error); return; }
+  reviewEdits = {}; reviewData = null; reviewErr = {}; reviewSaved = null;
+  ["extract", "validate", "review", "result"].forEach(k => { rendered[k] = null; });
+  rev = -1; poll();
+}
+function alertMsg(t) { $("#msg").textContent = t; }
 RENDER.extract = d => {
   const p = d.profile, ev = (data("validate") || {}).evidence || {};
   const core = d.fields.filter(f => !f.key.startsWith("items[") && !f.key.startsWith("remark[") && !f.key.startsWith("document_fields."));
   const docf = d.fields.filter(f => f.key.startsWith("document_fields."));
   const row = f => { const e = ev[f.key]; const lv = e ? LEVEL[e.level] : null;
-    return `<tr><td>${esc(f.label || FIELD_LABEL[f.key] || f.key)}<div class="mono muted" style="font-size:11px">${esc(f.key)}</div></td><td><b>${esc(f.value)}</b></td><td>${lineChips(f.found)}</td><td>${lv ? `<span class="badge ${lv[1]}">${lv[0]}</span>` : ""}</td></tr>`; };
+    return `<tr><td>${esc(f.label || FIELD_LABEL[f.key] || f.key)}<div class="mono muted" style="font-size:11px">${esc(f.key)}</div></td><td><b>${esc(f.value)}</b>${srcBadge(f.source)}</td><td>${lineChips(f.found)}</td><td>${lv ? `<span class="badge ${lv[1]}">${lv[0]}</span>` : ""}</td></tr>`; };
   const missing = Object.entries(ev).filter(([k, e]) => e.level === "missing" || e.level === "not_applicable");
-  return `<div class="explain"><b>ขั้นนี้:</b> สกัดด้วย <b>rules</b> (keyword + regex ทีละบรรทัด ไม่ใช้โมเดล อธิบายได้ทุกค่า — <code>extraction/rule_extractor.py</code>) ตามลำดับ:
+  return `${compareHtml(d.compare, d.used)}${llmHtml(d.llm)}<div class="explain"><b>ขั้นนี้:</b> สกัดด้วย <b>rules</b>${d.llm ? ` แล้วใช้ LLM แบบ <b>${d.llm.mode === "hybrid" ? "hybrid" : "winner"}</b> (ดูกล่องด้านบน)` : ""} (keyword + regex ทีละบรรทัด ไม่ใช้โมเดล อธิบายได้ทุกค่า — <code>extraction/rule_extractor.py</code>) ตามลำดับ:
     <ol style="margin:4px 0 0 18px;padding:0"><li>หาฟิลด์แกนกลาง: เลขภาษี 13 หลัก, วันที่ (แปลง พ.ศ. → ค.ศ.), เลขที่เอกสาร, ยอดเงินจากป้าย ("มูลค่าสินค้า/ก่อนคิดภาษี" → ก่อน VAT, "ภาษีมูลค่าเพิ่ม/V.A.T." → VAT, "รวม(เงิน)ทั้งสิ้น/ยอด(เงิน)สุทธิ" → ยอดสุทธิ, …), รายการสินค้า
       <br><span class="small">ยอดเงินดู<b>ทีละช่อง</b>ของแถวตาราง (ไม่ใช่ตัวเลขท้ายบรรทัด): ค่าในช่องเดียวกับป้าย หรือค่าเดียวในช่องถัดไป ·
       ป้ายหลายตัวในช่องเดียวจับคู่กับตัวเลขตามลำดับเมื่อจำนวนเท่ากัน · ป้ายเดียวแต่มีหลายค่าที่จับคู่ไม่ได้ = ไม่ใส่ (ไม่เดา) ·
@@ -633,7 +693,7 @@ function rvRow(r) {
   const changed = r.key in reviewEdits || r.edited;
   return `<div class="rv-row lv-${r.level}" data-sec="${r.sections[0] || ""}">
     <div><b>${esc(r.label || FIELD_LABEL[r.key] || r.key)}</b><div class="mono muted" style="font-size:11px">${esc(r.key)}</div>
-      <div style="margin-top:4px"><span class="badge ${lv[1]}">${lv[0]}</span>${changed && r.level !== "edited" ? ' <span class="badge b-acc">แก้แล้ว</span>' : ""}</div></div>
+      <div style="margin-top:4px"><span class="badge ${lv[1]}">${lv[0]}</span>${changed && r.level !== "edited" ? ' <span class="badge b-acc">แก้แล้ว</span>' : ""}${srcBadge(r.source)}</div></div>
     <div><input value="${esc(v)}" class="${changed ? "changed" : ""}" placeholder="${r.level === "missing" ? "กรอกจากภาพ" : "ว่าง"}" onchange="reviewEdit('${r.key}', this.value)">
       ${reviewErr[r.key] ? `<div class="rv-err">${esc(reviewErr[r.key])}</div>` : ""}
       <div class="small muted" style="margin-top:3px">${r.edited ? `ระบบอ่านได้: ${esc(r.original || "—")} <a href="#" onclick="reviewReset('${r.key}');return false">คืนค่าเดิม</a>` : ""}

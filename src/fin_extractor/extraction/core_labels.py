@@ -95,6 +95,3 @@ def extract_party_name(lines: list[str], specs: tuple[FieldSpec, ...], key: str)
             return (name or None), branch
     return None, None
 
-
-def extract_buyer_name(lines: list[str], specs: tuple[FieldSpec, ...]) -> tuple[str | None, str | None]:
-    return extract_party_name(lines, specs, "buyer.name")

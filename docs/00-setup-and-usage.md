@@ -2,7 +2,7 @@
 
 ## ติดตั้ง (เครื่องใหม่ตั้งแต่ clone)
 
-ต้องมี Python 3.10 ขึ้นไป (ทดสอบกับ 3.13) PaddleOCR เป็น OCR engine ตัวเดียว ต้องลง `paddlepaddle` (ตัว framework) **ก่อน** แล้วค่อยลงโปรเจกต์
+ต้องมี Python 3.10 ขึ้นไป (ทดสอบกับ 3.13) ต้องลง `paddlepaddle` (ตัว framework) **ก่อน** แล้วค่อยลงโปรเจกต์ เพราะขั้น preprocess ใช้ตัวจำแนกทิศของ Paddle (`preprocessing/orient.py`) และ `--engine paddle` ใช้ PaddleOCR ส่วนตัวอ่านค่าตั้งต้น OpenThai ลงเพิ่มตามตาราง "ส่วนเสริม" (`.[all]` ไม่รวม)
 
 ```powershell
 git clone https://github.com/Pikcolo/fin-extractor.git
@@ -40,8 +40,8 @@ pytest                                                                     # ต
 | Ollama + LLM | การสกัดด้วย LLM (`extract --llm on\|hybrid`) | `ollama pull qwen2.5:3b` (เปลี่ยนรุ่นที่ `llm_extractor.model`) |
 | OpenThai 2.0 OCR (iApp, 0.63B) | `sections --engine openthai` (ค่าตั้งต้น) | `pip install torch==2.11.0 torchvision==0.26.0 --index-url https://download.pytorch.org/whl/cu128` แล้ว `pip install -e ".[openthai]"` และ `hf download iapp/OpenThai2.0-OCR-Markdown --local-dir models/OpenThai2.0-OCR-Markdown` (index cu128 มี torch สูงสุด 2.11; ถ้าลง torch จาก PyPI เฉย ๆ บน Windows จะได้รุ่น CPU) ทดสอบบน RTX 4050 6GB: VRAM สูงสุด ~2.4GB, 1 หน้า ~20 วินาที (รวมโหลดโมเดล) |
 | OpenThai 2.1 OCR Markdown | `sections --engine openthai21` (ทดลอง ผลวัดดู [04-openthai-ocr.md](04-openthai-ocr.md) หัวข้อ 6) | ตัวอ่านและ torch ชุดเดียวกับ 2.0 แค่ดาวน์โหลด `hf download iapp/OpenThai2.1-OCR-Markdown-20261118 --local-dir models/OpenThai2.1-OCR-Markdown-20261118` (2.6 GB) VRAM ~1.4 GB |
-| OpenThai 2.1 OCR Text (CPU) | `sections --engine openthai-text` (ทดลอง) | `pip install onnxruntime` และ `hf download iapp/OpenThai2.1-OCR-Text-20261118 --local-dir models/OpenThai2.1-OCR-Text-20261118` (9 MB) ไม่ใช้ GPU |
-| ฟอนต์ | `scripts/data/make_synthetic_samples.py`, `scripts/ocr/oxr/visualize_oxr.py`, `scripts/ocr/visualize_bbox.py` | **มากับโปรเจกต์แล้ว** ที่ `assets/fonts/` (Sarabun, SIL OFL) ไม่ใช้ฟอนต์ของเครื่อง ไม่ต้องติดตั้ง |
+| OpenThai 2.1 OCR Text (CPU) | ชั้นตรวจความครบของ `sections` (ค่าตั้งต้น `coverage_check.engine` ถ้าไม่มี onnxruntime หรือโมเดลจะข้ามพร้อมข้อความ ไม่ทำให้ flow ล้ม) และ `sections --engine openthai-text` | `pip install onnxruntime` (ไม่อยู่ใน extra ใด ต้องลงเอง) และ `hf download iapp/OpenThai2.1-OCR-Text-20261118 --local-dir models/OpenThai2.1-OCR-Text-20261118` (9 MB) ไม่ใช้ GPU |
+| ฟอนต์ | `scripts/data/make_synthetic_samples.py`, หน้าเว็บเดโม `scripts/demo/ocr_demo_app.py` | **มากับโปรเจกต์แล้ว** ที่ `assets/fonts/` (Sarabun, SIL OFL) ไม่ใช้ฟอนต์ของเครื่อง ไม่ต้องติดตั้ง |
 
 **อะไรอยู่ในโปรเจกต์ อะไรอยู่นอก:**
 
@@ -54,8 +54,8 @@ pytest                                                                     # ต
 | ข้อมูล ผลลัพธ์ cache | `data/` | |
 | โมเดลของ Ollama (Typhoon, qwen) | **นอกโปรเจกต์** (ที่เก็บของ Ollama เอง เช่น `~/.ollama`) | Ollama เป็นบริการแยก ย้ายได้ด้วยตัวแปรแวดล้อม `OLLAMA_MODELS` ฝั่งเซิร์ฟเวอร์ของ Ollama โปรเจกต์ตั้งให้ไม่ได้ |
 
-**ใช้ Typhoon API บน cloud แทน Ollama:** คัดลอก `.env.example` เป็น `.env` ใส่ `TYPHOON_API_KEY` แล้วตั้ง `vlm.provider: openai` และ
-`vlm.base_url: https://api.opentyphoon.ai/v1` (ส่งเอกสารการเงินออกนอกเครื่อง ตรวจนโยบายข้อมูลก่อน) โหมด `ocr` ไม่ต้องใช้ทั้ง Ollama และ key
+**ใช้ Typhoon API บน cloud แทน Ollama:** คัดลอก `.env.example` เป็น `.env` ใส่ `TYPHOON_API_KEY` แล้วตั้ง `typhoon.provider: openai` และ
+`typhoon.base_url: https://api.opentyphoon.ai/v1` (ส่งเอกสารการเงินออกนอกเครื่อง ตรวจนโยบายข้อมูลก่อน) engine อื่น (`openthai*`, `paddle`) กับ `--llm off` ไม่ต้องใช้ทั้ง Ollama และ key
 
 ## ข้อมูลตัวอย่าง
 
@@ -63,7 +63,7 @@ pytest                                                                     # ต
 หลัง clone จึงไม่มีเอกสารให้รัน มีสองทาง
 
 1. **สแกนจริง:** รับชุดสแกนจากเจ้าของโปรเจกต์นอก git แล้ววางที่ `data/01_input/finance_doc_scan/` (ไฟล์ `.pdf`, `.jpg`, `.png`, `.tif`, `.bmp`, `.webp`)
-2. **ชุดสังเคราะห์** (ไม่ต้องรอข้อมูลจริง): `python scripts/data/make_synthetic_samples.py` ได้ใบกำกับภาษีสมมติ 21 ใบพร้อมเฉลยที่ `data/01_input/synthetic/` (วาดด้วยฟอนต์ Sarabun ใน `assets/fonts/` ชุดที่สร้างไว้ก่อน 2026-11-11 ใช้ Tahoma ภาพจึงต่างจากชุดใหม่เล็กน้อย ตัวเลข CER/OXR บนชุดสังเคราะห์ในเอกสารมาจากชุด Tahoma เดิม)
+2. **ชุดสังเคราะห์** (ไม่ต้องรอข้อมูลจริง): `python scripts/data/make_synthetic_samples.py` ได้ใบกำกับภาษีสมมติ 21 ใบพร้อมเฉลยที่ `data/01_input/synthetic/` (วาดด้วยฟอนต์ Sarabun ใน `assets/fonts/` ชุดที่สร้างไว้ก่อน 2026-11-11 ใช้ Tahoma ภาพจึงต่างจากชุดใหม่เล็กน้อย ตัวเลข CER บนชุดสังเคราะห์ในเอกสาร (บันทึกเก่า) มาจากชุด Tahoma เดิม)
 
 ## รันครั้งแรก
 
@@ -75,7 +75,7 @@ python -m fin_extractor sections data/01_input/synthetic --engine paddle   # Pad
 ได้ผลที่ `data/05_extract/synthetic/paddle/regions-luma/rules/` (ข้อความรายส่วนที่ `04_ocr/synthetic/paddle/regions-luma/` ดูโครงข้างล่าง) และบนหน้าจอจะแสดง status กับผล check ของแต่ละใบ
 ตัวโหลดไฟล์กรองเฉพาะนามสกุลภาพ/PDF จึงไม่หยิบ `truth.json` ในโฟลเดอร์เดียวกัน
 
-**ห้ามอ่านทั้งหน้า:** ทุก engine (`openthai` ตั้งต้น · `openthai21` · `openthai-text` · `typhoon` · `paddle` · `oxr`) อ่านทีละท่อนผ่าน `sections` เท่านั้น คำสั่ง `ocr` ถูกปิด (เรียกแล้วหยุดพร้อมบอกคำสั่งที่ใช้แทน)
+**ห้ามอ่านทั้งหน้า:** ทุก engine (`openthai` ตั้งต้น · `openthai21` · `openthai-text` · `typhoon` · `paddle`) อ่านทีละท่อนผ่าน `sections` เท่านั้น (ไม่มีคำสั่ง `ocr` แล้ว)
 Typhoon ต้องเปิด Ollama ก่อน:
 
 ```powershell
@@ -98,36 +98,30 @@ data/
 │   ├── regions/<ไฟล์>/                         ค่าตั้งต้น (docs/03-regions): 01_normalize … 06_pieces.png · crops/ (ภาพที่ส่ง OCR + index.json) · sections.json · manifest.json
 │   ├── layout/<ไฟล์>.json · <ไฟล์>_layout.png  ผังแบบเดิม (--layout sections, docs/03-sections): ผังแบ่ง + ภาพกรอบสี
 │   └── images/<luma|flat|bin>/<ไฟล์>/sNN.png   ผังแบบเดิม: ภาพรายส่วนก่อน OCR + index.json
-├── 04_ocr/<dataset>/<engine>/                  engine = openthai | openthai21 | openthai-text | typhoon | paddle | oxr
-│   ├── page/<ไฟล์>_p<หน้า>.txt | .md           อ่านทั้งหน้า: ข้อความดิบ + .meta.json (+ manifest.json)
-│   ├── regions-luma/<ไฟล์>/                    อ่านทีละท่อน (ค่าตั้งต้น): .md .sections.json .chunks.json (ที่มาของแต่ละท่อน)
-│   ├── <luma|flat|bin|color>/<ไฟล์>/           อ่านทีละ section ของผังแบบเดิม
-│   └── visualize/                              ภาพให้ดูว่าอ่านอย่างไร
-├── 05_extract/<dataset>/<engine>/<page|วิธี>/<extractor>/<ไฟล์>_p<หน้า>.json   ผลตาม schema (extractor = rules | llm | hybrid) + manifest.json
-├── etc/                                        งานทดสอบ/เปรียบเทียบที่ข้าม engine/ข้ามไฟล์
-│   ├── benchmarks/                             ผลวัด (CER, preprocess)
-│   ├── compare/<เลขไฟล์>/                      เทียบรายไฟล์ + ค่าอ้างอิงที่คนอ่านจากภาพ
-│   └── experiments/<ชื่อ>/                     การทดลองครั้งเดียวนอก pipeline
-└── reports/                                    รายงานภาพ เช่น oxr_why/
+├── 04_ocr/<dataset>/<engine>/                  engine = openthai | openthai21 | openthai-text | typhoon | paddle
+│   ├── regions-luma/<ไฟล์>/                    อ่านทีละท่อน (ค่าตั้งต้น): .md .sections.json (รวมกรอบบล็อกของ OpenThai) .chunks.json (ที่มาของแต่ละท่อน)
+│   └── <luma|flat|bin|color>/<ไฟล์>/           อ่านทีละ section ของผังแบบเดิม
+├── 05_extract/<dataset>/<engine>/<วิธี>/<extractor>/<ไฟล์>_p<หน้า>.json   ผลตาม schema (extractor = rules | llm | hybrid) + manifest.json
+└── etc/                                        งานที่ข้าม engine/ข้ามไฟล์
+    ├── compare/<เลขไฟล์>/                      เทียบรายไฟล์ + ค่าอ้างอิงที่คนอ่านจากภาพ
+    ├── groundtruth/<dataset>/<ไฟล์>.json       ค่าที่ถูกตามเอกสาร คนกรอกในเครื่อง (scripts/eval/groundtruth_app.py)
+    └── demo/<งาน>/                             ผลของหน้าเว็บเดโม
 ```
 
-**โฟลเดอร์ย่อยต่อไฟล์:** ถ้ารันหนึ่งครั้งมีไฟล์อินพุต **มากกว่า 2 ไฟล์** ผลของแต่ละไฟล์ (`02_preprocess/…/final/` และ `steps/`, `04_ocr/…/<วิธี>/`, `05_extract/…/<extractor>/`) จะอยู่ในโฟลเดอร์ย่อยชื่อไฟล์ เช่น `04_ocr/finance_doc_scan/openthai/regions-luma/BRWAC50DE3689DA_001312/BRWAC50DE3689DA_001312_p1.md` ถ้าไม่เกิน 2 ไฟล์ (เช่นลองไฟล์เดียว) จะวางตรง ๆ ใต้โฟลเดอร์นั้น ค่า 2 อยู่ที่ `NEST_OVER` ใน `src/fin_extractor/paths.py` ตัวอ่าน (`extract`, สคริปต์เทียบ/วาดรูป) หาได้ทั้งสองแบบ ผลที่ปนกันจึงอ่านได้ และ `manifest.json` ใช้พาธ `<ไฟล์>/<ไฟล์>_p1.json` ในช่อง `output`
+**โฟลเดอร์ย่อยต่อไฟล์:** ถ้ารันหนึ่งครั้งมีไฟล์อินพุต **มากกว่า 2 ไฟล์** ผลของแต่ละไฟล์ (`02_preprocess/…/final/` และ `steps/`, `04_ocr/…/<วิธี>/`, `05_extract/…/<extractor>/`) จะอยู่ในโฟลเดอร์ย่อยชื่อไฟล์ เช่น `04_ocr/finance_doc_scan/openthai/regions-luma/BRWAC50DE3689DA_001312/BRWAC50DE3689DA_001312_p1.md` ถ้าไม่เกิน 2 ไฟล์ (เช่นลองไฟล์เดียว) จะวางตรง ๆ ใต้โฟลเดอร์นั้น ค่า 2 อยู่ที่ `NEST_OVER` ใน `src/fin_extractor/paths.py` ตัวอ่าน (`extract`, สคริปต์เทียบ) หาได้ทั้งสองแบบ ผลที่ปนกันจึงอ่านได้ และ `manifest.json` ใช้พาธ `<ไฟล์>/<ไฟล์>_p1.json` ในช่อง `output`
 
 | คำสั่ง | เขียนที่ | ข้างใน |
 |---|---|---|
 | `preprocess` | `data/02_preprocess/<dataset>/<profile>/` | `final/` ภาพสุดท้าย, `steps/` เมื่อใส่ `--steps`, `settings.json` (ค่าที่ทำให้ได้ภาพนี้), `manifest.json` |
-| `sections` ขั้น ocr | `data/04_ocr/<dataset>/<engine>/<วิธี>/<ไฟล์>/` | `.sections.json` (ผลรายส่วน) · `.md` (ต่อทุกส่วน) · `.chunks.json` (ท่อนข้อความ ↔ ภาพ section) |
+| `sections` ขั้น ocr | `data/04_ocr/<dataset>/<engine>/<วิธี>/<ไฟล์>/` | `.sections.json` (ผลรายส่วน + `blocks` กรอบบล็อกของ OpenThai) · `.md` (ต่อทุกส่วน + ข้อความเสริมจากชั้นตรวจความครบ) · `.chunks.json` (ท่อนข้อความ ↔ ภาพ section) |
 | `extract` (หรือ `sections` ขั้น extract) | `data/05_extract/<dataset>/<engine>/<วิธี>/<extractor>/` (อ่านข้อความจาก `data/04_ocr/<dataset>/<engine>/<วิธี>/`) | `<ไฟล์>_p<หน้า>.json` ตาม `schemas/invoice.schema.json` + `manifest.json` |
-| script วัดผล | `data/etc/benchmarks/` | ไฟล์ผลของแต่ละ script (ดูตารางข้างล่าง) |
 | `sections` ขั้น layout (หรือคำสั่ง `regions`) | `data/03_sections/<dataset>/<profile>/regions/<ไฟล์>/` | ภาพแต่ละขั้น · `crops/` ภาพที่ส่ง OCR · `sections.json` (ผัง) · `manifest.json` (QR ที่ถอดได้ ท่อนที่ไม่ส่ง) |
-| `sections --layout sections` (หรือสคริปต์ `make_section_layouts.py` · `make_clean_sections.py`) | `data/03_sections/<dataset>/<profile>/` | ผังแบบเดิม: `layout/<ไฟล์>.json` + `_layout.png` และ `images/<luma\|flat\|bin>/<ไฟล์>/` ภาพย่อยแยกโฟลเดอร์ตามวิธี (ขั้นอ่านเขียนที่ `04_ocr/<dataset>/<engine>/<วิธี>/` ขั้นสกัดที่ `05_extract/…`) |
-| notebook เช็ค preprocess | `notebooks/preprocess_lab/<dataset>/` | สร้างด้วย `make_preprocess_notebooks.py` ไม่ commit เพราะมีภาพเอกสารจริง |
-| การทดลอง | `data/etc/experiments/<ชื่อ>/` | การทดลองครั้งเดียวนอก pipeline |
+| `sections --layout sections` (รันทีละขั้นด้วย `--to layout\|images\|ocr`) | `data/03_sections/<dataset>/<profile>/` | ผังแบบเดิม: `layout/<ไฟล์>.json` + `_layout.png` และ `images/<luma\|flat\|bin>/<ไฟล์>/` ภาพย่อยแยกโฟลเดอร์ตามวิธี (ขั้นอ่านเขียนที่ `04_ocr/<dataset>/<engine>/<วิธี>/` ขั้นสกัดที่ `05_extract/…`) |
 
-- **engine** ในชื่อโฟลเดอร์ = ค่าของ `--engine` (`openthai` `openthai21` `openthai-text` `typhoon` `paddle` `oxr`) · **วิธี** = `regions-luma` (ค่าตั้งต้น) หรือ `--variant` ของผังแบบเดิม (`luma` `flat` `bin` `color`) · **extractor**: `llm` เมื่อใช้ LLM สกัด, `hybrid` เมื่อ `--llm hybrid`, ไม่งั้น `rules` (โฟลเดอร์ `page/` ของรุ่นเก่าที่อ่านทั้งหน้าไม่ถูกสร้างอีก)
+- **engine** ในชื่อโฟลเดอร์ = ค่าของ `--engine` (`openthai` `openthai21` `openthai-text` `typhoon` `paddle`) · **วิธี** = `regions-luma` (ค่าตั้งต้น) หรือ `--variant` ของผังแบบเดิม (`luma` `flat` `bin` `color`) · **extractor**: `llm` เมื่อใช้ LLM สกัด, `hybrid` เมื่อ `--llm hybrid`, ไม่งั้น `rules`
 - **OCR ครั้งเดียว สกัดได้หลายแบบ:** ขั้น ocr เก็บข้อความรายส่วนไว้ที่ `04_ocr/<dataset>/<engine>/<วิธี>/` แล้ว `extract --engine <ตัวเดิม>` สกัดซ้ำจากข้อความนั้น (เปลี่ยน rules ↔ LLM, แก้ขั้นสกัดแล้วลองใหม่) **โดยไม่อ่านภาพและไม่ใช้ GPU**
 - **ภาพ preprocess ใช้ร่วมกันทุก engine:** ถ้าตั้งค่า preprocess เปลี่ยนจากที่เก็บไว้ ระบบจะไม่ปนภาพคนละตั้งค่า ให้ใช้ `--profile <ชื่อใหม่>` หรือ `--force` (ล้างโฟลเดอร์ profile นั้นแล้วทำใหม่)
-- รันซ้ำด้วยอินพุตและวิธีเดิมจะเขียนทับ ถ้าอยากแยกการทดลองใช้ `--out <โฟลเดอร์>` (ผลลงใต้ `<โฟลเดอร์>/04_ocr/<วิธี>/` และ `<โฟลเดอร์>/05_extract/<วิธี>/<extractor>/` แทน ภาพ preprocess ยังใช้ร่วมกัน)
+- รันซ้ำด้วยอินพุตและวิธีเดิมจะเขียนทับ `extract --out <โฟลเดอร์>` อ่านข้อความจาก `<โฟลเดอร์>/04_ocr/<วิธี>/` และเขียนผลที่ `<โฟลเดอร์>/05_extract/<วิธี>/<extractor>/` แทน (`sections` ไม่มี `--out`)
 - `manifest.json` เขียนตอนจบ ถ้ารันล้มกลางทางจะมี `"status": "failed"` พร้อมไฟล์ที่ทำเสร็จแล้ว
 
 ## คำสั่ง
@@ -135,10 +129,9 @@ data/
 | คำสั่ง | ขั้นที่ทำ | ผลลัพธ์ |
 |---|---|---|
 | `python -m fin_extractor preprocess <input> [--profile P] [--steps] [--force] [--orientation 90/180/270]` | 1 → 2 | `data/02_preprocess/<dataset>/<profile>/` |
-| `python -m fin_extractor extract <input> [--engine openthai\|openthai21\|openthai-text\|typhoon\|paddle\|oxr] [--variant luma\|flat\|bin\|color] [--llm off\|on\|auto\|hybrid] [--only 1309 …]` | 5 (สกัดซ้ำจากข้อความรายส่วนที่มี ไม่อ่านภาพ) | `data/05_extract/<dataset>/<engine>/<วิธี>/<extractor>/` |
-| `python -m fin_extractor ocr …` | ปิดแล้ว (ห้ามอ่านทั้งหน้า) หยุดพร้อมบอกให้ใช้ `sections --to ocr` | — |
-| `python -m fin_extractor sections <input> [--variant luma\|flat\|bin\|color] [--engine openthai\|openthai21\|openthai-text\|typhoon\|paddle\|oxr] [--from ขั้น] [--to ขั้น] [--only 1309 …] [--redo] [--layout regions\|sections] [--table-mode whole\|cells\|bands\|rows] [--max-piece-frac F] [--fill-aware] [--dotted-rules] [--no-mask-codes] [--trim-sections all\|text-lr] [--drop-empty-rows] [--profile P]` | flow หลัก: preprocess → layout → images → ocr → extract (ชื่อขั้นใน `--from`/`--to`: `preprocess` `layout` `images` `ocr` `extract`) ผังค่าตั้งต้น `regions` (ไม่มีขั้น images ผลที่ `<engine>/regions-luma/`) · `--layout sections` = ผังแบบเดิม ตัวเลือก `--variant` `--table-mode` `--max-piece-frac` `--fill-aware` `--dotted-rules` `--no-mask-codes` `--trim-sections` `--drop-empty-rows` ใช้กับแบบเดิมเท่านั้น | `data/02_preprocess` … `data/05_extract` ตามขั้น |
-| `python -m fin_extractor regions <input> [--only 1307 …] [--no-debug-images] [--profile P]` | ขั้น 3 แบบทางเลือก: region (template 50 ทวิ / แถบตามเส้น) + ตาราง → ช่อง + key/value + ระบาย QR จากภาพ final (CPU ไม่ OCR ไม่แตะผังเดิม) ตั้งค่าที่ `configs/regions/` ดู [03-regions.md](03-regions.md) | `data/03_sections/<dataset>/<profile>/regions/` |
+| `python -m fin_extractor extract <input> [--engine openthai\|openthai21\|openthai-text\|typhoon\|paddle] [--variant regions-luma\|luma\|flat\|bin\|color] [--llm off\|on\|auto\|hybrid] [--only 1309 …]` | 5 (สกัดซ้ำจากข้อความรายส่วนที่มี ไม่อ่านภาพ) | `data/05_extract/<dataset>/<engine>/<วิธี>/<extractor>/` |
+| `python -m fin_extractor sections <input> [--variant luma\|flat\|bin\|color] [--engine openthai\|openthai21\|openthai-text\|typhoon\|paddle] [--from ขั้น] [--to ขั้น] [--only 1309 …] [--redo] [--no-coverage-check] [--layout regions\|sections] [--table-mode whole\|cells\|bands\|rows] [--max-piece-frac F] [--fill-aware] [--dotted-rules] [--no-mask-codes] [--trim-sections all\|text-lr] [--drop-empty-rows] [--profile P]` | flow หลัก: preprocess → layout → images → ocr (+ ชั้นตรวจความครบ) → extract (rules อย่างเดียว) (ชื่อขั้นใน `--from`/`--to`: `preprocess` `layout` `images` `ocr` `extract`) ผังค่าตั้งต้น `regions` (ไม่มีขั้น images ผลที่ `<engine>/regions-luma/`) · `--no-coverage-check` ปิดชั้นตรวจความครบ · `--layout sections` = ผังแบบเดิม ตัวเลือก `--variant` `--table-mode` `--max-piece-frac` `--fill-aware` `--dotted-rules` `--no-mask-codes` `--trim-sections` `--drop-empty-rows` ใช้กับแบบเดิมเท่านั้น (เขียนทีละ variant ต่อการรัน) | `data/02_preprocess` … `data/05_extract` ตามขั้น |
+| `python -m fin_extractor regions <input> [--only 1307 …] [--no-debug-images] [--profile P]` | ขั้น 3 (ผัง regions ค่าตั้งต้นของ `sections`) รันขั้นนี้อย่างเดียว: region (template 50 ทวิ / แถบตามเส้น) + ตาราง → ช่อง + key/value + ระบาย QR จากภาพ final (CPU ไม่ OCR ไม่แตะผังเดิม) ตั้งค่าที่ `configs/regions/` ดู [03-regions.md](03-regions.md) | `data/03_sections/<dataset>/<profile>/regions/` |
 | `python -m fin_extractor compare <input> [--engine openthai] [--variants luma flat bin] [--out ไฟล์.md]` | — | ตารางเทียบผลสกัดข้ามวิธี พิมพ์ที่หน้าจอ (ใส่ `--out` เขียน .md ด้วย) แถวที่เทียบไม่แฟร์ถูกติดธงและไม่นับในยอดรวม |
 | `python -m fin_extractor schema` | — | `schemas/invoice.schema.json` (generate จาก `schema.py` ห้ามแก้ไฟล์ตรง ๆ) |
 | `pytest` | รันเทสต์ | |
@@ -147,7 +140,8 @@ data/
 
 | ตัวเลือก | ความหมาย |
 |---|---|
-| (ค่าตั้งต้น) ระบาย QR/บาร์โค้ด · `--no-mask-codes` ปิด | หา QR/บาร์โค้ดแล้วระบายขาวก่อนแบ่ง ไม่ส่งเข้า OCR ข้อความในรหัสเก็บใน `masked_codes` ของผัง ([03-sections.md](03-sections.md)) |
+| (ค่าตั้งต้น) ชั้นตรวจความครบ · `--no-coverage-check` ปิด | หลังขั้น ocr ให้ OpenThai 2.1 Text (CPU, `coverage_check` ใน config) อ่านภาพย่อยซ้ำ ภาพที่ตัวอ่านหลักอ่านไม่ครบ: แยกซ้าย/ขวาให้ตัวอ่านหลักอ่านใหม่ หรือแนบข้อความเสริมใน `.md` ไม่มี onnxruntime/โมเดลก็ข้าม ([04-openthai-ocr.md](04-openthai-ocr.md)) |
+| (ผังแบบเดิม ค่าตั้งต้น) ระบาย QR/บาร์โค้ด · `--no-mask-codes` ปิด | หา QR/บาร์โค้ดแล้วระบายขาวก่อนแบ่ง ไม่ส่งเข้า OCR ข้อความในรหัสเก็บใน `masked_codes` ของผัง ([03-sections.md](03-sections.md)) |
 | `--trim-sections all\|text-lr` | หดกรอบส่วนให้เหลือแค่ข้อความ วัดกับ OpenThai แล้วไม่ดีขึ้นทั้งสองแบบ จึงไม่เปิดเป็นค่าตั้งต้น ([03-sections.md](03-sections.md)) |
 
 **หน้าเว็บลอง OCR ทีละขั้น** (`scripts/demo/ocr_demo_app.py`): อัปโหลดเอกสาร 1 ไฟล์ แล้วดูผลทุกขั้นของ flow หลัก (preprocess → ผังแบ่งส่วนพร้อมภาพกลางทาง → ภาพรายส่วน → OCR ทีละส่วน → บรรทัด → ฟิลด์ → check/สถานะ → JSON) คลิกรหัสส่วนเพื่อตามส่วนนั้นข้ามทุกขั้น
@@ -156,9 +150,10 @@ data/
 python -X utf8 scripts/demo/ocr_demo_app.py          # เปิด http://127.0.0.1:8766 (เฉพาะเครื่องนี้)
 ```
 
-- ตั้งค่าเป็นค่าตั้งต้นของ `sections` ให้เอง (`FLOW_DEFAULTS` ในสคริปต์: ผัง regions) เลือกได้แค่ตัวอ่าน ผังแบบเดิมยังดูได้โดยเปลี่ยน `FLOW_DEFAULTS["layout"]` เป็น `"sections"`
+- ตั้งค่าเป็นค่าตั้งต้นของ `sections` ให้เอง (`FLOW_DEFAULTS` ในสคริปต์: ผัง regions) เลือกได้แค่ตัวอ่านและวิธีสกัด ผังแบบเดิมยังดูได้โดยเปลี่ยน `FLOW_DEFAULTS["layout"]` เป็น `"sections"`
+- ตัวเลือก **สกัดฟิลด์**: rules อย่างเดียว (ค่าตั้งต้น) · hybrid · winner เหมือน `extract --llm off|hybrid|on` (ต้องเปิด Ollama และมีโมเดลตาม `llm_extractor.model`) ขั้นสกัดแสดงค่าที่ต่างจาก rules อย่างเดียวพร้อมที่มา ค่าที่ด่านของ hybrid ปัดตก และแจ้งเมื่อเรียก LLM ไม่ได้ (ถอยไปใช้ rules) ค่าจาก LLM มีป้าย "LLM" ทั้งในขั้นสกัดและหน้าตรวจ · **ทั้ง 3 แบบ เทียบกัน** = สกัด rules / hybrid / winner จากข้อความชุดเดียวกัน แสดงสรุปต่อแบบ (สถานะ ฟิลด์ขาด check ค่าที่ไม่พบในข้อความ ค่าที่ด่านปัดตก เวลา) และค่ารายฟิลด์ข้างกัน ฟิลด์ที่ได้ค่าต่างกันขึ้นก่อน ขั้นตรวจ/แก้และ JSON ใช้ rules ก่อน กด "ใช้แบบนี้" เพื่อสลับโดยไม่สกัดใหม่
 - ขั้น **OCR ทีละส่วน** วาดกรอบบล็อกที่ OpenThai บอกเองว่าอ่านจากตรงไหน (กรอบ + ชนิด เช่น Text/Table มากับคำตอบของโมเดล `ReadResult.blocks`) ตรงที่มีข้อความแต่ไม่มีกรอบ = ไม่ได้อ่าน · flow หลักเก็บกรอบไว้ใน `.sections.json` (`blocks`) ด้วย ตัวอ่านอื่นไม่มีกรอบ
-- ขั้น **ตรวจ/แก้รายฟิลด์** (`scripts/demo/review.py`): เรียงฟิลด์ตามที่ควรตรวจก่อน (ขัดแย้ง → หาไม่เจอ → ไม่มีตัวยืนยัน → ยืนยันแล้ว) พร้อมเหตุผลเป็นคำพูดจากหลักฐานที่ระบบมี (ไม่ใช้ decision engine) แก้ค่า/รายการสินค้าแล้วตรวจใหม่ทันทีผ่าน `FinanceOCRPipeline.assess` บันทึกได้เป็น `corrected.json` (ผลหลังแก้) + `edits.json` (ค่าเดิม → ค่าที่แก้) ในโฟลเดอร์งาน และมีตัวอย่าง JSON แบบย่อที่เสนอแทน `field_evidence`
+- ขั้น **ตรวจ/แก้รายฟิลด์** (`scripts/demo/review.py`): เรียงฟิลด์ตามที่ควรตรวจก่อน (ขัดแย้ง → หาไม่เจอ → ไม่มีตัวยืนยัน → ยืนยันแล้ว) พร้อมเหตุผลเป็นคำพูดจากหลักฐานที่ระบบมี (ไม่ใช้ decision engine) แก้ค่า/รายการสินค้าแล้วตรวจใหม่ทันทีผ่าน `FinanceOCRPipeline.assess` บันทึกได้เป็น `corrected.json` (ผลหลังแก้) + `edits.json` (ค่าเดิม → ค่าที่แก้) ในโฟลเดอร์งาน
 - ขั้นที่โหลดโมเดล (preprocess ที่ใช้ตัวตรวจทิศของ Paddle และ OCR) รันใน `scripts/demo/ocr_demo_worker.py` แยก process รันได้ทีละงาน ใช้หน้าแรกของ PDF
 - ผลแต่ละงานอยู่ที่ `data/etc/demo/<งาน>/` (ไม่ commit) ใช้ฟังก์ชันเดียวกับ pipeline จริง ไม่ได้เขียนตรรกะใหม่
 
@@ -166,7 +161,7 @@ python -X utf8 scripts/demo/ocr_demo_app.py          # เปิด http://127.0
 
 | ตัวเลือก | ความหมาย |
 |---|---|
-| `--engine` | ตัวอ่านที่สร้างข้อความรายส่วน (`openthai` ตั้งต้น · `openthai21` · `openthai-text` · `typhoon` · `paddle` · `oxr`) อ่านจาก `04_ocr/<dataset>/<engine>/<วิธี>/` |
+| `--engine` | ตัวอ่านที่สร้างข้อความรายส่วน (`openthai` ตั้งต้น · `openthai21` · `openthai-text` · `typhoon` · `paddle`) อ่านจาก `04_ocr/<dataset>/<engine>/<วิธี>/` |
 | `--variant regions-luma\|luma\|flat\|bin\|color` | ภาพรายส่วนแบบที่ใช้ตอนอ่าน (`regions-luma` ตั้งต้น = flow หลัก · ที่เหลือ = ผัง section แบบเดิม) ผลเขียนที่ `05_extract/…/<วิธี>/<extractor>/` |
 | `--llm off\|on\|auto\|hybrid` | `off` = rules อย่างเดียว (ตั้งต้น) · `on`/`auto` = rules และ LLM สกัดแยก เลือกชุดที่ check ดีกว่า · `hybrid` = rules นำ LLM เติมเฉพาะช่องที่ยังไม่เสร็จ (ผลลง `…/hybrid/`) |
 | `--profile` | ชื่อชุดตั้งค่า preprocess (ใช้หาไฟล์ ไม่แตะภาพ) |
@@ -178,30 +173,17 @@ python -X utf8 scripts/demo/ocr_demo_app.py          # เปิด http://127.0
 
 ## Script วัดผล
 
-ไม่ใช่ส่วนของ pipeline ใช้วัดและเทียบ ผลทั้งหมดอยู่ใต้ `data/etc/benchmarks/` (ยกเว้นที่ระบุ)
-พาธในตารางนับจาก `scripts/` (โฟลเดอร์ย่อยตาม part: `data` · `preprocess` (02) · `sections` (03–04) · `ocr` (04) · `eval` (05))
+ไม่ใช่ส่วนของ pipeline ใช้สร้างข้อมูลทดสอบและเทียบผลสกัด พาธในตารางนับจาก `scripts/` (โฟลเดอร์ย่อย: `data` · `demo` (หน้าเว็บเดโม ดูหัวข้อก่อนหน้า) · `eval` (05))
+
+สคริปต์วัดผลแบบอ่านทั้งหน้า (`eval/benchmark.py`, `eval/compare_modes.py`, `ocr/benchmark_cer.py`, `ocr/visualize_bbox.py`, `ocr/oxr/*`, `preprocess/benchmark_preprocessing.py`, `preprocess/benchmark_real_scans.py`, `preprocess/organize_preprocess_results.py`, `preprocess/make_preprocess_notebooks.py`) และ `sections/make_section_layouts.py` · `make_clean_sections.py` · `run_sections.py` ลบแล้ว (อยู่ในประวัติ git ถึง commit f6cc6eb) ผลวัดที่สร้างไว้ในเอกสารเป็นบันทึกของรอบนั้น
 
 | Script | ทำอะไร | ต้องมีมาก่อน | ผลลัพธ์ |
 |---|---|---|---|
 | `data/make_synthetic_samples.py` | สร้างใบกำกับภาษีสังเคราะห์ 21 ใบ พร้อมเฉลย | — | `data/01_input/synthetic/` (ภาพ + `truth.json`) |
-| `preprocess/benchmark_preprocessing.py` | วัดว่าแต่ละชุด preprocessing ทำให้ Paddle อ่านค่าสำคัญได้ครบกี่ค่าจาก 6 | `make_synthetic_samples.py` | `preprocessing_synthetic.json` |
-| `preprocess/benchmark_real_scans.py` | เทียบ preprocessing 13 ชุดบนสแกนจริง ไม่ใช้เฉลย (~10 นาที) | สแกนใน `data/01_input/finance_doc_scan/` | `real_scans.json` |
-| `preprocess/organize_preprocess_results.py` | จัดผลข้างบนเป็นโฟลเดอร์ต่อชุด | `benchmark_real_scans.py` | `preprocess_experiments/` |
-| `preprocess/make_preprocess_notebooks.py <โฟลเดอร์ภาพ>` | สร้าง notebook เช็ค preprocess ไฟล์ละเล่ม (edge, threshold, แบ่ง section ตามตาราง) เครื่องมืออยู่ `notebooks/preprocess_lab/labkit.py` | สแกนใน `data/01_input/<dataset>/` และ `preprocess` (ภาพที่ตรงแล้ว) | `notebooks/preprocess_lab/<dataset>/*.ipynb` |
-| `sections/make_section_layouts.py` → `sections/make_clean_sections.py` → `sections/run_sections.py` | สคริปต์เดี่ยวของคำสั่ง `sections` (ตัวห่อบางๆ ของ `src/fin_extractor/sections/`) รันทีละขั้น: ผังแบ่ง → ภาพ luma/flat/bin → อ่านทีละส่วน ดู [03](03-sections.md) ทุกตัวรับ `--config` ทดลองโดยไม่ทับผลจริง | ภาพ `final/` (ผ่าน `preprocess`) | `03_sections/…/layout/`, `03_sections/…/images/<วิธี>/<ไฟล์>/`, `04_ocr/<dataset>/<engine>/<วิธี>/<ไฟล์>/*.sections.json` + `.md` |
-| `ocr/benchmark_cer.py [--engines paddle vlm]` | วัด CER บนชุดสังเคราะห์ (ข้อความอ้างอิงดึงจาก `render_page` ไม่ต้องมีเฉลยเพิ่ม) `vlm` ต้องมี Ollama + Typhoon | `make_synthetic_samples.py` | `cer_synthetic_<engines>.json` |
-| `ocr/oxr/extract_oxr.py <input>` | OXR เป็นตัวอ่าน (ต้องเปิด container OXR ในเครื่อง ใช้ RAM/VRAM มาก) ต่อจากที่ค้างได้ | `preprocess` + container `oxr` | `data/04_ocr/<dataset>/oxr/page/` และ `data/05_extract/<dataset>/oxr/page/rules/` |
-| `ocr/visualize_bbox.py <เลขไฟล์ ...>` · `--cached` | วาดกรอบ (bbox) ที่ Paddle ตรวจเจอลงบนภาพหลัง preprocess เป็นภาพ `words.jpg` (กรอบทุกคำ สีตามความมั่นใจ) และ `lines.jpg` (บรรทัดพร้อมเลขลำดับ) ไม่ทำ HTML Paddle ไม่เก็บกรอบไว้ในผล extract จึงต้องอ่านภาพใหม่เฉพาะไฟล์ที่ระบุ (หนัก ทำทีละไฟล์) แล้วเก็บ `ocr_words.json` ไว้วาดซ้ำ Typhoon ไม่มีกรอบ | `preprocess` (ภาพ final) | `data/04_ocr/<dataset>/paddle/visualize/<ไฟล์>/` |
-| `ocr/oxr/visualize_oxr.py <เลขไฟล์>` · `ocr/oxr/explain_oxr.py` | รายงานภาพทีละขั้นของ OXR · รายงาน "ทำไม OXR ไม่แม่น" (ไม่ใช้ GPU) | ผล OXR ใน `04_ocr/<dataset>/oxr/` | `…/visualize/` · `data/reports/oxr_why/` |
-| `ocr/oxr/benchmark_oxr.py` | วัด CER ภาพสังเคราะห์กับ free API ของ OXR (ห้ามใช้กับสแกนจริง) | `make_synthetic_samples.py` | `data/etc/benchmarks/oxr_synthetic_*.json` |
-| `eval/compare_modes.py` | (ผลรุ่นเก่าที่อ่านทั้งหน้า) เทียบผล `paddle/page/rules` กับ `typhoon/page/llm` รายใบ ใช้กับผลเก่าที่มีอยู่เท่านั้น | `extract data/01_input/finance_doc_scan` ทั้ง `--mode ocr` และ `--mode vlm` (อ่าน `final/` ของสองชุดนั้น) | `compare_modes.md` |
 | `eval/compare_file.py <เลขไฟล์>` | เทียบผลสกัดของไฟล์เดียวรายฟิลด์ ข้าม engine/extractor (ไม่ใช้ GPU) มีคอลัมน์อ้างอิงถ้าใส่ `reference.json` | ผล `extract` ของแต่ละ engine | `data/etc/compare/<ไฟล์>/` |
 | `eval/groundtruth_app.py <input>` | หน้าเว็บในเครื่อง (`127.0.0.1` เท่านั้น) กรอก ground truth: ภาพเอกสารคู่ฟอร์มฟิลด์ เติมค่าจากผลสกัด (`--prefill`, ค่าตั้งต้น `openthai/regions-luma/rules`) คนยืนยันหรือแก้ ช่องที่ต่างจากระบบเป็นสีเหลือง | ภาพ final + ผล `extract` | `data/etc/groundtruth/<dataset>/<ไฟล์>.json` |
 | `eval/summarize_extract.py <โฟลเดอร์ผล>… [--detail]` | สรุปผล `extract` หลายชุด (เช่น rules / llm / hybrid) เทียบกันโดยไม่ต้องมีเฉลย: สถานะ, ฟิลด์ขาด, check, ค่าที่ไม่พบในข้อความ, conflict, ฟิลด์จาก LLM, ค่าที่ด่านปัดตก `--detail` = รายใบ | ผล `extract` | พิมพ์ตาราง Markdown |
 | `eval/score_groundtruth.py <input> [--runs …] [--by-field]` | ให้คะแนนผลสกัดทุกชุดเทียบ ground truth ที่ตรวจเสร็จ: accuracy = ถูก / ช่องที่เอกสารมีค่า, ผิด, ไม่ได้ค่า, ใส่เกิน พิมพ์แค่จำนวนนับ ไม่พิมพ์ค่า | ground truth + ผล `extract` | `data/etc/groundtruth/<dataset>/score.md` |
-| `eval/benchmark.py prepare --per-cell 2` | โหลดชุด Invoice Extraction Benchmark จาก Hugging Face (ต้องต่อเน็ต) พร้อมเฉลย; `--thai <โฟลเดอร์>` เพิ่มเอกสารไทยที่มีเฉลย `.json` คู่กัน | — | `data/01_input/benchmark/` |
-| `eval/benchmark.py run paddle\|paddle+llm\|vlm` | รันทีละ engine กับชุดข้างบน (`paddle+llm`, `vlm` ต้องมี Ollama) | `prepare` | `ieb/<engine>.jsonl` |
-| `eval/benchmark.py report` | สรุปความถูกต้องรายฟิลด์และเวลาของทุก engine ที่ `run` แล้ว | `run` | `ieb/report.md` |
 
 ตัวอย่างแผนทดลองเทียบ engine บนสแกนจริง (ทุกตัวอ่านทีละท่อนจากผังและภาพชุดเดียวกัน):
 
@@ -214,40 +196,7 @@ python scripts/eval/compare_file.py 001312                                      
 
 ## โครงสร้างโปรเจกต์
 
-```
-fin_extractor/
-├── configs/default.yaml        ค่าตั้งต้นทั้งหมด
-├── configs/regions/            ค่าของคำสั่ง regions: pipeline.yaml, doc_types.yaml (lookup ชื่อไฟล์), templates/ (50 ทวิ)
-├── assets/fonts/               ฟอนต์ Sarabun (SIL OFL)
-├── data/                       01_input/ (เอกสารต้นฉบับ) · 02_preprocess/ · 03_sections/ · 04_ocr/ · 05_extract/ · etc/{benchmarks,compare,experiments} · reports/ ไม่ถูก commit ยกเว้น .gitkeep
-├── docs/                       เอกสารนี้ (เรียงตาม flow ดู docs/README.md)
-├── models/                     โมเดลที่ library โหลดเอง (ไม่ commit)
-├── notebooks/preprocess_lab/   labkit.py + notebook เช็ค preprocess
-├── schemas/invoice.schema.json Data Contract (generate จาก schema.py)
-├── scripts/                    สคริปต์เสริมนอก pipeline แยกตาม part (ตารางหัวข้อ "Script วัดผล")
-│   ├── data/                   ชุดสังเคราะห์
-│   ├── preprocess/             วัด/ดู preprocess (02)
-│   ├── sections/               รันขั้นของ sections ทีละขั้น (03–04)
-│   ├── ocr/                    วัด/ดูตัวอ่าน (04) + oxr/
-│   └── eval/                   เทียบผลสกัด (05)
-├── src/fin_extractor/
-│   ├── schema.py               Data Contract (pydantic)
-│   ├── config.py
-│   ├── pipeline.py             ตัวควบคุมลำดับ
-│   ├── cli.py
-│   ├── paths.py                ที่เดียวที่บอกว่าแต่ละขั้นเขียนข้อมูลที่ไหน
-│   ├── stages.py               preprocess ที่เก็บไว้ใช้ร่วมกันทุก engine + ข้อความดิบ (04_ocr)
-│   ├── doctypes.py             โปรไฟล์ชนิดเอกสาร (ฟิลด์/required/checks ต่อชนิด)
-│   ├── runs.py                 manifest ของการรัน
-│   ├── io/                     ขั้นที่ 1 (01)
-│   ├── preprocessing/          ขั้นที่ 2 (02)
-│   ├── readers/                ขั้นที่ 4 (04): ตัวอ่านทุก engine (openthai, typhoon, paddle, oxr) ใช้ make_reader ตัวเดียว
-│   ├── llm_client.py           เรียกโมเดลแบบแชต (Typhoon + LLM ตัวสกัด)
-│   ├── sections/               ขั้นที่ 3 (03): ผัง → ภาพรายส่วน → OCR รายส่วน + compare · regions/ = คำสั่ง regions (region/ตาราง/ช่อง/key-value)
-│   ├── extraction/             ขั้นที่ 5 (05)
-│   └── validation/             ขั้นที่ 5 ต่อ (05): validation + สถานะ + evidence รายฟิลด์
-└── tests/
-```
+โครงโฟลเดอร์และหน้าที่ของแต่ละไฟล์อยู่ใน [README หลัก](../README.md) หัวข้อ "โครงสร้างโฟลเดอร์" (ที่เดียว ไม่ซ้ำที่นี่)
 
 ## แก้ไฟล์แล้วต้องรันอะไร
 
@@ -255,20 +204,20 @@ fin_extractor/
 |---|---|
 | โค้ดทั่วไป | `pytest` |
 | `schema.py` | `pytest` + `python -m fin_extractor schema` (เพิ่ม `SCHEMA_VERSION` ถ้าโครงเปลี่ยน) |
-| extraction / validation / prompt | `pytest` + ลอง `extract` กับเอกสารจริงอย่างน้อยหนึ่งใบ (prompt/LLM ต้องลองโหมด vlm ด้วย เทสต์ไม่ครอบพฤติกรรมของ LLM) |
+| extraction / validation / prompt | `pytest` + ลอง `extract` กับเอกสารจริงอย่างน้อยหนึ่งใบ (prompt/LLM ต้องลอง `extract --llm on\|hybrid` ด้วย เทสต์ไม่ครอบพฤติกรรมของ LLM) |
 | `configs/default.yaml` | ลอง `extract` ถ้าแก้ preprocessing หรือ `document_types` |
 | ขั้นสกัด / `document_types` | `python -m fin_extractor extract <input> --engine <ตัวที่อ่าน>` (ไม่อ่านภาพ) สกัดและตรวจซ้ำจากข้อความดิบใน `04_ocr/` ไม่เรียก OCR/GPU (วินาทีเดียว) เทียบก่อน/หลังบนข้อความเดิมได้ |
 | `make_synthetic_samples.py` | ระวัง: ผลวัดใน [02](02-preprocessing.md) อ้างภาพชุดปัจจุบัน สร้างใหม่แล้วตัวเลขเดิมอาจเทียบไม่ได้ |
-| docs | ไม่ต้องรัน แต่ตัวเลขผลวัดต้องตรงกับผลจริงล่าสุดใน `data/etc/benchmarks/` และ `data/05_extract/` |
+| docs | ไม่ต้องรัน แต่ตัวเลขผลวัดต้องตรงกับผลจริงล่าสุดใน `data/05_extract/` (ผลวัดเก่าจากสคริปต์ที่ลบแล้วให้ระบุว่าเป็นบันทึกของรอบนั้น) |
 
 ## ข้อจำกัดที่ยังไม่ได้ทดสอบ
 
-- **PaddleOCR** รันจริงแล้วบนเอกสาร 2 ใบ (RTX 4050, CUDA 13), ชุดสังเคราะห์ 21 ใบ และสแกนจริง 18 ใบ (`--mode ocr` ราว 2–5 วินาที/ใบ ไม่นับใบแรกที่โหลดโมเดล) ผลเทียบ engine ที่เคยลองดู
-  อยู่ใน [04-ocr.md](04-ocr.md#ผลเทียบสาม-engine-บนเครื่องนี้) — ยังน้อยเกินกว่าจะสรุป
+- **PaddleOCR** รันจริงแล้วบนเอกสาร 2 ใบ (RTX 4050, CUDA 13), ชุดสังเคราะห์ 21 ใบ และสแกนจริง 18 ใบ (ตอนอ่านทั้งหน้าแบบเดิม ราว 2–5 วินาที/ใบ ไม่นับใบแรกที่โหลดโมเดล) ผลเทียบ engine ที่เคยลองดู
+  อยู่ใน [04-ocr.md](04-ocr.md) — ยังน้อยเกินกว่าจะสรุป
 - **Prompt ของ Typhoon OCR** (`TYPHOON_OCR_PROMPT` ใน `readers/typhoon.py`) อิงรูปแบบใน model card ควรเทียบกับ model card ของรุ่นที่ใช้อีกครั้ง
 - **Typhoon API บน cloud**: มี config แล้วแต่ยังไม่ได้เรียกจริง
-- **rules ถูกปรับให้เข้ากับ `BITKUB-001.jpg`** ชุดสแกนจริง 18 ใบ (`data/01_input/finance_doc_scan`) ไม่มีใบไหนได้ `auto_approved` อย่างถูกต้อง
-  เพราะมีเอกสารหลายชนิดนอกใบกำกับภาษี (หนังสือรับรอง 50 ทวิ, ใบสำคัญรับเงินลายมือ, ใบเสร็จศุลกากร) และ rules บางส่วนพลาดแม้ OCR อ่านครบ (เช่น 001310)
-  ตัวเลขสถานะล่าสุดอยู่ใน [README ของ docs](README.md) ดูเหตุผลที่อนุมัติอัตโนมัติไม่ได้ใน [05](05-validation-output.md#5f-สถานะเอกสาร) และผล preprocess ใน [02-preprocessing.md](02-preprocessing.md#ผลวัดบนสแกนจริง)
+- **rules ถูกปรับให้เข้ากับ `BITKUB-001.jpg`** ชุดสแกนจริง 18 ใบ (`data/01_input/finance_doc_scan`) มีเอกสารหลายชนิดนอกใบกำกับภาษี (หนังสือรับรอง 50 ทวิ, ใบสำคัญรับเงินลายมือ, ใบเสร็จศุลกากร)
+  ผล OpenThai ผัง regions + rules ล่าสุด (2026-11-26 ไม่มีเฉลย): 11 `needs_review` · 5 `auto_approved` · 2 `failed` — `auto_approved` ไม่ได้แปลว่าค่าถูก (ผ่านได้ด้วย checksum เลขภาษีอย่างเดียว ควรตรวจมือก่อนเชื่อ)
+  ตัวเลขและเหตุผลอยู่ใน [05-extraction.md](05-extraction.md) เกณฑ์สถานะใน [05-validation-output.md](05-validation-output.md) และผล preprocess ใน [02-preprocessing.md](02-preprocessing.md#ผลวัดบนสแกนจริง)
 - **LLM ขนาด 3B** ยังสลับ field ยอดเงินได้ ใช้รุ่นใหญ่ขึ้นจะเสถียรกว่า
 - **วันที่:** ถ้าช่องวันที่ถูกบังหรือว่าง ระบบจะหยิบวันที่แรกในเอกสาร ซึ่งอาจไม่ใช่วันที่ออกเอกสาร

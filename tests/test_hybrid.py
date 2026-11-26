@@ -108,7 +108,7 @@ def _pipe(llm):
     p = object.__new__(FinanceOCRPipeline)  # ไม่โหลดตัวอ่าน
     p.cfg = {"validation": {"amount_tolerance": 0.02, "default_vat_rate": 0.07}}
     p.llm, p.strategy = llm, "hybrid"
-    p.profiles, p.doc_table, p.core_labels = [], {}, ()
+    p.profiles, p.core_labels = [], ()
     p.last_rejected = []
     return p
 

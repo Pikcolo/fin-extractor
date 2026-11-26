@@ -34,7 +34,7 @@
 - **ชื่อไฟล์ภาษาไทยใช้ได้** เพราะระบบไม่ใช้ `cv2.imread` ซึ่งบน Windows อ่าน path ภาษาไทยไม่ได้
 - **ความละเอียด** สแกนที่ 200–300 DPI ดีที่สุด ถ้าภาพเล็กกว่าเกณฑ์ ขั้นที่ 2 จะขยายให้เอง แต่การขยายไม่ช่วยกู้รายละเอียดที่หายไปแล้ว
 - **ภาพถ่ายมือถือ** ใช้ได้ แต่ควรถ่ายตรง ไม่มีเงาบัง ระบบแก้เอียงได้ไม่เกิน ±15° และแก้กลับหัว/ตะแคงได้
-- **ตัวตรวจทิศอาจล้มโดยไม่ทำให้ pipeline พัง** (เช่น Paddle โหลด cuDNN ไม่ได้) ภาพตะแคงจะผ่านไปทุกขั้น ตอนนี้ `manifest.json` บันทึก `meta.orientation_error` และ CLI เตือน สั่งทิศเองได้ด้วย `--orientation` (ดู [13](03-sections.md))
+- **ตัวตรวจทิศอาจล้มโดยไม่ทำให้ pipeline พัง** (เช่น Paddle โหลด cuDNN ไม่ได้) ภาพตะแคงจะผ่านไปทุกขั้น ตอนนี้ `manifest.json` บันทึก `meta.orientation_error` และ CLI เตือน สั่งทิศเองได้ด้วย `--orientation` (ดู [03-sections](03-sections.md))
 - **PDF ที่มี text layer** (PDF ที่สร้างจากโปรแกรม) ถูก render เป็นภาพแล้ว OCR เหมือนไฟล์อื่น ไม่ดึงข้อความตรง ๆ (ตั้งใจ — ดูหัวข้อถัดไป)
 - **ตรวจชนิดไฟล์จากนามสกุล** ไม่ได้ดูจากเนื้อไฟล์ (magic bytes) ถ้ามีคนเปลี่ยนนามสกุลไฟล์อื่นเป็น `.pdf` จะไปล้มตอนเปิดไฟล์ ไม่ได้ถูกปฏิเสธตั้งแต่ต้น
 - **ข้อมูลจริงไม่ถูก commit:** `.gitignore` กันทุกอย่างใต้ `data/` ไว้ (เก็บเฉพาะ `.gitkeep`) เพราะเอกสารมีเลขภาษีและข้อมูลส่วนบุคคล
@@ -119,15 +119,13 @@ PDF สแกน → pypdfium2 render เป็นภาพ (300 DPI) → prepro
 data/
 ├── 01_input/<dataset>/                    ใส่เอกสารต้นฉบับที่นี่
 ├── 02_preprocess/<dataset>/<profile>/     ผล preprocess (คำสั่ง preprocess): final/ ภาพสุดท้าย, steps/ ภาพแต่ละขั้น (ใส่ --steps), settings.json
-├── 03_sections/<dataset>/<profile>/       แบ่งหน้าเป็นส่วน (คำสั่ง sections, ดู docs/03-sections.md): layout/ ผังแบ่ง, images/<วิธี>/ ภาพรายส่วน (luma | flat | bin)
-├── 04_ocr/<dataset>/<engine>/<page|วิธี>/ ข้อความดิบ (คำสั่ง ocr)
-├── 05_extract/<dataset>/<engine>/<page|วิธี>/<extractor>/   ผล JSON (คำสั่ง extract) extractor = rules | llm | hybrid
-├── etc/benchmarks/ · etc/compare/    งานทดสอบ/เปรียบเทียบ (ผลวัด, เทียบรายไฟล์)
-├── etc/experiments/<ชื่อ>/           การทดลองครั้งเดียวนอก pipeline (etc ไม่เก็บผลของ pipeline)
-└── reports/                          รายงานภาพ
+├── 03_sections/<dataset>/<profile>/       แบ่งหน้าเป็นส่วน (คำสั่ง sections/regions): regions/<ไฟล์>/ ผัง regions ค่าตั้งต้น (ดู docs/03-regions.md) · layout/ + images/<วิธี>/ ผังแบบเดิม (luma | flat | bin, ดู docs/03-sections.md)
+├── 04_ocr/<dataset>/<engine>/<วิธี>/      ข้อความที่อ่านทีละส่วน (ขั้น ocr ของคำสั่ง sections) วิธี = regions-luma (ค่าตั้งต้น) | luma | flat | bin | color
+├── 05_extract/<dataset>/<engine>/<วิธี>/<extractor>/   ผล JSON (คำสั่ง extract หรือขั้น extract ของ sections) extractor = rules | llm | hybrid
+└── etc/compare/ · etc/groundtruth/ · etc/demo/   เทียบรายไฟล์ · ค่าที่คนกรอก · ผลของหน้าเว็บเดโม (etc ไม่เก็บผลของ pipeline)
 ```
 
-ถ้ารันหนึ่งครั้งมีไฟล์อินพุตมากกว่า 2 ไฟล์ ผลของแต่ละไฟล์จะอยู่ในโฟลเดอร์ย่อยชื่อไฟล์ (เช่น `04_ocr/<dataset>/<engine>/page/<ไฟล์>/<ไฟล์>_p1.txt`) ไม่เกิน 2 ไฟล์ก็วางตรง ๆ (ตั้งที่ `NEST_OVER` ใน `src/fin_extractor/paths.py`)
+ถ้ารันหนึ่งครั้งมีไฟล์อินพุตมากกว่า 2 ไฟล์ ผลของแต่ละไฟล์จะอยู่ในโฟลเดอร์ย่อยชื่อไฟล์ (เช่น `04_ocr/<dataset>/<engine>/regions-luma/<ไฟล์>/<ไฟล์>_p1.md`) ไม่เกิน 2 ไฟล์ก็วางตรง ๆ (ตั้งที่ `NEST_OVER` ใน `src/fin_extractor/paths.py`)
 
 ## ผลลัพธ์ของขั้นนี้
 

@@ -14,7 +14,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from ..io import read_image
+from ..io import read_image, save_image
 from ..paths import DEFAULT_PROFILE, DataPaths
 from ..preprocessing import binarize as bin_ops
 from ..preprocessing import enhance
@@ -22,14 +22,6 @@ from . import graphics as G
 from . import images as I  # noqa: E741
 from . import layout as L
 from .crops import iter_section_crops
-
-
-def write_png(path: Path, img: np.ndarray) -> None:
-    ok, buf = cv2.imencode(".png", img)
-    if not ok:
-        raise ValueError(f"encode ภาพไม่ได้: {path}")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    buf.tofile(str(path))
 
 
 def page_images(final_dir: Path) -> dict[str, Path]:
@@ -89,7 +81,7 @@ def build_layouts(paths: DataPaths, dataset: str, profile: str = DEFAULT_PROFILE
 
         overlay = L.draw_sections(work, secs)
         s = 1000 / max(overlay.shape[:2])
-        write_png(out_dir / f"{stem}_layout.png", cv2.resize(overlay, None, fx=s, fy=s, interpolation=cv2.INTER_AREA))
+        save_image(out_dir / f"{stem}_layout.png", cv2.resize(overlay, None, fx=s, fy=s, interpolation=cv2.INTER_AREA))
         totals["files"] += 1
         totals["sections"] += len(secs)
         totals["kept"] += len(kept)
@@ -131,7 +123,7 @@ def build_images(paths: DataPaths, dataset: str, only: list[str] | None = None, 
             for (sec, crop), img, info in zip(crops, made[variant](), infos):
                 blank = variant == "bin" and info.get("blank")  # ทาดำหมดทั้งส่วน = ไม่มีไฟล์ ตัวอ่านข้าม (ยังอยู่ใน index ให้ตรงกับผัง)
                 if not blank:
-                    write_png(out / f"{sec['id']}.png", img)
+                    save_image(out / f"{sec['id']}.png", img)
                 index.append({"id": sec["id"], "kind": sec["kind"], "bbox": sec["bbox"], "table": sec["table"],
                               **({"part": sec["part"], "parts": sec["parts"]} if sec.get("part") else {}),
                               "size": [int(crop.shape[1]), int(crop.shape[0])], "file": None if blank else f"{sec['id']}.png",

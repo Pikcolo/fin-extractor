@@ -16,7 +16,7 @@
 check ใช้ทำสามอย่าง
 1. บอกคนตรวจว่าข้อไหนน่าสงสัยและเพราะอะไร (`detail`)
 2. เป็นกรรมการเลือกระหว่างผลจาก rules กับ LLM (5C)
-3. เป็นตัวตัดสินสถานะเอกสาร (5F) และเป็นหลักฐานรายฟิลด์ (`field_evidence`)
+3. เป็นตัวตัดสินสถานะเอกสาร (5F) และเป็นหลักฐานรายฟิลด์ (`review`)
 
 **"ตรวจไม่ได้" ไม่ใช่ "ไม่ผ่าน"** ใบกำกับภาษีอย่างย่อไม่มีชื่อผู้ซื้อ ใบเสร็จบางใบไม่แยกยอดก่อนภาษี ถ้านับว่า
 ไม่ผ่าน เอกสารที่ถูกต้องจะตกทุกใบ จึงคืน `null`
@@ -61,7 +61,7 @@ check ใช้ทำสามอย่าง
 |---|---|
 | ฟิลด์ที่ขาด (`review` ระดับ `missing`) | field ที่ชนิดเอกสารต้องมีแต่หาไม่เจอ ค่าตั้งต้น (generic) คือ `vendor.name`, `vendor.tax_id`, `invoice_no`, `date`, `total_amount` โปรไฟล์ชนิดเอกสารกำหนด `required` เองได้ และตัดช่องที่ชนิดนั้นไม่มี (`not_applicable`) ออก |
 | `checks` | ผล check แต่ละข้อจาก 5E |
-| `ocr_confidence` | ค่าเฉลี่ยที่ OCR engine รายงานเอง (โหมด vlm เป็น `null`) — รายงานไว้ดู ไม่ได้ใช้ตัดสินสถานะ เพราะยังไม่มีข้อมูลบอกว่าค่าเท่าไรถึงเชื่อได้ |
+| `ocr_confidence` | ค่าเฉลี่ยที่ OCR engine รายงานเอง (มีเฉพาะ Paddle / OpenThai Text ตัวอื่นไม่มีคีย์) — รายงานไว้ดู ไม่ได้ใช้ตัดสินสถานะ เพราะยังไม่มีข้อมูลบอกว่าค่าเท่าไรถึงเชื่อได้ |
 
 สถานะตัดสินด้วยกฎ:
 
@@ -69,11 +69,11 @@ check ใช้ทำสามอย่าง
 |---|---|---|
 | `failed` | หายอดหลัก (`primary_amount` ของโปรไฟล์ ค่าตั้งต้น `total_amount`) ไม่เจอ | สกัดไม่สำเร็จ |
 | `auto_approved` | ไม่มีฟิลด์ที่ขาด **และ** ไม่มี check ไหนไม่ผ่าน **และ** มี check ผ่านอย่างน้อยหนึ่งข้อ | ใช้ต่อได้เลย |
-| `needs_review` | กรณีอื่น รวมถึงโปรไฟล์ที่ยังเป็นฉบับร่าง (`status: draft…` ใน config ตอนนี้ทั้ง 3 ชนิดเป็นร่าง จึงไม่มีทางได้ `auto_approved`) | ควรให้คนตรวจ |
+| `needs_review` | กรณีอื่น รวมถึงเอกสารที่จัดเข้าโปรไฟล์ที่ยังเป็นฉบับร่าง (`status: draft…` ใน config ตอนนี้ทั้ง 3 ชนิดเฉพาะเป็นร่าง เอกสารชนิดนั้นจึงไม่ได้ `auto_approved` ส่วนเอกสาร `generic` เช่นใบกำกับทั่วไปได้) | ควรให้คนตรวจ |
 
 **ตัวอย่าง:** `BITKUB-001.jpg` ผ่าน check 6/6 แต่ช่องเลขที่เอกสารในใบว่าง → `review.invoice_no.level = "missing"` → `needs_review`
 
-**ข้อควรระวัง: `auto_approved` ไม่ได้แปลว่าค่าถูก แปลว่าตัวเลข "สอดคล้องกันเอง"** (พบจากการรัน `--mode vlm` กับสแกนจริง 18 ใบ)
+**ข้อควรระวัง: `auto_approved` ไม่ได้แปลว่าค่าถูก แปลว่าตัวเลข "สอดคล้องกันเอง"** (พบจากการรันโหมด `--mode vlm` รุ่นเก่าที่อ่านทั้งหน้า (ลบแล้ว) กับสแกนจริง 18 ใบ)
 ใบ 001307 (หนังสือรับรองหัก ณ ที่จ่าย) ได้ `auto_approved` ทั้งที่ข้อความดิบมีตัวเลขเงิน (ทศนิยม 2 ตำแหน่ง) แค่ `2,000.00` และ `60.00` (ภาษีที่หัก)
 LLM สกัดเป็น VAT `120.0` อัตรา 6% และยอดรวม `2120.0` ซึ่ง **ไม่พบในข้อความดิบ** (ตรวจเฉพาะรูปแบบทศนิยม 2 ตำแหน่ง) แต่ผ่าน check "ก่อน VAT + VAT = รวม" ทุกข้อเพราะตัวเลขที่แต่งขึ้นสอดคล้องกันเอง
 check จับได้เฉพาะค่าที่ไม่สอดคล้อง (เช่น เลขภาษีที่ checksum ไม่ผ่าน) จับค่าที่ถูกแต่งให้สอดคล้องไม่ได้
@@ -131,7 +131,7 @@ ExtractionResult                     ผลของ 1 หน้า
 เป็น Decimal ที่ไม่ปัด ระบบปลายทางที่เคยอ่านเป็นตัวเลข (schema 1.x) ต้องแปลงสตริงเอง ค่าคลาดของ check ยังเป็น ±0.02 บาทตาม config
 
 **`review`** คีย์เป็นชื่อฟิลด์แบบ `vendor.tax_id`, `total_amount`, `items[0].amount`, `document_fields.<key>` เรียง conflict → missing → unverified → verified → not_applicable
-ค่าเป็น `level` + `reasons` (คำพูด เช่น "check items_sum ไม่ผ่าน (…)", "ค่านี้ไม่ปรากฏในข้อความที่ OCR อ่านได้", "ยืนยันแล้วด้วย before_vat_plus_vat") และ `source` เมื่อค่ามาจาก `llm` หรือ `human`
+ค่าเป็น `level` + `reasons` (คำพูด เช่น "check items_sum ไม่ผ่าน (…)", "ค่านี้ไม่ปรากฏในข้อความที่ OCR อ่านได้", "ยืนยันแล้วด้วย before_vat_plus_vat") และ `source` เมื่อค่ามาจาก `llm`, `human` หรือตัวอ่านเสริมของชั้นตรวจความครบ (ชื่อตัวอ่าน เช่น `openthai-text`)
 ฟิลด์ที่ไม่มีค่าและไม่บังคับไม่อยู่ใน `review` สร้างจากหลักฐานละเอียด (`FieldEvidence`: checksum, check ที่ผ่าน/ไม่ผ่าน, อยู่ในข้อความไหม, สองแหล่งตรงกันไหม) ซึ่งใช้ภายใน (`validation/evidence.py → review_from_evidence`) กฎอยู่ใน [06 หัวข้อ 4.3](06-design-and-roadmap.md)
 
 ```json
@@ -144,7 +144,7 @@ ExtractionResult                     ผลของ 1 หน้า
 
 **schema 4.0 (2026-11-24)** เทียบ 3.0: `field_evidence` (10 ช่องต่อฟิลด์ ส่วนใหญ่ว่างเสมอ และเก็บค่าซ้ำกับ `data`) → `review` · ตัด `missing_fields` (= `review` ระดับ `missing` ใน Python ยังเรียก `result.missing_fields` ได้) และ `handwritten_fields` (ว่างเสมอ) · `ocr_confidence` `raw_text` `rejected` ไม่ถูกเขียนเมื่อว่าง
 บน 18 ใบ (OpenThai luma rules): ค่า สถานะ check และฟิลด์ที่ขาดเหมือน 3.0 ทุกใบ ระดับรายฟิลด์เหมือนทุกใบ JSON รวมเล็กลง 35% (6,010 → 3,879 บรรทัด)
-**อ่านไฟล์ 3.x ได้:** `ExtractionResult.model_validate` แปลง `field_evidence` เป็น `review` ให้เอง (คง `schema_version` เดิมของไฟล์) สคริปต์ที่อ่าน JSON ตรง (`scripts/eval/compare_file.py`) รับได้ทั้งสองรุ่น
+**ไฟล์ 2.x/3.x ไม่ถูกแปลงแล้ว** (ตัวโหลดผลเก่าถูกลบ 2026-11-26) ผลเก่าให้สกัดใหม่ด้วย `extract` (CPU อ่านข้อความดิบเดิม)
 
 | Field | ความหมาย |
 |---|---|
@@ -167,7 +167,7 @@ ExtractionResult                     ผลของ 1 หน้า
 | `document_profile` | string | โปรไฟล์ที่ใช้กำหนดฟิลด์ (`withholding_certificate`, `customs_receipt`, `payment_voucher`, `generic`) ดู [06 หัวข้อ 3.6](06-design-and-roadmap.md) |
 | `document_fields{}` | object | ฟิลด์เฉพาะชนิดเอกสารตามโปรไฟล์ เช่น 50 ทวิ: `total_paid`, `total_tax_withheld` ค่าเป็นสตริง money=ทศนิยม, date=ISO ค.ศ. คีย์ที่หาไม่เจอไม่มีในผล |
 | `vendor`, `buyer` | object | `name`, `tax_id` (13 หลัก), `branch`, `address` |
-| `remark[]` | array | `label`, `value`, `kind` (`pair` หรือ `unmapped`), `source_chunk` หมายเหตุ: ข้อมูลที่เอกสารพิมพ์ไว้แต่ไม่มีช่องข้างบนหรือใน `document_fields` ดู [04](05-extraction.md) หัวข้อ remark ชื่อเดิม `extra_fields` ของ schema 2.x |
+| `remark[]` | array | `label`, `value`, `kind` (`pair` หรือ `unmapped`), `source_chunk` หมายเหตุ: ข้อมูลที่เอกสารพิมพ์ไว้แต่ไม่มีช่องข้างบนหรือใน `document_fields` ดู [05-extraction](05-extraction.md) หัวข้อ remark ชื่อเดิม `extra_fields` ของ schema 2.x |
 | `book_no` | string | เล่มที่ (ยังไม่มี regex ใน rules มาจาก LLM เท่านั้น) |
 | `invoice_no` | string | |
 | `date` | date | ISO-8601 ปี ค.ศ. |

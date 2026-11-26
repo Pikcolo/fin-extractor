@@ -13,8 +13,8 @@ def test_every_engine_has_a_reader_without_loading_a_model():
     cfg = load_config()
     names = {e: type(make_reader(e, cfg)).__name__ for e in ENGINES}
     assert names == {"openthai": "OpenThaiOCR", "openthai21": "OpenThaiOCR", "openthai-text": "OpenThaiTextOCR",
-                     "typhoon": "TyphoonOCR", "paddle": "PaddleReader", "oxr": "OXRLocal"}
-    assert set(TORCH_ENGINES) == {"openthai", "openthai21", "oxr"}  # typhoon/paddle/openthai-text ต้องไม่ import torch (paddle ชน cuDNN ของ torch)
+                     "typhoon": "TyphoonOCR", "paddle": "PaddleReader"}
+    assert set(TORCH_ENGINES) == {"openthai", "openthai21"}  # typhoon/paddle/openthai-text ต้องไม่ import torch (paddle ชน cuDNN ของ torch)
     assert make_reader("openthai21", cfg).model_dir != make_reader("openthai", cfg).model_dir  # weights คนละชุด ผลแยกโฟลเดอร์ตามชื่อ engine
     assert {e: make_reader(e, cfg).name for e in ENGINES} == {e: reader_label(e, cfg) for e in ENGINES}
 

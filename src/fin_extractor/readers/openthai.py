@@ -1,6 +1,6 @@
-"""OpenThai 2.0 OCR Markdown (iApp) — Thai fine-tune ของ Nemotron 3.5 Parse (0.63B), อ่านทั้งหน้าเป็น Markdown (ตารางเป็น HTML).
+"""OpenThai 2.0 OCR Markdown (iApp) — Thai fine-tune ของ Nemotron 3.5 Parse (0.63B), อ่านภาพส่วนเป็น Markdown (ตารางเป็น HTML).
 
-ต่างจาก Typhoon ตรงที่ output มีกล่อง+คลาสของทุกบล็อกด้วย (ตอนนี้ยังใช้แค่ Markdown เหมือน Typhoon)
+ต่างจาก Typhoon ตรงที่ output มีกล่อง+คลาสของทุกบล็อกด้วย เก็บเป็น ``ReadResult.blocks`` (ขั้นสกัดยังใช้แค่ Markdown)
 
 ใช้ได้ 2 แบบ (ตั้งใน ``openthai:`` ของ config)
 - ``backend: transformers`` : โหลดโมเดลในโปรเซสนี้จาก ``model_dir`` (ไม่ต้องใช้ vLLM ซึ่งรันบน Windows ตรง ๆ ไม่ได้)

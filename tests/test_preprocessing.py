@@ -40,15 +40,7 @@ class _FakeOrientationModel:
 @pytest.mark.parametrize("label, fix", [("0", 0), ("90", 270), ("180", 180), ("270", 90)])
 def test_detect_orientation_converts_label_to_fix_angle(monkeypatch, label, fix):
     monkeypatch.setattr(orient, "_load_orientation_model", lambda: _FakeOrientationModel(label))
-    assert orient.detect_orientation(_fake_document()) == fix
-
-
-def test_detect_orientation_returns_zero_when_model_fails(monkeypatch):
-    def boom():
-        raise RuntimeError("no model")
-
-    monkeypatch.setattr(orient, "_load_orientation_model", boom)
-    assert orient.detect_orientation(_fake_document()) == 0
+    assert orient.detect_orientation_checked(_fake_document()) == (fix, None)
 
 
 def test_detect_orientation_checked_reports_the_failure_instead_of_a_silent_zero(monkeypatch):

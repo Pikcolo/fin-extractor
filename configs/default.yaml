@@ -8,7 +8,7 @@ loader:
   pdf_dpi: 300            # ความละเอียดตอน render PDF เป็นภาพ
 
 # Preprocessing ชุดเดียวใช้กับตัวอ่านทุก engine — ภาพสี ไม่ binarize
-# เลือกจากการวัดกับชุดสังเคราะห์ (scripts/preprocess/benchmark_preprocessing.py, ผลใน docs/02-preprocessing.md)
+# เลือกจากการวัดกับชุดสังเคราะห์ (scripts/preprocess/benchmark_preprocessing.py ลบแล้ว อยู่ในประวัติ git ถึง f6cc6eb, ผลใน docs/02-preprocessing.md)
 #   - ภาพสีอ่านค่าสำคัญได้ครบ ส่วนภาพเทาทำให้ตัวตรวจจับข้อความของ Paddle ไม่เจอบรรทัดในภาพสแกนบางใบ
 #   - NL-means + CLAHE ช้า (เตรียมภาพ ~5 วิ/ใบ เทียบ ~0.2 วิ) และไม่ทำให้อ่านได้มากขึ้น
 preprocessing:
@@ -24,7 +24,7 @@ preprocessing:
   # remove_streaks: true  # ลบเส้นสกปรกจากเครื่องสแกนก่อนหมุน (เจอใน 1320 1322 ผลต่อ OCR ยังไม่ได้วัด ดู docs/02)
   #                       # ไม่ใส่เป็นคีย์ตรงนี้: settings.json ของ profile เดิมจะไม่ตรงแล้วต้อง --force ทั้งชุด — เปิดด้วย --config + --profile ใหม่
 
-# ตัวอ่านขั้น 4 (readers/): คีย์ชื่อเดียวกับ --engine (paddle | typhoon | openthai | oxr)
+# ตัวอ่านขั้น 4 (readers/): คีย์ชื่อเดียวกับ --engine (openthai | openthai21 | openthai-text | typhoon | paddle)
 paddle:
   lang: th                 # → th_PP-OCRv5_mobile_rec (Paddle 3.2+)
   # ปิดตัวจำแนกทิศรายบรรทัด: มันตัดสินผิดว่าบรรทัดไทยกลับหัวแล้วหมุนกลับ
@@ -88,13 +88,6 @@ coverage_check:
   enabled: true
   engine: openthai-text
 
-# OXR-1.0 (SoMarkAI) ใช้ด้วย --engine oxr โหลดตรงด้วย Transformers ไม่ใช้ Docker — อ่านภาพย่อย (section) เฉพาะส่วนที่เป็นตัวเลข/อังกฤษ (ไม่รู้ภาษาไทย ดู docs/archive/oxr.md)
-# ดาวน์โหลด weights ~3GB เก็บนอก repo ได้: hf download SoMarkAI/OXR-1.0 --local-dir <model_dir>
-oxr:
-  model_dir: D:/PIK/models/OXR-1.0   # ที่เก็บ weights บนเครื่องนี้ (นอก repo) เครื่องอื่นเปลี่ยนด้วย --config
-  device: null                       # null = cuda ถ้ามี ไม่งั้น cpu (ช้ามาก)
-  max_new_tokens: 1024               # ภาพย่อยสั้นกว่าหน้า (container เดิมใช้ 3072) ข้อความวนซ้ำจะถูกตัดที่ค่านี้ (ยังไม่ได้วัดว่าพอ)
-
 llm_extractor:
   # LLM ที่แปลง text/markdown → JSON ตาม schema (ใช้เมื่อ --llm on/auto/hybrid)
   provider: ollama
@@ -133,7 +126,6 @@ core_labels:
 #
 # สถานะ: draft — รายการฟิลด์และ required ด้านล่างมาจากป้ายที่พิมพ์บนสแกนใน data/01_input/finance_doc_scan (ระบุใน source)
 #        ยังไม่ได้ให้ฝ่ายบัญชียืนยัน ต้องยืนยันก่อนใช้ตัดสินจริง (docs/08 หัวข้อ 3.6)
-# รูปแบบเก่า (ชื่อชนิด → not_applicable เทียบกับ data.document_type ตรง ๆ) ยังใช้ได้
 document_types:
   withholding_certificate:
     title: หนังสือรับรองการหักภาษี ณ ที่จ่าย (50 ทวิ)

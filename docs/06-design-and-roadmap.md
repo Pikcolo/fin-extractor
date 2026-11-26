@@ -6,13 +6,13 @@
 รายละเอียดแต่ละขั้นของ pipeline อยู่ในไฟล์ `00`–`05` (ภาพ flow ปัจจุบันอยู่ใน [README.md](README.md)) ส่วนเรื่องลายมืออยู่ใน
 [draft-07-handwriting-and-field-confidence.md](draft-07-handwriting-and-field-confidence.md)
 
-> สถานะ: หัวข้อ 1, 3 และ 4.3 อธิบายระบบที่มีอยู่จริง (schema 3.0, โปรไฟล์ชนิดเอกสาร, `field_evidence`)
+> สถานะ: หัวข้อ 1, 3 และ 4.3 อธิบายระบบที่มีอยู่จริง (schema 4.0, โปรไฟล์ชนิดเอกสาร, `review` รายฟิลด์)
 > หัวข้อ 4.1, 4.2, 4.4–4.6 และ 6 เป็นแนวทางและแผนที่ **ยังไม่ได้ implement**
 > ยกเว้นที่ระบุว่า "ทำแล้ว" (U1 บางส่วน, U2, U3)
 
 ---
 
-> **schema 4.0 (2026-11-24):** ผลที่บันทึกใช้ `review` (ระดับ + เหตุผลรายฟิลด์) แทน `field_evidence` และตัด `missing_fields` `handwritten_fields` ออก กฎตัดสินระดับในเอกสารนี้ยังเหมือนเดิม (`FieldEvidence` ใช้ภายใน) ดู [05-validation-output.md](05-validation-output.md)
+> **schema 4.0 (2026-11-24):** ผลที่บันทึกใช้ `review` (ระดับ + เหตุผลรายฟิลด์) แทน `field_evidence` ของ 3.0 และตัด `missing_fields` `handwritten_fields` ออก กฎตัดสินระดับในเอกสารนี้ยังเหมือนเดิม (`FieldEvidence` ใช้ภายใน ไม่เขียนลง JSON) ดู [05-validation-output.md](05-validation-output.md) ซึ่งเป็นที่อธิบายโครงผลหลัก
 
 ## 1. โจทย์ของโปรเจกต์
 
@@ -34,10 +34,10 @@
 สถาปัตยกรรมและเทคนิคแต่ละขั้น (Loader, Preprocess, OCR/VLM, rules, LLM, validation, status) อธิบายไว้ใน [01](01-input.md)–[05](05-validation-output.md)
 และ [README.md](README.md) ไม่ซ้ำที่นี่ ข้อจำกัดที่แผนด้านล่างตั้งใจแก้
 
-1. **สถานะเป็นของทั้งเอกสาร** `field_evidence` บอกระดับรายฟิลด์แล้ว (หัวข้อ 4.3) แต่ `decide_status` ยังใช้กฎเดิม ไม่อิงระดับรายฟิลด์
-2. **ต้นทางระดับคำของค่าหายระหว่างทาง** `pipeline.read_prepared` ส่งต่อแค่ข้อความ ฟิลด์จึงไม่รู้ว่ามาจากคำไหน ใช้ `model_conf` ไม่ได้ (รู้แค่ว่ามาจาก rules หรือ LLM)
-3. **ผู้ใช้เลือกโหมดเอง** (`--mode ocr|vlm`) ไม่มีการส่งต่อเอกสารที่ยากไปยัง VLM อัตโนมัติ
-4. **ไม่มี UI ตรวจทาน** และไม่มีบันทึกการแก้ไข
+1. **สถานะเป็นของทั้งเอกสาร** `review` บอกระดับรายฟิลด์แล้ว (หัวข้อ 4.3) แต่ `decide_status` ยังใช้กฎเดิม ไม่อิงระดับรายฟิลด์
+2. **ต้นทางระดับคำของค่าหายระหว่างทาง** ขั้นสกัด (`pipeline.process_raw`) รับแค่ข้อความ ฟิลด์จึงไม่รู้ว่ามาจากคำไหน ใช้ `model_conf` ไม่ได้ (รู้แค่ว่ามาจาก rules หรือ LLM)
+3. **ผู้ใช้เลือกตัวอ่านเอง** (`sections --engine …`) ไม่มีการส่งต่อเอกสารที่ยากไปยังตัวอ่านอื่นอัตโนมัติ
+4. **UI ตรวจทานมีแค่ในหน้าเว็บเดโม** (`scripts/demo/review.py`: แก้รายฟิลด์ ตรวจใหม่ทันที บันทึก `corrected.json` + `edits.json` ในโฟลเดอร์งาน) ยังไม่มีในระบบจริงหรือ service
 5. **ลายมือ** ยังไม่มีตัวตรวจหรือวิธีอ่านเฉพาะ (ดู `07`)
 
 ---
@@ -69,26 +69,7 @@ schemas/invoice.schema.json  (JSON Schema)
 
 ### 3.3 โครงสร้าง
 
-```
-ExtractionResult                       ผลของ 1 หน้า  (required: source_file, engine, data, status)
-├── schema_version                     "3.0"
-├── source_file, page, engine          มาจากไหน ใช้ engine อะไร
-├── data: InvoiceData                  ข้อมูลธุรกิจ (ทุกฟิลด์เป็น null ได้)
-│   ├── document_type, document_profile   ชนิดที่สกัดได้ / ชื่อโปรไฟล์ที่ใช้ (generic ถ้าไม่ตรงชนิดใด)
-│   ├── vendor, buyer: Party           name, tax_id (^\d{13}$), branch, address
-│   ├── book_no, invoice_no, date (ISO ค.ศ.), currency (THB)
-│   ├── items: [LineItem]              description (required), quantity, unit_price, amount
-│   ├── subtotal, discount, amount_before_vat, vat_rate, vat_amount, total_amount   (Decimal → JSON เป็นสตริง)
-│   ├── document_fields: {key: str}    ฟิลด์เฉพาะชนิดเอกสารตามโปรไฟล์ (หัวข้อ 3.6) ค่า normalize แล้วเป็นสตริง
-│   └── remark: [ExtraField]           label + value ข้อมูลที่เอกสารพิมพ์ไว้แต่ไม่มีช่องใด (หัวข้อ 3.6)
-├── checks: [ValidationCheck]          name, passed (true/false/null), detail, fields (ฟิลด์ที่ check ใช้จริง)
-├── field_evidence                     {คีย์ฟิลด์: FieldEvidence} ระดับ missing/conflict/verified/unverified
-├── ocr_confidence                     ค่าเฉลี่ยจาก engine (VLM เป็น null)
-├── missing_fields                     ฟิลด์สำคัญที่หาไม่เจอ
-├── handwritten_fields                 ฟิลด์ที่มาจากลายมือ (มีใน schema แต่ไม่มีโค้ดส่วนไหนเติมค่า)
-├── status
-└── raw_text
-```
+โครงของ `ExtractionResult` (schema 4.0) และความหมายแต่ละช่องอยู่ที่ [05-validation-output.md](05-validation-output.md) (หัวข้อ schema) ไม่ซ้ำที่นี่
 
 ### 3.4 ฟิลด์คิดมาจากอะไร
 
@@ -112,11 +93,11 @@ ExtractionResult                       ผลของ 1 หน้า  (required
 |---|---|---|
 | ยอดเงินเป็น `float` | ปัดเศษเพี้ยน ไม่ตรงทุกสตางค์ | **ทำแล้ว** `Decimal` (JSON เป็นสตริง) ยอดเงิน 5 ช่องและ `items[].amount` ปัดเป็น 2 ตำแหน่ง (สตางค์ของบาท) ส่วน `vat_rate`, `quantity`, `unit_price` เป็น Decimal ที่ไม่ปัด |
 | ไม่มี "เล่มที่" | บิลเล่มที่กรอกมือมีทั้งเล่มที่และเลขที่ ใช้กันเอกสารซ้ำ | **ทำแล้วเฉพาะ schema** เพิ่ม `book_no` แล้ว แต่ rules ยังไม่มี regex จับค่านี้ (ค่าจะมาจาก LLM เท่านั้น) |
-| ไม่มีหลักฐานรายฟิลด์ | UI ไฮไลต์รายช่องไม่ได้ | **ทำแล้ว** `field_evidence` (หัวข้อ 4.3) |
-| ไม่มีเวอร์ชันของ schema | ระบบปลายทางไม่รู้ว่าโครงเปลี่ยน | **ทำแล้ว** `schema_version` = `"3.0"` |
+| ไม่มีหลักฐานรายฟิลด์ | UI ไฮไลต์รายช่องไม่ได้ | **ทำแล้ว** `review` (หัวข้อ 4.3) |
+| ไม่มีเวอร์ชันของ schema | ระบบปลายทางไม่รู้ว่าโครงเปลี่ยน | **ทำแล้ว** `schema_version` (ตอนนี้ `"4.0"`) |
 | ไม่มีบันทึกการตรวจทาน | ไม่มี audit trail ว่าใครแก้อะไร | **ยังไม่ทำ** แยกเป็นโครง `ReviewRecord` (หัวข้อ 4.5) ไม่ใส่ใน `ExtractionResult` |
 
-### 3.6 schema ตายตัวไหม: แกนกลาง + ฟิลด์ประจำชนิด + หมายเหตุ (schema 3.0)
+### 3.6 schema ตายตัวไหม: แกนกลาง + ฟิลด์ประจำชนิด + หมายเหตุ (ตั้งแต่ schema 3.0)
 
 เอกสารการเงินแต่ละชนิดมีข้อมูลไม่เหมือนกัน (ใบกำกับมียอดรวม, 50 ทวิมียอดที่จ่ายกับภาษีที่หัก, ใบเสร็จศุลกากรมีเลขที่ใบขนสินค้า)
 schema แบ่งเป็นสามชั้น **ทำครบสามชั้นแล้ว** ฟิลด์ประจำชนิดกำหนดที่ `configs/default.yaml → document_types` ไม่ใช่ในโค้ด
@@ -127,7 +108,7 @@ schema แบ่งเป็นสามชั้น **ทำครบสาม�
 | ฟิลด์ประจำชนิด | `data.document_fields` = `{key: ค่า}` และ `data.document_profile` = ชื่อโปรไฟล์ | โปรไฟล์ใน config (`fields`) |
 | หมายเหตุ | `data.remark[]` = `{label, value}` ข้อมูลที่เอกสารพิมพ์ไว้แต่ไม่มีช่องทั้งสองชั้นข้างบน | ไม่ต้องประกาศ (เก็บตามที่พิมพ์) |
 
-ชื่อ `extra_fields` ของ schema 2.x เปลี่ยนเป็น `remark` (breaking จึงขึ้นเป็น `3.0`) ยังรับ `extra_fields` เป็นชื่อเก่าตอนอ่านผลเก่าและคำตอบ LLM
+ชื่อ `extra_fields` ของ schema 2.x เปลี่ยนเป็น `remark` (breaking จึงขึ้นเป็น `3.0`) ตัวอ่านชื่อเก่าถูกลบแล้ว (2026-11-26)
 ไม่มีระบบปลายทางที่ต้องแจ้ง (ดู U3)
 
 **โปรไฟล์ชนิดเอกสาร** (`src/fin_extractor/doctypes.py`)
@@ -183,7 +164,7 @@ schema แบ่งเป็นสามชั้น **ทำครบสาม�
 **แก้บั๊กป้ายสำเนา:** บรรทัดแรกของ 001308/001309 คือชื่อผู้ขายต่อด้วยป้ายสำเนา `สำหรับลูกค้า / For Customer` ตัวตรวจ "เริ่มส่วนผู้ซื้อ" เคยจับคำว่าลูกค้า
 ทำให้ชื่อผู้ขายไม่ถูกอ่านและเลขภาษีผู้ขายไปอยู่ช่องผู้ซื้อ แก้โดยตัดป้ายสำเนาออกก่อนตรวจ (`COPY_MARK_RE` ใน `rule_extractor.py`) สถานะของทั้งสองใบเป็น `needs_review` ทั้งก่อนและหลัง
 
-**ผลกับสแกนจริง 18 ใบ** (Paddle + rules รันเมื่อ 2026-11-11 ผลดิบอยู่ใน `data/` ซึ่งไม่ได้เก็บใน git สร้างใหม่ได้ด้วย `extract` สกัดซ้ำจากข้อความดิบโดยไม่เรียก OCR ด้วย `extract --reuse-raw`)
+**ผลกับสแกนจริง 18 ใบ** (Paddle + rules อ่านทั้งหน้า รันเมื่อ 2026-11-11 ผลดิบอยู่ในโฟลเดอร์ `page/` ใต้ `data/` ซึ่งไม่ได้เก็บใน git และไม่มีแล้วตัวเลือก `extract --reuse-raw` ของตอนนั้นก็ถูกลบ จึงสร้างผลรอบนี้ซ้ำไม่ได้)
 - จำแนกถูกตามที่สำรวจ: 50 ทวิ 4 ใบ (001307, 001311, 001321, 001323), ศุลกากร 2 ใบ (001315, 001316), ใบสำคัญรับเงิน 2 ใบ (001320, 001322), ใบกำกับ/ใบเสร็จทั่วไป (`generic`) 10 ใบ
 - **เทียบก่อน/หลังโค้ดชื่อลูกค้า (18 ใบ):** **สถานะไม่เปลี่ยนเลยทั้ง 18 ใบ** 11 ใบเปลี่ยนเฉพาะ `buyer` (เติมชื่อ/สาขา) 2 ใบ (001308, 001309) เปลี่ยน `vendor`/`buyer`/`missing_fields`/checks จากการแก้ป้ายสำเนาข้างบน อีก 5 ใบเหมือนเดิมทุกอย่าง
 - **สถานะของใบที่ไม่ใช่ใบกำกับ** เปลี่ยนมาจาก **กฎของโปรไฟล์ ไม่ใช่การอ่านที่ดีขึ้น** (เช่น ไม่ต้องมี `total_amount` แบบใบกำกับ) เทียบกับรอบก่อนมีโปรไฟล์ (ผลดิบรอบนั้นถูกลบแล้ว): 001311, 001323, 001315, 001316 จาก `failed` เป็น `needs_review`
@@ -223,7 +204,7 @@ schema แบ่งเป็นสามชั้น **ทำครบสาม�
 
 | เรื่อง | แนวทางที่เลือก | ทางที่ไม่เลือก และเหตุผล |
 |---|---|---|
-| อ่านข้อความ (**ยังไม่ทำ** ตอนนี้เลือกด้วย `--mode`) | Paddle เป็นหลัก ส่งต่อไป VLM เฉพาะใบที่ไม่ผ่าน (escalation) | ใช้ VLM ทุกใบ: ช้ากว่ามาก / ให้ผู้ใช้เลือกโหมด: ไม่รู้ล่วงหน้าว่าใบไหนยาก |
+| อ่านข้อความ (**ยังไม่ทำ** ตอนนี้เลือกตัวอ่านด้วย `sections --engine`) | Paddle เป็นหลัก ส่งต่อไป VLM เฉพาะใบที่ไม่ผ่าน (escalation) | ใช้ VLM ทุกใบ: ช้ากว่ามาก / ให้ผู้ใช้เลือกโหมด: ไม่รู้ล่วงหน้าว่าใบไหนยาก |
 | สกัดฟิลด์ | rules + LLM ให้ validation เป็นกรรมการ (เหมือนเดิม) | — |
 | confidence รายฟิลด์ (**ทำแล้ว** หัวข้อ 4.3) | **ระดับหลักฐาน** (`missing` / `not_applicable` / `conflict` / `verified` / `unverified`) จาก regex + cross-check + ต้นทาง + ความตรงกันของแหล่ง | คะแนนถ่วงน้ำหนัก: น้ำหนักไม่มีที่มา / ความน่าจะเป็นที่ calibrate แล้ว: ต้องสร้างเฉลย ไม่คุ้มเพราะทุกใบมีคนตรวจอยู่แล้ว |
 | ตรวจทาน (**ยังไม่ทำ**) | UI Review & Edit ทุกเอกสารก่อนเข้า Ledger | อนุมัติอัตโนมัติ: งานบัญชีต้องมีคนรับผิดชอบ |
@@ -321,11 +302,11 @@ flowchart TD
 }
 ```
 
-(ตัวอย่างรูปแบบ ไม่ใช่ผลวัด ฟิลด์จริงมี `value` ด้วย และ `model_conf` เป็น `null` เสมอตอนนี้)
+(ตัวอย่างรูปแบบของ schema 3.0 ไม่ใช่ผลวัด ตอนนี้ `FieldEvidence` ใช้ภายใน และ JSON ของ 4.0 เขียนเป็น `review` (`level` + `reasons` + `source`) แทน ดู [05-validation-output.md](05-validation-output.md) · `model_conf` เป็น `null` เสมอตอนนี้)
 
 #### สถานะ implement (ทำแล้ว: `validation/evidence.py`, `pipeline.extract_traced`)
 
-ผลจริงของ BITKUB-001 โหมด ocr: ยอดเงินและเลขภาษีเป็น `verified`, ชื่อผู้ขาย/วันที่/รายการ `unverified`, `invoice_no` `missing`
+ผลจริงของ BITKUB-001 (Paddle อ่านทั้งหน้า รุ่นเก่า): ยอดเงินและเลขภาษีเป็น `verified`, ชื่อผู้ขาย/วันที่/รายการ `unverified`, `invoice_no` `missing`
 
 สิ่งที่ต่างจากร่างข้างบนหรือยังไม่ครบ ต้องรู้ก่อนใช้ผล
 - `checks[].fields` ให้ฟิลด์ที่ check ใช้จริง ไม่ใช้ตารางตายตัว เพราะ `items_sum` เทียบกับ subtotal หรือยอดก่อน VAT หรือยอดรวมตัวแรกที่มี
@@ -337,7 +318,7 @@ flowchart TD
   แม้สูตรจะผ่าน (อาจเตือนเกินจริงเมื่อ LLM ใส่ VAT 7% ที่เอกสารไม่ได้พิมพ์)
 - `sources_agree`: เทียบ rules กับ LLM ด้วยการเท่ากันตรง ๆ หลัง normalize (ตัดช่องว่างในข้อความ ไม่ใช้ความคล้ายแบบมีเกณฑ์)
   เป็น `null` เมื่อมีแหล่งเดียว และ **รายการสินค้าไม่เทียบรายตัว** เพราะสองแหล่งแบ่งรายการไม่ตรงกัน (ใช้ `items_sum` ยืนยันแทน)
-- โหมด vlm: rules และ LLM อ่านจาก Markdown ของ Typhoon ชุดเดียวกัน `grounded` และ `sources_agree` จึงยืนยัน *การสกัด* ไม่ได้ยืนยันว่า VLM *อ่านภาพ* ถูก
+- ตัวอ่านภาพ-ภาษา (Typhoon / OpenThai): rules และ LLM อ่านจาก Markdown ชุดเดียวกัน `grounded` และ `sources_agree` จึงยืนยัน *การสกัด* ไม่ได้ยืนยันว่า VLM *อ่านภาพ* ถูก
   การเทียบ OCR กับ VLM เป็นสองแหล่งอิสระ ต้องรอ escalation (U4)
 - `handwritten` เป็น `null` เว้นแต่ฟิลด์อยู่ใน `handwritten_fields` (ยังไม่มีตัวตรวจลายมือ) · `model_conf` เป็น `null` เสมอ (ยังไม่ส่ง confidence ระดับคำมาถึงขั้นสกัด) ·
   `decide_status` ยังไม่อิงระดับรายฟิลด์
@@ -419,20 +400,20 @@ flowchart LR
 
 ### ค้างจากการเก็บกวาด (เดิมคือ U0)
 
-ค่าคลาดยอดเงินใน `scripts/eval/benchmark.py` (`0.011`) ไม่ตรงกับ `validation.amount_tolerance` ใน config (`0.02`) และ fuzzy `0.9` ของชื่อผู้ขายไม่มีที่มาบันทึกไว้
-ต้องทำให้ตรงกันหรือบันทึกเหตุผลที่ต่าง
+~~ค่าคลาดยอดเงินใน `scripts/eval/benchmark.py` (`0.011`) ไม่ตรงกับ `validation.amount_tolerance` ใน config (`0.02`) และ fuzzy `0.9` ของชื่อผู้ขายไม่มีที่มาบันทึกไว้~~
+หมดไปแล้ว: สคริปต์ถูกลบ 2026-11-26 (อยู่ในประวัติ git ถึง commit f6cc6eb)
 
 ### U1: ติดตามต้นทางของค่า
 
 | งาน | ไฟล์ |
 |---|---|
-| `read_prepared` ส่ง `OCRLine` (คำ + bbox + conf) ต่อไปแทนข้อความล้วน | `pipeline.py` |
+| ส่งกรอบ/ความมั่นใจของตัวอ่าน (Paddle `OCRLine` คำ + bbox + conf · OpenThai `blocks`) ต่อถึงขั้นสกัดแทนข้อความล้วน | `sections/read.py`, `pipeline.py` |
 | rules คืนค่าพร้อมต้นทาง (เลขบรรทัด + ช่วงตัวอักษร) | `extraction/rule_extractor.py`, `patterns.py` |
 | ค่าจาก LLM จับคู่กลับหาข้อความ OCR (ค้นสตริงหลัง normalize) | `extraction/llm_extractor.py` |
 | `model_conf` = min confidence ของคำที่ทับช่วงของค่า | ใหม่ |
 
 **สถานะ:** ทำแล้วเฉพาะ *ต้นทางระดับตัวสกัด* (`rules` หรือ `llm` ต่อฟิลด์ และการเทียบสองแหล่ง ใน `pipeline.extract_traced`) และ `grounded` (ค่าอยู่ในข้อความหรือไม่)
-ยังไม่ทำ: ส่ง `OCRLine` ต่อ, เลขบรรทัด/ช่วงตัวอักษรของค่า, `model_conf`
+ยังไม่ทำ: ส่งกรอบ/ความมั่นใจของตัวอ่านต่อ (OpenThai `blocks` เก็บใน `.sections.json` แล้ว แต่ยังไม่ถึงขั้นสกัด), เลขบรรทัด/ช่วงตัวอักษรของค่า, `model_conf`
 
 ### U2: Field evidence (ทำแล้ว)
 
@@ -441,17 +422,17 @@ flowchart LR
 
 ### U3: Schema (ทำแล้ว)
 
-`schema_version` 3.0: `FieldEvidence`/`field_evidence`, `Decimal` สำหรับยอดเงิน, `book_no`, `not_applicable`, ฟิลด์ประจำชนิดเอกสาร (`document_profile`, `document_fields`),
+`schema_version` 3.0: `FieldEvidence`/`field_evidence` (4.0 เขียนเป็น `review` แทน), `Decimal` สำหรับยอดเงิน, `book_no`, `not_applicable`, ฟิลด์ประจำชนิดเอกสาร (`document_profile`, `document_fields`),
 `remark` (เดิม `extra_fields`) และ `schemas/invoice.schema.json` generate ใหม่ ยังไม่ทำ: regex `book_no` ใน rules (ค่ามาจาก LLM เท่านั้น)
 
 ### U4: Escalation ไป VLM
 
 | งาน | ไฟล์ |
 |---|---|
-| โหมด `--mode auto`: OCR ก่อน แล้ว VLM เมื่อ status ไม่ใช่ `auto_approved` (ตอนนี้ `--mode` มีแค่ `ocr`, `vlm`) | `pipeline.py`, `cli.py` |
+| โหมด auto: ตัวอ่านแรกก่อน แล้วส่งตัวอ่านอื่นเมื่อ status ไม่ใช่ `auto_approved` (ตอนนี้ไม่มีตัวเลือกนี้ เลือกตัวอ่านด้วย `--engine` เอง) | `sections/flow.py`, `cli.py` |
 | รวมผลสองทาง + `sources_agree` | `pipeline.py` |
 | `engine` บันทึกว่าใช้ทางไหนบ้าง | `pipeline.py` |
-| benchmark รายงานว่ากี่ใบถูกส่งไป VLM และผลดีขึ้นหรือไม่ | `scripts/eval/benchmark.py` |
+| รายงานว่ากี่ใบถูกส่งไปตัวอ่านที่สองและผลดีขึ้นหรือไม่ | สคริปต์วัดใหม่ (`scripts/eval/benchmark.py` เดิมถูกลบแล้ว) |
 
 **เสร็จเมื่อ:** บนชุด benchmark ใบที่ส่งไป VLM มีผลไม่แย่ลง และรายงานจำนวนใบที่ส่งไปพร้อมเวลาที่เพิ่ม
 
@@ -498,7 +479,7 @@ flowchart LR
 
 ### ทำได้ทันทีโดยไม่ต้องรอข้อมูลหรือการตัดสินใจภายนอก
 
-ส่วนที่เหลือของ U1 (`model_conf`), U4 และค่าคงที่ใน benchmark
+ส่วนที่เหลือของ U1 (`model_conf`) และ U4
 
 ### ต้องตัดสินใจหรือรอก่อน
 

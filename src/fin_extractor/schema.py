@@ -14,7 +14,7 @@ from datetime import date as Date
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serializer, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serializer
 
 SCHEMA_VERSION = "4.0"  # 4.0: field_evidence → review (ระดับ + เหตุผล) · ตัด missing_fields/handwritten_fields ออกจาก JSON (ดู docs/05-validation-output.md)
 _CENT = Decimal("0.01")
@@ -50,7 +50,7 @@ class ExtraField(BaseModel):
     value: str = Field(description="ค่าตามที่เอกสารพิมพ์ เป็นสตริงตามเดิม ไม่แปลงชนิด")
     kind: Literal["pair", "unmapped"] = Field(
         "pair", description="pair = บรรทัดรูป ป้าย: ค่า ที่ไม่มีช่องรองรับ · unmapped = บรรทัดที่มียอดเงิน/วันที่/เลขภาษี แต่ไม่มีช่องรับค่านั้น (ป้าย = (ไม่มีช่องรองรับ) ค่า = ทั้งบรรทัด)")
-    source_chunk: str | None = Field(None, description="รหัส section ที่บรรทัดนี้มาจาก (sNN ใน .md ของขั้น OCR รายส่วน) None = ไม่ทราบ (อ่านทั้งหน้า)")
+    source_chunk: str | None = Field(None, description="รหัส section ที่บรรทัดนี้มาจาก (sNN ใน .md ของขั้น OCR รายส่วน) None = ไม่ทราบ (ข้อความไม่มีคอมเมนต์ <!-- sNN -->)")
 
 
 class RejectedValue(BaseModel):
@@ -88,17 +88,6 @@ class InvoiceData(BaseModel):
         default_factory=list,
         description="หมายเหตุ: ข้อมูลอื่นที่เอกสารพิมพ์ไว้แต่ไม่มีช่องข้างบนหรือใน document_fields (ป้าย + ค่า) ห้ามใส่ข้อมูลที่มีช่องอยู่แล้ว",
     )
-
-    @model_validator(mode="before")
-    @classmethod
-    def _legacy_extra_fields(cls, data):
-        """schema 2.x เรียก remark ว่า extra_fields — รับชื่อเก่าตอนอ่านผลเก่า/คำตอบ LLM."""
-        if isinstance(data, dict) and "extra_fields" in data:
-            data = dict(data)
-            old = data.pop("extra_fields")
-            if not data.get("remark"):
-                data["remark"] = old
-        return data
 
     @field_validator("subtotal", "discount", "amount_before_vat", "vat_amount", "total_amount")
     @classmethod
@@ -178,21 +167,6 @@ class ExtractionResult(BaseModel):
     def missing_fields(self) -> list[str]:
         """ฟิลด์ที่เอกสารชนิดนี้ต้องมีแต่หาไม่เจอ (= ``review`` ระดับ missing) ไม่บันทึกแยกใน JSON แล้ว (ซ้ำกับ review)."""
         return [k for k, r in self.review.items() if r.level == "missing"]
-
-    @model_validator(mode="before")
-    @classmethod
-    def _legacy_field_evidence(cls, data):
-        """อ่านผล schema 3.x ได้: ``field_evidence`` → ``review`` (เหตุผลสร้างจากหลักฐานเดิม) ตัด ``missing_fields`` ``handwritten_fields``."""
-        if isinstance(data, dict) and "field_evidence" in data and "review" not in data:
-            from .validation.evidence import review_from_evidence
-
-            data = dict(data)
-            ev = {k: FieldEvidence.model_validate(v) for k, v in (data.pop("field_evidence") or {}).items()}
-            checks = [ValidationCheck.model_validate(c) for c in data.get("checks") or []]
-            data["review"] = review_from_evidence(ev, checks)
-        if isinstance(data, dict):
-            data = {k: v for k, v in data.items() if k not in ("missing_fields", "handwritten_fields")}
-        return data
 
     @model_serializer(mode="wrap")
     def _drop_empty_extras(self, handler):

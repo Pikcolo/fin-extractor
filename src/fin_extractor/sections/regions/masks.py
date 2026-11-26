@@ -8,9 +8,7 @@ from __future__ import annotations
 import cv2
 import numpy as np
 
-
-def to_gray(img: np.ndarray) -> np.ndarray:
-    return img if img.ndim == 2 else cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+from ...preprocessing.enhance import to_gray
 
 
 def ink_mask(img: np.ndarray) -> np.ndarray:

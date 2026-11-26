@@ -25,8 +25,8 @@ OCR ตัดภาพเป็นบรรทัดก่อนแล้วอ�
 
 ## ชุดเดียวทั้งระบบ
 
-ใช้ OCR engine ตัวเดียว (**PaddleOCR**) และ preprocessing ชุดเดียว ใน `configs/default.yaml → preprocessing`
-ใช้ร่วมกันทั้งโหมด `ocr` และ `vlm` เหตุผลที่ไม่มีหลาย profile แล้ว อยู่ใน [ประวัติ](#ประวัติ-เคยมีสอง-profile)
+preprocessing ชุดเดียว ใน `configs/default.yaml → preprocessing` ใช้ร่วมกับตัวอ่านทุก engine (ตอนที่วัดผลในหน้านี้ ระบบยังมี OCR engine ตัวเดียวคือ **PaddleOCR**
+และสองโหมดอ่านทั้งหน้า `ocr`/`vlm` ซึ่งลบแล้ว) เหตุผลที่ไม่มีหลาย profile แล้ว อยู่ใน [ประวัติ](#ประวัติ-เคยมีสอง-profile)
 
 | # | ขั้น | ไฟล์ | ทำอะไร | ค่าตั้งต้น |
 |---|---|---|---|---|
@@ -45,9 +45,9 @@ OCR ตัดภาพเป็นบรรทัดก่อนแล้วอ�
 
 ## ต้อง preprocess เองก่อนรันไหม
 
-**ไม่ต้อง** คำสั่ง `ocr` และ `extract` เรียก `prepared_pages` (`stages.py`) ให้อัตโนมัติ ซึ่งรัน `preprocess()` ต่อหน้า
+**ไม่ต้อง** `sections` รันคำสั่ง `preprocess` เป็นขั้นแรกให้อัตโนมัติ (แยก process) คำสั่งนั้นเรียก `prepared_pages` (`stages.py`) ซึ่งรัน `preprocess()` ต่อหน้า
 แล้วเก็บภาพสุดท้ายไว้ที่ `02_preprocess/<dataset>/<profile>/final/` ครั้งถัดไปถ้าตั้งค่า preprocess ตรงกับที่เก็บไว้ (`settings.json`)
-และมีภาพครบทุกหน้า จะใช้ภาพที่เก็บไว้ ไม่ทำซ้ำ ส่วนคำสั่ง `preprocess` มีไว้ดูผลของขั้นนี้ หรือสั่งทำล่วงหน้า (และเป็นขั้นแรกของ `sections`)
+และมีภาพครบทุกหน้า จะใช้ภาพที่เก็บไว้ ไม่ทำซ้ำ สั่ง `preprocess` เองได้เพื่อดูผลของขั้นนี้หรือทำล่วงหน้า (`extract` ไม่แตะภาพ)
 ถ้าอยากปิดขั้นใด ให้ตั้งใน YAML แล้วส่งด้วย `--config` แต่ถ้าตั้งค่าเปลี่ยนจากที่เก็บไว้ในโฟลเดอร์ profile เดิม โปรแกรมจะหยุดและให้ใช้
 `--profile` ชื่อใหม่ (เก็บผลเก่าไว้) หรือ `--force` (ล้าง `final/` และ `steps/` ของ profile นั้นแล้วทำใหม่)
 
@@ -71,7 +71,7 @@ OCR ตัดภาพเป็นบรรทัดก่อนแล้วอ�
 ชุดทดสอบ: ใบกำกับภาษีไทยสังเคราะห์ 21 ใบ สร้างด้วย `scripts/data/make_synthetic_samples.py` เนื้อหาเดียวกันทุกใบ
 เปลี่ยนทีละปัจจัย (มุมเอียง, สีตัวอักษร 5 แบบ, แถบหัวสี, ตราประทับแดงทับยอด, เอฟเฟกต์สแกน, ตะแคง 90/180/270°)
 และมีใบที่รวมหลายปัจจัย เฉลย (มุมที่ใส่จริง สี ค่าเงิน) อยู่ใน `data/01_input/synthetic/truth.json`
-(โฟลเดอร์นี้ไม่ถูก commit และตอนนี้ยังไม่มีในเครื่อง สร้างใหม่ด้วย `scripts/data/make_synthetic_samples.py`) วัดด้วย `scripts/preprocess/benchmark_preprocessing.py` ผลดิบอยู่ใน `data/etc/benchmarks/preprocessing_synthetic.json`
+(โฟลเดอร์นี้ไม่ถูก commit และตอนนี้ยังไม่มีในเครื่อง สร้างใหม่ด้วย `scripts/data/make_synthetic_samples.py`) วัดด้วย `scripts/preprocess/benchmark_preprocessing.py` (ลบแล้ว อยู่ในประวัติ git ถึง commit f6cc6eb) ผลดิบอยู่ใน `data/etc/benchmarks/preprocessing_synthetic.json`
 
 > **ข้อจำกัดสำคัญ:** ผลวัดในหัวข้อนี้ (ก่อนถึง [ผลวัดบนสแกนจริง](#ผลวัดบนสแกนจริง)) เป็น **ภาพสังเคราะห์ ไม่ใช่สแกนจริง**
 > ใช้เทียบทีละปัจจัยได้ แต่ภาพเรนเดอร์สะอาด ผลจึงง่ายกว่าของจริง
@@ -124,9 +124,9 @@ OCR ตัดภาพเป็นบรรทัดก่อนแล้วอ�
 ## ผลวัดบนสแกนจริง
 
 ชุดทดสอบ: `data/01_input/finance_doc_scan` PDF สแกน 18 ใบ (หน้าเดียว render ที่ 300 dpi ได้ราว 2500×3520 px) **ไม่มีเฉลย**
-วัดด้วย `scripts/preprocess/benchmark_real_scans.py` ผลดิบและข้อความ OCR อยู่ใน `data/etc/benchmarks/real_scans.json`
+วัดด้วย `scripts/preprocess/benchmark_real_scans.py` (ลบแล้ว อยู่ในประวัติ git ถึง commit f6cc6eb) ผลดิบและข้อความ OCR อยู่ใน `data/etc/benchmarks/real_scans.json`
 โฟลเดอร์แยกตามชุด (`settings.json`, `metrics.csv`, ข้อความ OCR, ภาพ) ที่ `data/etc/benchmarks/preprocess_experiments/` ลบแล้ว (2026-11-20)
-เพราะเป็นสำเนาจัดรูปของ `real_scans.json` ที่ยังเก็บอยู่ สร้างใหม่ได้ด้วย `organize_preprocess_results.py` (ภาพต้องรัน `benchmark_real_scans.py` ใหม่ ซึ่งรัน Paddle ทั้ง 18 ใบ)
+เพราะเป็นสำเนาจัดรูปของ `real_scans.json` ที่ยังเก็บอยู่ (สคริปต์ที่จัดรูป `organize_preprocess_results.py` ลบแล้ว อยู่ในประวัติ git ถึง commit f6cc6eb)
 
 **เอกสารในชุดนี้มีหลายชนิดปนกัน** ไม่ใช่ใบกำกับภาษีทั้งหมด: ใบกำกับภาษีพิมพ์ (เช่น 001310),
 หนังสือรับรองหักภาษี ณ ที่จ่าย 50 ทวิ (001307, 001311, 001323), ใบสำคัญรับเงินที่กรอกด้วยลายมือ (001320, 001322) และใบเสร็จศุลกากร (001315)
@@ -179,12 +179,7 @@ OCR ตัดภาพเป็นบรรทัดก่อนแล้วอ�
 - **ขั้นสกัด field (rules)**: 001310 ข้อความ OCR มี `788.90`, `737.29`, `51.61` และ `7%` ครบ แต่ `vat_rate` ตรวจไม่ผ่าน
   เป็นปัญหาของขั้นที่ 5 (สกัด field) ไม่ใช่ขั้นนี้
 
-รันชุดวัดซ้ำ:
-
-```bash
-.venv/Scripts/python scripts/preprocess/benchmark_real_scans.py                    # ~10 นาที (13 ชุด × 18 ไฟล์) → data/etc/benchmarks/real_scans.json
-.venv/Scripts/python scripts/preprocess/organize_preprocess_results.py             # จัดเป็นโฟลเดอร์ต่อชุด → data/etc/benchmarks/preprocess_experiments/
-```
+ตัวเลขในหัวข้อนี้เป็นบันทึกของรอบที่วัด สคริปต์วัด `benchmark_real_scans.py` และ `organize_preprocess_results.py` อ่านทั้งหน้า จึงลบแล้ว (อยู่ในประวัติ git ถึง commit f6cc6eb) ไม่มีคำสั่งรันซ้ำใน repo ตอนนี้
 
 ## เทียบกับ learning/preprocess_finance
 
@@ -430,19 +425,14 @@ python -m fin_extractor preprocess data/01_input --steps
 ได้ไฟล์ใน `data/02_preprocess/<dataset>/<profile>/steps/` (`--profile` เลือกชื่อ profile ค่าตั้งต้น `default`): `00_original` → `01_color` → (ขั้นที่เปิด เช่น `orientation`, `deskew`)
 ชื่อไฟล์เป็น `<ชื่อไฟล์>_p<หน้า>_<ลำดับ>_<ขั้น>.png` ใช้ไล่ดูได้ว่าขั้นไหนทำให้ภาพแย่ลง ภาพสุดท้ายอยู่ที่ `data/02_preprocess/<dataset>/<profile>/final/<ชื่อไฟล์>_p<หน้า>.png`
 
-รันชุดวัดซ้ำ:
-
-```bash
-.venv/Scripts/python scripts/data/make_synthetic_samples.py
-.venv/Scripts/python scripts/preprocess/benchmark_preprocessing.py
-```
+ชุดสังเคราะห์สร้างใหม่ได้ด้วย `scripts/data/make_synthetic_samples.py` แต่สคริปต์วัด `benchmark_preprocessing.py` อ่านทั้งหน้า จึงลบแล้ว (อยู่ในประวัติ git ถึง commit f6cc6eb) ตัวเลขผลวัดชุดสังเคราะห์ในหน้านี้เป็นบันทึกของรอบที่วัด
 
 ## ประวัติ: เคยมีสอง profile
 
 ก่อนหน้านี้ระบบมี `classic` (สำหรับ Tesseract: ขาวดำ Otsu + median + ลบเส้นตาราง) และ `neural` (สี + NL-means + CLAHE)
 เลิกแล้วด้วยเหตุผลดังนี้ ข้อมูลข้างล่างนี้วัดจากโปรเจกต์รุ่นก่อนกับเอกสาร BITKUB-001 และ VATGB-001 (ไม่ได้วัดซ้ำในรอบนี้)
 
-- เหลือ OCR engine ตัวเดียว (Paddle) เพื่อลดภาระการติดตั้งและการดูแล โค้ด `tesseract_engine.py`, `easyocr_engine.py` และ
+- ตอนนั้นเหลือ OCR engine ตัวเดียว (Paddle) เพื่อลดภาระการติดตั้งและการดูแล โค้ด `tesseract_engine.py`, `easyocr_engine.py` และ
   `table.py` (ลบเส้นตาราง) ถูกลบออก
 - Tesseract ต้องพึ่งการลบเส้นตาราง ถอดออกแล้วอ่านค่าสำคัญได้ 1 จาก 6 (ยอดเงินชิดเส้นกรอบ Tesseract ทิ้งทั้งบล็อก)
   และต้องขยายเป็น 2000 px ขณะที่ Paddle ไม่ต้องใช้ทั้งสองอย่าง
@@ -497,4 +487,4 @@ projection profile แม่นกว่า แต่ไม่มีด่าน
 
 ## ผลลัพธ์ของขั้นนี้
 
-ภาพที่ปรับแล้ว พร้อม `meta` (scale, orientation, skew_angle และ `orientation_error`/`orientation_source` เมื่อมี เก็บเป็น `<ไฟล์>_p<หน้า>.meta.json` ข้างภาพ final) ส่งต่อให้ [ขั้นที่ 3: อ่านข้อความ](04-ocr.md)
+ภาพที่ปรับแล้ว พร้อม `meta` (scale, orientation, skew_angle และ `orientation_error`/`orientation_source` เมื่อมี เก็บเป็น `<ไฟล์>_p<หน้า>.meta.json` ข้างภาพ final) ส่งต่อให้ [ขั้นที่ 3: แบ่งเป็น region](03-regions.md)

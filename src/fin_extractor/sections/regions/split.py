@@ -14,12 +14,11 @@ All boxes are in pixels of the normalized page: (x0, y0, x1, y1).
 """
 from __future__ import annotations
 
-import cv2
 import numpy as np
 
 from . import lines
 from .geometry import Box, pad_box
-from .masks import ink_mask, line_masks, text_mask
+from .masks import ink_mask, text_mask
 
 
 # --------------------------------------------------------------------------- template
@@ -60,23 +59,6 @@ def template_regions(shape: tuple[int, ...], frame: Box, template: dict, pad_fra
 
 
 # --------------------------------------------------------------------------- generic
-def find_main_table(mask: np.ndarray, min_w_frac: float = 0.5, min_h_frac: float = 0.08) -> Box | None:
-    """Largest ruled block (connected horizontal+vertical rules) that is wide enough."""
-    h, w = mask.shape
-    horiz, vert = line_masks(mask, min_frac=0.1)
-    grid = cv2.dilate(cv2.bitwise_or(horiz, vert), np.ones((9, 9), np.uint8))
-    contours, _ = cv2.findContours(grid, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    best = None
-    for c in contours:
-        x, y, bw, bh = cv2.boundingRect(c)
-        if bw >= min_w_frac * w and bh >= min_h_frac * h:
-            if best is None or bw * bh > best[2] * best[3]:
-                best = (x, y, bw, bh)
-    if best is None:
-        return None
-    x, y, bw, bh = best
-    return x, y, x + bw, y + bh
-
 
 def whitespace_bands(mask: np.ndarray, min_gap: int, min_band: int) -> list[tuple[int, int]]:
     """Return [(y0, y1)] runs of rows containing ink, separated by gaps >= min_gap rows."""
@@ -114,7 +96,6 @@ def line_strips(img: np.ndarray, frame: Box, hlines: list[dict], cfg: dict) -> t
     the nearest empty row or dropped. Thin strips are merged; empty strips are dropped.
     """
     fx0, fy0, fx1, fy1 = frame
-    w = img.shape[1]
     text = text_mask(ink_mask(img))
     cuts = [fy0, fy1]
     for l in hlines:
@@ -147,22 +128,10 @@ def generic_regions(img: np.ndarray, frame: Box, cfg: dict, hlines: list[dict] |
     pad_px = int(cfg["pad_frac"] * (fy1 - fy0))
     out: list[dict] = []
 
-    strategy = cfg.get("strategy", "lines")
     cut_lines = [l for l in (hlines or []) if l["len_frac"] >= cfg["cut_min_len_frac"]]
-    table = None
-    if strategy == "table":
-        table = find_main_table(mask, cfg["table_min_w_frac"], cfg["table_min_h_frac"])
-    if strategy == "lines" and len(cut_lines) >= cfg["min_lines"]:
+    if len(cut_lines) >= cfg["min_lines"]:
         out, _ = line_strips(img, frame, hlines, cfg)
         layout = "lines"
-    elif table is not None and (table[3] - table[1]) < cfg["table_max_h_frac"] * (fy1 - fy0):
-        tx0, ty0, tx1, ty1 = table
-        if ty0 - fy0 > cfg["min_band_px"]:
-            out.append({"name": "header", "box": (fx0, fy0, fx1, ty0)})
-        out.append({"name": "table", "box": (min(fx0, tx0), ty0, max(fx1, tx1), ty1)})
-        if fy1 - ty1 > cfg["min_band_px"]:
-            out.append({"name": "footer", "box": (fx0, ty1, fx1, fy1)})
-        layout = "table"
     else:
         tm = text_mask(mask)[fy0:fy1, fx0:fx1]
         bands = whitespace_bands(tm, int(cfg["band_gap_frac"] * (fy1 - fy0)), cfg["min_band_px"])

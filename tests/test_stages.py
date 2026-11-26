@@ -10,7 +10,7 @@ from PIL import Image
 from fin_extractor import stages
 from fin_extractor.config import load_config
 from fin_extractor.io import save_image
-from fin_extractor.stages import load_raw, prepared_pages, raw_pages, save_raw
+from fin_extractor.stages import load_raw, prepared_pages, raw_pages
 
 SIMPLE = {"keep_color": True, "min_long_side": 0}
 
@@ -91,9 +91,16 @@ def test_multi_page_pdf_is_cached_only_when_every_page_exists(tmp_path, cfg, cou
     assert [p for p, _, _ in prepared_pages(src, cfg, pdir)] == [1, 2] and len(counted) == 4   # หน้าหาย = ทำใหม่ทั้งไฟล์
 
 
-def test_save_and_load_raw_round_trip_with_meta(tmp_path):
-    out = save_raw(tmp_path / "raw_data", "a_p1", "สวัสดี\nบรรทัดสอง", "txt", {"ocr_confidence": 0.9, "truncated": False})
-    assert out.name == "a_p1.txt"
+def _put(d, stem, text, ext, meta=None):
+    d.mkdir(parents=True, exist_ok=True)
+    (d / f"{stem}.{ext}").write_text(text, encoding="utf-8")
+    if meta is not None:
+        (d / f"{stem}.meta.json").write_text(json.dumps(meta), encoding="utf-8")
+    return d / f"{stem}.{ext}"
+
+
+def test_load_raw_reads_text_and_meta(tmp_path):
+    out = _put(tmp_path / "raw_data", "a_p1", "สวัสดี\nบรรทัดสอง", "txt", {"ocr_confidence": 0.9, "truncated": False})
     text, meta = load_raw(out)
     assert text == "สวัสดี\nบรรทัดสอง" and meta == {"ocr_confidence": 0.9, "truncated": False}
     (tmp_path / "raw_data" / "b_p1.txt").write_text("x", encoding="utf-8")
@@ -103,10 +110,10 @@ def test_save_and_load_raw_round_trip_with_meta(tmp_path):
 def test_raw_pages_are_sorted_by_page_number_and_ignore_other_files(tmp_path):
     d = tmp_path / "raw_data"
     for stem in ("scan_p1", "scan_p2", "scan_p10", "scan_p1x", "other_p1", "scan_p2.extra"):
-        save_raw(d, stem, "t", "txt", {})
+        _put(d, stem, "t", "txt", {})
     assert [n for n, _ in raw_pages(d, "scan", "txt")] == [1, 2, 10]
     assert raw_pages(d, "scan", "md") == []                             # ต่างชนิด (txt/md) ไม่ปนกัน
-    save_raw(d, "a_p1_p2", "t", "txt", {})                              # ชื่อไฟล์ที่มี _p อยู่ในตัวเอง
+    _put(d, "a_p1_p2", "t", "txt", {})                              # ชื่อไฟล์ที่มี _p อยู่ในตัวเอง
     assert [n for n, _ in raw_pages(d, "a_p1", "txt")] == [2] and raw_pages(d, "a", "txt") == []
 
 
@@ -115,7 +122,7 @@ def test_raw_pages_are_sorted_by_page_number_and_ignore_other_files(tmp_path):
 def _pipe(engine="paddle"):
     from fin_extractor.pipeline import FinanceOCRPipeline
 
-    return FinanceOCRPipeline(load_config(), engine=engine, use_llm=False, with_reader=False)
+    return FinanceOCRPipeline(load_config(), engine=engine, use_llm=False)
 
 
 def test_pipeline_without_reader_keeps_the_engine_name_of_a_live_run():
@@ -125,7 +132,6 @@ def test_pipeline_without_reader_keeps_the_engine_name_of_a_live_run():
     assert _pipe("paddle").engine_name == "paddle+rules"
     assert _pipe("typhoon").engine_name == f"typhoon:{cfg['typhoon']['model']}+rules" == make_reader("typhoon", cfg).name + "+rules"
     assert _pipe("openthai").engine_name == make_reader("openthai", cfg).name + "+rules"
-    assert _pipe("oxr").engine_name == make_reader("oxr", cfg).name + "+rules"
 
 
 def test_lines_from_raw_is_the_same_for_plain_lines_and_markdown():

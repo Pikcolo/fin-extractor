@@ -14,16 +14,16 @@ from fin_extractor.schema import ExtractionResult, InvoiceData
 
 
 class FakePipe:
-    """แทน FinanceOCRPipeline: ไม่โหลดโมเดลใด ๆ นับว่าอ่านสดหรือสกัดจากข้อความดิบ."""
+    """แทน FinanceOCRPipeline: ไม่โหลดโมเดลใด ๆ บันทึกว่าสกัดจากข้อความดิบ."""
 
     log: list = []
 
-    def __init__(self, cfg, engine="openthai", use_llm=False, with_reader=True, strategy=None):
-        self.with_reader, self.strategy = with_reader, strategy or "winner"
+    def __init__(self, cfg, engine="openthai", use_llm=False, strategy=None):
+        self.strategy = strategy or "winner"
         self.reader = SimpleNamespace(name=engine)
         self.llm = object() if use_llm else None
         self.engine_name = f"{engine}:fake+{'llm' if self.llm else 'rules'}"
-        FakePipe.log.append(("init", with_reader))
+        FakePipe.log.append(("init",))
 
     def _result(self, source, page, raw):
         return ExtractionResult(source_file=source, page=page, engine=self.engine_name, data=InvoiceData(),
@@ -62,7 +62,7 @@ def put_raw(env, engine="openthai", variant="regions-luma", stems=("a",), text="
 def test_extract_reads_section_text_without_loading_a_reader_and_writes_its_own_folder(env, capsys):
     put_raw(env)
     run(env, "extract", str(env.src))
-    assert FakePipe.log[0] == ("init", False) and [e[0] for e in FakePipe.log[1:]] == ["raw"]   # ไม่โหลดตัวอ่าน ไม่อ่านภาพ
+    assert FakePipe.log[0] == ("init",) and [e[0] for e in FakePipe.log[1:]] == ["raw"]   # ไม่โหลดตัวอ่าน ไม่อ่านภาพ
     assert FakePipe.log[1][2] == "<!-- s00 text -->\nข้อความจาก section a"
     final = env.data / "05_extract" / "scans" / "openthai" / "regions-luma" / "rules"
     result = json.loads((final / "a_p1.json").read_text(encoding="utf-8"))
@@ -74,7 +74,7 @@ def test_extract_reads_section_text_without_loading_a_reader_and_writes_its_own_
 
 
 def test_every_engine_reads_from_its_own_section_folder(env, capsys):
-    for engine in ("typhoon", "paddle", "oxr"):
+    for engine in ("typhoon", "paddle"):
         put_raw(env, engine=engine, variant="flat")
         run(env, "extract", str(env.src), "--engine", engine, "--variant", "flat")
         assert (env.data / "05_extract" / "scans" / engine / "flat" / "rules" / "a_p1.json").exists()
@@ -96,17 +96,12 @@ def test_extract_without_section_text_skips_the_file_and_creates_nothing_else(en
     assert not list((env.data / "05_extract").rglob("a_p1.json"))
 
 
-def test_whole_page_reading_is_refused_for_every_engine(env):
-    for engine in ("openthai", "typhoon", "paddle", "oxr"):
-        with pytest.raises(SystemExit, match="ห้ามอ่านทั้งหน้า"):
-            run(env, "ocr", str(env.src), "--engine", engine)
-    assert not (env.data / "04_ocr").exists()
-
-
 def test_old_whole_page_options_are_gone(env):
     for argv in (["--mode", "vlm"], ["--reuse-raw"]):
         with pytest.raises(SystemExit):
             cli.build_parser().parse_args(["extract", str(env.src), *argv])
+    with pytest.raises(SystemExit):  # คำสั่งอ่านทั้งหน้าไม่มีแล้ว
+        cli.build_parser().parse_args(["ocr", str(env.src)])
 
 
 def test_keep_raw_keeps_text_in_the_final_json_too(env, capsys):

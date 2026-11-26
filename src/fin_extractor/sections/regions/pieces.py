@@ -48,11 +48,6 @@ def ink_runs(text: np.ndarray, box: Box, vlines: list[dict], rule_pad: int = 6) 
     return sub, [(a + y0, b + y0) for a, b in runs if b - a > SLIVER_H]
 
 
-def text_lines(text: np.ndarray, box: Box, vlines: list[dict], min_line_h: int, rule_pad: int = 6) -> tuple[np.ndarray, list[tuple[int, int]]]:
-    """(หน้ากากข้อความ, [(y0, y1)] บรรทัดที่สูงถึง ``min_line_h``)."""
-    sub, runs = ink_runs(text, box, vlines, rule_pad)
-    return sub, [r for r in runs if r[1] - r[0] >= min_line_h]
-
 
 def item_starts(sub: np.ndarray, box: Box, lines: list[tuple[int, int]], vlines: list[dict], rule_pad: int = 6) -> list[int]:
     """y ของบรรทัดที่มีข้อความในคอลัมน์ซ้ายสุด (ระหว่างขอบซ้ายของ region กับเส้นตั้งด้านในเส้นแรก) = รายการใหม่

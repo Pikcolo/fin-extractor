@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -50,13 +49,6 @@ class OCRLine:
             parts.append((" " if gap > height * ratio else "") + cur.text)
         return normalize_thai("".join(parts))
 
-    @property
-    def bbox(self) -> BBox:
-        return (
-            min(w.bbox[0] for w in self.words), min(w.bbox[1] for w in self.words),
-            max(w.bbox[2] for w in self.words), max(w.bbox[3] for w in self.words),
-        )
-
 
 @dataclass
 class OCRResult:
@@ -71,13 +63,6 @@ class OCRResult:
     def mean_confidence(self) -> float | None:
         confs = [w.confidence for line in self.lines for w in line.words]
         return float(np.mean(confs)) if confs else None
-
-
-class OCREngine(ABC):
-    name: str = "base"
-
-    @abstractmethod
-    def recognize(self, img: np.ndarray) -> OCRResult: ...
 
 
 def group_into_lines(words: list[OCRWord], y_overlap: float = 0.5) -> list[OCRLine]:

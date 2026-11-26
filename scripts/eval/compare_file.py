@@ -29,7 +29,6 @@ DEFAULT_RUNS = {  # ชื่อคอลัมน์ → (engine, extractor)
     "Paddle+rules": ("paddle", "rules"),
     "Typhoon+rules": ("typhoon", "rules"),
     "Typhoon+LLM": ("typhoon", "llm"),
-    "OXR+rules": ("oxr", "rules"),
 }
 FIELDS = [
     "document_type", "document_profile", "vendor.name", "vendor.branch", "vendor.tax_id", "vendor.address",
@@ -75,7 +74,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("stem", help="ส่วนท้ายของชื่อไฟล์ เช่น 001312")
     ap.add_argument("--dataset", default="finance_doc_scan", help="ชุดข้อมูลใน data/01_input/ (ค่าตั้งต้น finance_doc_scan)")
-    ap.add_argument("--runs", nargs="*", help="ชื่อคอลัมน์=engine/extractor เช่น Paddle=paddle/rules (ค่าตั้งต้น: Paddle/Typhoon/OXR)")
+    ap.add_argument("--runs", nargs="*", help="ชื่อคอลัมน์=engine/extractor เช่น Paddle=paddle/rules (ค่าตั้งต้น: Paddle/Typhoon)")
     args = ap.parse_args()
     runs = ({k: tuple(v.split("/", 1)) for k, v in (r.split("=", 1) for r in args.runs)} if args.runs else DEFAULT_RUNS)
 
@@ -120,7 +119,7 @@ def main() -> None:
         row = []
         for c in cols:
             r = results[c]
-            missing = r.get("missing_fields") or [k for k, x in (r.get("review") or {}).items() if x["level"] == "missing"]  # 3.x มีคีย์นี้ · 4.0 อ่านจาก review
+            missing = [k for k, x in (r.get("review") or {}).items() if x["level"] == "missing"]
             v = {"status": r["status"], "missing_fields": ",".join(missing) or "—",
                  "checks_failed": ",".join(x["name"] for x in r["checks"] if x["passed"] is False) or "—"}[key]
             row.append(v)

@@ -2,7 +2,7 @@
 
 ระบบรับภาพหรือ PDF ของเอกสารการเงิน (ใบกำกับภาษี ใบเสร็จ invoice) แล้วคืนผลเป็น JSON ตาม schema เดียวกันทุกครั้ง
 เลขของเอกสารตรงกับเลขขั้นและโฟลเดอร์ข้อมูล (`data/01_input` … `data/05_extract`) เลขเดียวกัน = part เดียวกัน
-คำสั่ง `preprocess` · `ocr` · `extract` · `sections` · `regions` · `compare` · `schema` ดู [00-setup-and-usage.md](00-setup-and-usage.md)
+คำสั่ง `preprocess` · `sections` · `extract` · `regions` · `compare` · `schema` ดู [00-setup-and-usage.md](00-setup-and-usage.md)
 
 | ขั้น | เรื่อง | โค้ด | เอกสาร |
 |---|---|---|---|
@@ -12,7 +12,7 @@
 | 2 | Preprocess ภาพทั้งหน้า (ทิศ เอียง ขอบ) | `preprocessing/` | [02-preprocessing.md](02-preprocessing.md) |
 | 3 | **ค่าตั้งต้นของ flow หลัก:** แบ่ง region / ตาราง → ช่อง → key/value + ระบาย QR (คำสั่ง `regions` · `sections` ใช้ผังนี้ตั้งแต่ 2026-11-24 ผลวัดรอบก่อนแย่กว่าผัง section ต้องวัดซ้ำกับเฉลย) | `sections/regions/`, `configs/regions/` | [03-regions.md](03-regions.md) |
 | 3 | แบบเดิม (ไม่ใช่ค่าตั้งต้นแล้ว): แบ่งหน้าเป็น section แถบเต็มหน้า (`sections --layout sections`) | `sections/` | [03-sections.md](03-sections.md) |
-| 4 | อ่านข้อความ: ตัวอ่านทุก engine ทางเดียวกัน (OpenThai · Typhoon · Paddle · OXR) | `readers/`, `sections/read.py` | [04-ocr.md](04-ocr.md) |
+| 4 | อ่านข้อความ: ตัวอ่านทุก engine ทางเดียวกัน (OpenThai 2.0 · OpenThai 2.1 Markdown/Text · Typhoon · Paddle) | `readers/`, `sections/read.py` | [04-ocr.md](04-ocr.md) |
 | 4 | OpenThai 2.0 OCR: ตัวอ่านของ flow หลัก (หลักการ การต่อเข้า ผลวัด 18 ใบ) + OpenThai 2.1 Markdown/Text เทียบกัน + ชั้นตรวจความครบ (OpenThai Text ตรวจ + แนบข้อความเสริม §7) | `readers/openthai.py`, `readers/openthai_text.py`, `sections/coverage.py` | [04-openthai-ocr.md](04-openthai-ocr.md) |
 | 5 | สกัด field: 5A rules · 5B LLM · 5C เลือกผล · 5D hybrid | `extraction/`, `pipeline.py` | [05-extraction.md](05-extraction.md) |
 | 5 | 5E validation · 5F สถานะ · 5G บันทึก JSON | `validation/`, `cli.py` | [05-validation-output.md](05-validation-output.md) |
@@ -28,15 +28,11 @@
 | แผน decision engine กับ confidence รายฟิลด์ (ความเห็น ข้อแย้ง ตัวชี้วัด) | [draft-09-decision-engine-confidence-plan.md](draft-09-decision-engine-confidence-plan.md) |
 | แผน implement OpenThai-SystemOne (decision model ภาษาไทย รันในเครื่อง) | [draft-11-openthai-systemone-plan.md](draft-11-openthai-systemone-plan.md) |
 
-**archive** (ลองแล้วไม่ใช้ เก็บไว้เป็นหลักฐานผลวัด)
-
-| เรื่อง | เอกสาร |
-|---|---|
-| OXR: ตัวอ่านเอกสารที่อ่านไทยไม่ได้ (โค้ด `scripts/ocr/oxr/`, `readers/oxr.py`) | [archive/oxr.md](archive/oxr.md) |
+OXR ลองแล้วอ่านภาษาไทยไม่ได้ จึงลบออก (โค้ดและบันทึกผลอยู่ในประวัติ git ถึง commit f6cc6eb)
 
 ## Workflow
 
-**flow หลักสำหรับสแกนจริง** (`python -m fin_extractor sections <input>` = ห้าขั้นนี้ในคำสั่งเดียว ข้ามขั้นที่ผลยังใช้ได้ ไม่ใช้ OCR คัดส่วน) อยู่ในแผนภาพถัดไป ทุก engine (`--engine openthai|openthai21|openthai-text|typhoon|paddle|oxr`) ใช้ flow นี้ **ห้ามอ่านทั้งหน้า** (คำสั่ง `ocr` ปิดแล้ว) ส่วนแผนภาพที่สองเป็นบันทึกของสองโหมดเดิมที่อ่านทั้งหน้า (ไม่ใช้แล้ว)
+**flow หลักสำหรับสแกนจริง** (`python -m fin_extractor sections <input>` = ห้าขั้นนี้ในคำสั่งเดียว ข้ามขั้นที่ผลยังใช้ได้ ไม่ใช้ OCR คัดส่วน) อยู่ในแผนภาพถัดไป ทุก engine (`--engine openthai|openthai21|openthai-text|typhoon|paddle`) ใช้ flow นี้ **ห้ามอ่านทั้งหน้า** (ไม่มีคำสั่งอ่านทั้งหน้าแล้ว)
 
 ```mermaid
 flowchart TD
@@ -50,7 +46,7 @@ flowchart TD
     end
 
     subgraph OCR["OCR — อ่านข้อความ (GPU)"]
-        E["4. ocr<br/>OpenThai อ่านทีละท่อน → 04_ocr/…/regions-luma/<ไฟล์>/<br/>.md + .sections.json + .chunks.json (ที่มาของแต่ละท่อน)"]
+        E["4. ocr<br/>OpenThai อ่านทีละท่อน → 04_ocr/…/regions-luma/<ไฟล์>/<br/>.md + .sections.json + .chunks.json (ที่มาของแต่ละท่อน)<br/>+ ชั้นตรวจความครบ: OpenThai 2.1 Text (CPU) ข้ามถ้าไม่มี onnxruntime/โมเดล"]
     end
 
     subgraph EXT["EXTRACTION + VALIDATION (CPU)"]
@@ -66,74 +62,16 @@ flowchart TD
 
 ผังค่าตั้งต้นคือ regions ตั้งแต่ 2026-11-24 ([03-regions.md](03-regions.md)) ผลวัดเดิมของผัง section แบบเดิม (`--layout sections` ภาพ luma ขาดรวม 14 · flat 16 · bin 28 · regions 20 ไม่มีเฉลย) อยู่ใน [03-sections.md](03-sections.md) — ต้องวัดซ้ำกับเฉลย
 
-### สองโหมดเดิม (อ่านทั้งหน้า ปิดแล้ว เก็บไว้เป็นประวัติ)
+### อ่านทั้งหน้าแบบเดิม (ลบแล้ว เก็บไว้เป็นประวัติ)
 
-```mermaid
-flowchart TD
-    A["ไฟล์ input<br/>.jpg .png .pdf"] --> B
+รุ่นก่อนมีสองโหมดที่อ่านทั้งหน้า (Paddle ทั้งหน้า + rules และ Typhoon ทั้งหน้า + rules/LLM เลือกผลที่ดีกว่า) ถอดออกแล้วเพราะห้ามอ่านทั้งหน้า
+คำสั่ง ตัวเลือก และโฟลเดอร์ผลของรุ่นนั้นไม่มีในโค้ดแล้ว ผลวัดและข้อสังเกตเก็บเป็นประวัติใน [04-ocr.md](04-ocr.md)
+สถานะของรอบสุดท้าย (สแกนจริง 18 ใบ รัน 2026-11-11 ไม่มีเฉลย): Paddle + rules 15 `needs_review` / 3 `failed` · Paddle + LLM 15 `needs_review` / 1 `failed` / 2 `auto_approved` · Typhoon + rules 18 `needs_review` · Typhoon + LLM 18 `needs_review`
 
-    subgraph LOAD["โหลดไฟล์"]
-        B["1. โหลดไฟล์<br/>PDF → ภาพทีละหน้า"]
-    end
-
-    B --> C{"โหมด"}
-
-    subgraph PRE["PREPROCESS"]
-        D1["2. Preprocess<br/>ตะแคง/เอียง · คงสี"]
-        D2["2. Preprocess<br/>ตะแคง/เอียง · คงสี"]
-    end
-
-    subgraph OCR["อ่านข้อความทั้งหน้า (รุ่นเก่า)"]
-        E1["4. PaddleOCR ทั้งหน้า"]
-        E2["4. Typhoon OCR ทั้งหน้า<br/>→ Markdown + ตาราง HTML"]
-    end
-
-    subgraph EXT["EXTRACTION + VALIDATION + OUTPUT"]
-        F["5A. Rules (regex + keyword)"]
-        G["5B. LLM → JSON"]
-        H["5C. เลือกผลที่ตัวเลขสอดคล้องกว่า<br/>+ เติม field ที่ขาด"]
-        I["5E. Validation<br/>checksum, ผลรวม, VAT"]
-        J["5F. สถานะ (กฎจาก check + field ที่ขาด)"]
-        K["5G. บันทึก JSON<br/>data/05_extract/<ชุด>/<engine>/page/<extractor>/"]
-    end
-
-    C -- "--mode ocr" --> D1 --> E1 --> F
-    C -- "--mode vlm" --> D2 --> E2
-    E2 --> F
-    E2 --> G
-    F --> H
-    G --> H
-    H --> I --> J --> K
-```
-
-## สองโหมดเดิม (ปิดแล้ว ตัวเลขเป็นบันทึกของรุ่นที่อ่านทั้งหน้า)
-
-| โหมด       | ตัวอ่านข้อความ               | ตัวสกัด field                                 | เวลาต่อหน้า*       | เหมาะกับ                                              |
-| -------------- | ------------------------------------------ | ---------------------------------------------------- | ----------------------------- | ------------------------------------------------------------- |
-| `--mode ocr` | PaddleOCR                                  | rules (เพิ่ม LLM ได้ด้วย `--llm on`)   | ~5 วินาที (Paddle, GPU) | ใช้งานทั่วไป                                      |
-| `--mode vlm` | Typhoon OCR (`scb10x/typhoon-ocr1.5-3b`) | rules + LLM แล้วเลือกผลที่ดีกว่า | ~54 วินาที              | ต้องการความแม่น เอกสารไม่มี pattern |
-
-\* วัดจาก `data/01_input/BITKUB-001.jpg` บนเครื่องที่พัฒนา
-
-ผลกับสแกนจริง 18 ใบ (`data/01_input/finance_doc_scan`) **รันใหม่เมื่อ 2026-11-11** ตามโครงข้อมูลใหม่ (ผลของรอบก่อนถูกแทนที่แล้ว) หมายเหตุ: ตอนนี้โฟลเดอร์ผล `paddle/` และ `typhoon/` ไม่อยู่ใน `data/` แล้ว (มีเฉพาะ `openthai/` ของ flow หลัก) ตัวเลขข้างล่างเป็นบันทึกของรอบนั้น สร้างใหม่ได้ด้วย `extract`:
-
-- **Paddle + rules** (`data/05_extract/finance_doc_scan/paddle/page/rules/`): 15 `needs_review`, 3 `failed`, ไม่มี `auto_approved` ข้อความดิบ OCR และข้อมูลที่สกัดเหมือนรอบก่อนทุกใบ (18/18)
-- **Paddle + LLM** (`data/05_extract/finance_doc_scan/paddle/page/llm/`): 15 `needs_review`, 1 `failed`, 2 `auto_approved` (001313, 001314 ซึ่งเป็น Tax Invoice อังกฤษใบเดียวกัน) `buyer.name` มี 17 ใบ สกัดจากข้อความ Paddle ชุดเดียวกับ Paddle + rules ด้วย `--llm on --reuse-raw` (ไม่เรียก Paddle ซ้ำ) รัน 2026-11-11
-- **Typhoon + rules** (`data/05_extract/finance_doc_scan/typhoon/page/rules/`): 18 `needs_review` (สกัดจากข้อความ Typhoon ชุดเดียวกับ LLM ด้วย `--reuse-raw` ไม่เรียก Typhoon ซ้ำ)
-- **Typhoon + LLM** (`data/05_extract/finance_doc_scan/typhoon/page/llm/`): 18 `needs_review` `buyer.name` มี 16 ใบ (rules ล้วน: Paddle 13, Typhoon 11)
-- **ผลของ Typhoon/LLM ไม่ซ้ำกันทุกรอบ** (Typhoon สุ่มเล็กน้อย): ข้อความ Typhoon รอบใหม่ต่างจากรอบก่อนทั้ง 18 ใบ และรอบก่อนมี `auto_approved` 2 ใบ รอบนี้ 0 ส่วนผล rules ล้วนบนข้อความ Paddle ซ้ำได้เหมือนเดิม
-- เทียบสถานะกับรอบเก่าตรง ๆ ไม่ได้: โปรไฟล์ชนิดเอกสารยังเป็นฉบับร่างและอนุมัติอัตโนมัติไม่ได้ ([06 หัวข้อ 3.6](06-design-and-roadmap.md))
-- ข้อสังเกตเรื่องค่าผิดของ LLM จากรอบ 2026-11-10 (แต่งตัวเลข แปลงปีผิด สลับผู้ขาย/ผู้ซื้อ ดู [ขั้นที่ 4](04-ocr.md#ผลเทียบ-paddle-กับ-typhoon-อ่านทั้งหน้าบนสแกนจริง-18-ใบ-รุ่นเก่า---mode-ocr----mode-vlm-ถอดแล้ว)) ยังไม่ได้ตรวจซ้ำกับรอบใหม่
-
-ชุดนี้มีเอกสารหลายชนิดปนกัน (ใบกำกับภาษี, หนังสือรับรองหัก ณ ที่จ่าย, ใบสำคัญรับเงินลายมือ, ใบเสร็จศุลกากร)
+ชุดสแกนจริง 18 ใบมีเอกสารหลายชนิดปนกัน (ใบกำกับภาษี, หนังสือรับรองหัก ณ ที่จ่าย, ใบสำคัญรับเงินลายมือ, ใบเสร็จศุลกากร)
 และส่วนใหญ่ไม่ได้พลาดที่ preprocess ดู [ขั้นที่ 2](02-preprocessing.md#ผลวัดบนสแกนจริง)
 
-ผลกับใบเสร็จตัวอย่าง:
-
-- **Typhoon ทั้งหน้า (`--mode vlm` เดิม):** ได้ทุก field ถูกต้อง ผ่าน check ครบ 6 ข้อ
-- **Paddle ทั้งหน้า (`--mode ocr` เดิม):** ได้ค่าครบ 6/6 รายการ 5/5 ผ่าน check 6/6
-
-ไฟล์ที่ควบคุมลำดับทั้งหมดคือ `src/fin_extractor/pipeline.py` ค่าทุกตัวอ่านจาก `configs/default.yaml`
+ลำดับขั้นของ flow หลักอยู่ที่ `cmd_sections` ใน `src/fin_extractor/cli.py` กับ `src/fin_extractor/sections/flow.py` ส่วน `src/fin_extractor/pipeline.py` (`FinanceOCRPipeline`) สกัด + ตรวจ + ตัดสินสถานะจากข้อความ ไม่อ่านภาพ ค่าอ่านจาก `configs/default.yaml` (ผัง regions: `configs/regions/`)
 
 ## หลักการออกแบบ
 
@@ -150,7 +88,7 @@ flowchart TD
 
 ### 2. ทุก engine คืนผลรูปเดียวกัน
 
-OCR ทุกตัวคืน `OCRResult` และผลสุดท้ายทุกเส้นทางคืน `ExtractionResult` ตาม schema
+ตัวอ่านทุกตัวคืน `ReadResult` (`readers/base.py`) และผลสุดท้ายทุกเส้นทางคืน `ExtractionResult` ตาม schema
 ระบบปลายทางไม่ต้องรู้ว่าข้างในใช้ engine ไหน และสลับ engine ได้โดยไม่ต้องแก้ขั้นอื่น
 
 ### 3. ตัวเลขต้องตรวจกันเองได้

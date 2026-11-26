@@ -219,7 +219,7 @@ def test_llm_document_fields_are_normalized_by_type_and_leftovers_go_to_remark()
     out = normalize_llm_output({
         "document_fields": {"total_charges": "1,123.45", "import_date": "05/11/2569", "entry_no": "B999-X1",
                             "duty": "ไม่ระบุ", "not_in_profile": "ค่าเกิน", "awb_no": ""},
-        "extra_fields": [{"label": "PO", "value": "9"}],
+        "remark": [{"label": "PO", "value": "9"}],
     }, prof)
     assert out["document_fields"] == {"total_charges": "1123.45", "import_date": "2026-11-05", "entry_no": "B999-X1"}
     labels = {(e["label"], e["value"]) for e in out["remark"]}
@@ -239,7 +239,7 @@ def _pipe():
 
     p = object.__new__(FinanceOCRPipeline)  # ไม่โหลดตัวอ่าน — ทดสอบเฉพาะตรรกะสกัด
     p.cfg = {"validation": {"amount_tolerance": 0.02, "default_vat_rate": 0.07}}
-    p.llm, p.profiles, p.doc_table, p.core_labels = None, PROFILES, {}, ()
+    p.llm, p.profiles, p.core_labels = None, PROFILES, ()
     return p
 
 
@@ -260,11 +260,6 @@ def test_pipeline_invoice_keeps_generic_profile_and_core_result():
     core = extract_fields(BITKUB_LINES)
     for name in ("vendor", "buyer", "invoice_no", "date", "items", "subtotal", "total_amount", "vat_amount"):
         assert getattr(data, name) == getattr(core, name)
-
-
-def test_old_results_with_extra_fields_still_load():
-    d = InvoiceData.model_validate({"extra_fields": [{"label": "PO", "value": "1"}]})
-    assert [(e.label, e.value) for e in d.remark] == [("PO", "1")]
 
 
 def test_remark_from_llm_survives_when_rules_wins_and_has_its_own_remark():
@@ -291,7 +286,7 @@ def test_extract_traced_attributes_each_remark_to_its_source():
 
     p = object.__new__(FinanceOCRPipeline)
     p.cfg = {"validation": {"amount_tolerance": 0.02, "default_vat_rate": 0.07}}
-    p.profiles, p.doc_table, p.core_labels = PROFILES, {}, ()
+    p.profiles, p.core_labels = PROFILES, ()
     lines = [*BITKUB_LINES, "เลขที่ใบสั่งซื้อ: PO-9"]
     rules = extract_fields(lines)
     llm = rules.model_copy(deep=True)
@@ -355,7 +350,7 @@ def test_build_result_applies_the_profiles_checks():
 
     p = object.__new__(FinanceOCRPipeline)
     p.cfg = {"validation": {"amount_tolerance": 0.02, "default_vat_rate": 0.07}}
-    p.llm, p.profiles, p.doc_table, p.core_labels = None, PROFILES, {}, ()
+    p.llm, p.profiles, p.core_labels = None, PROFILES, ()
     p.reader = SimpleNamespace(name="t")
     r = p.build_result("x", 1, [*CUSTOMS_EN, "VAT 7.00 % 123.45", "ใบเสร็จรับเงิน กรมศุลกากร"], "", None, [])
     by = {c.name: c for c in r.checks}

@@ -15,6 +15,3 @@ models/**
 !models/**/
 !models/.gitkeep
 
-# notebook ที่สร้างจาก scripts/preprocess/make_preprocess_notebooks.py: รันแล้วมีภาพสแกนเอกสารภาษีจริงฝังใน output — ไม่ commit (สร้างใหม่ได้ด้วยสคริปต์)
-notebooks/preprocess_lab/**/*.ipynb
-notebooks/preprocess_lab/**/.ipynb_checkpoints/

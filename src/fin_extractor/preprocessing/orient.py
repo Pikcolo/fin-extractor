@@ -33,14 +33,6 @@ def _load_orientation_model():
     return _orientation_model
 
 
-def detect_orientation(img: np.ndarray) -> int:
-    """คืนมุม (0/90/180/270) ที่ต้องหมุนตามเข็มนาฬิกาเพื่อให้ภาพตั้งตรง ด้วยตัวจำแนกทิศทั้งหน้าของ Paddle.
-
-    โมเดลคืน "มุมที่ภาพถูกหมุนตามเข็มอยู่" (วัดกับชุดสังเคราะห์: ป้าย 90 = ภาพถูกหมุนตามเข็ม 90°)
-    มุมแก้จึงเป็น 360 − ป้าย ถ้าโหลดโมเดลไม่ได้จะคืน 0 เพื่อไม่ให้ pipeline พัง (ผู้เรียกที่ต้องรู้ว่าล้มใช้ ``detect_orientation_checked``)
-    """
-    return detect_orientation_checked(img)[0]
-
 
 def detect_orientation_checked(img: np.ndarray) -> tuple[int, str | None]:
     """(มุมที่ต้องหมุน, ข้อผิดพลาด) ข้อผิดพลาด = ``None`` เมื่อตรวจได้ ถ้าโมเดลล้ม (เช่น Paddle โหลด cuDNN ไม่ได้) คืน (0, ข้อความ) ไม่ใช่ 0 เงียบ ๆ

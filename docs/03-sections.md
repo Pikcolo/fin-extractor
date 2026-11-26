@@ -8,19 +8,17 @@
 
 ขั้นเตรียมภาพใช้ภาพล้วน ไม่เรียก OCR ไม่ทิ้งส่วนที่มีหมึก (สายงานคัดส่วนด้วย OCR รุ่นก่อนถูกถอดออกจากโค้ดแล้ว)
 
-> ผังค่าตั้งต้นตอนนี้คือ `regions` (region / ตาราง → ช่อง → key/value แบบ learning/preprocess_finance) ดู [03-regions.md](03-regions.md) ผลวัดเดิมของสองแบบ: ฟิลด์ขาด regions 20 เทียบกับ 14 ของผังนี้
-
 ## ลำดับและไฟล์ (flow หลัก)
 
-คำสั่งเดียวรันครบ: `python -X utf8 -m fin_extractor sections data/01_input/<ชุด> [--variant luma] [--profile <ชื่อ>] [--from <ขั้น>] [--to <ขั้น>] [--only <เลขไฟล์>] [--redo]`
-ขั้นที่ผลของมันยังใช้ได้ถูกข้าม (กติกาใน `src/fin_extractor/sections/flow.py`): layout ข้ามถ้าพารามิเตอร์ตรงและผังใหม่กว่าภาพ final · images ข้ามถ้า `index.json` ตรงกับผัง · ocr ข้ามถ้ามีผลที่ลายนิ้วมือผังตรงและครบ (ไม่โหลดโมเดลเลยถ้าข้ามทุกไฟล์) · extract รันใหม่ทุกครั้ง (CPU เร็ว)
+คำสั่งเดียวรันครบ: `python -X utf8 -m fin_extractor sections data/01_input/<ชุด> --layout sections [--variant luma] [--profile <ชื่อ>] [--from <ขั้น>] [--to <ขั้น>] [--only <เลขไฟล์>] [--redo]`
+(ไม่ใส่ `--layout sections` = ผัง regions ค่าตั้งต้น) ขั้นที่ผลของมันยังใช้ได้ถูกข้าม (กติกาใน `src/fin_extractor/sections/flow.py`): layout ข้ามถ้าพารามิเตอร์ตรงและผังใหม่กว่าภาพ final · images ข้ามถ้า `index.json` ตรงกับผัง · ocr ข้ามถ้ามีผลที่ลายนิ้วมือผังตรงและครบ (ไม่โหลดโมเดลเลยถ้าข้ามทุกไฟล์) · extract รันใหม่ทุกครั้ง (CPU เร็ว)
 
-| ขั้น | `--from/--to` | สคริปต์ที่รันเดี่ยวได้ | Input | Output (ใต้ `data/`) | โค้ด |
+| ขั้น | `--from/--to` | รันเดี่ยว (คำสั่ง) | Input | Output (ใต้ `data/`) | โค้ด |
 |---|---|---|---|---|---|
 | 2 | `preprocess` | `fin_extractor preprocess` | `01_input/<ชุด>/<ไฟล์>.pdf` | `02_preprocess/<ชุด>/default/final/<ไฟล์>/<ไฟล์>_p1.png` (ภาพสีทั้งหน้า ตรงแล้ว) + `manifest.json` | `preprocessing/`, `stages.py` |
-| 3a | `layout` | `scripts/sections/make_section_layouts.py` | ภาพ `final/` | `03_sections/<ชุด>/default/layout/<ไฟล์>.json` (`layout_sections`, `layout_params`) + `<ไฟล์>_layout.png` ภาพตรวจด้วยตา | `sections/layout.py`, `sections/build.py` |
-| 3b | `images` | `scripts/sections/make_clean_sections.py` | `final/` + ผัง | `03_sections/<ชุด>/default/images/<วิธี>/<ไฟล์>/sNN.png` + `index.json` (ค่าตั้งต้นของ `sections` เขียนเฉพาะวิธีที่ใช้ สคริปต์เขียนทั้ง luma/flat/bin) | `sections/images.py`, `sections/build.py` |
-| 4 | `ocr` | `scripts/sections/run_sections.py` | ภาพใน `images/<วิธี>/` + ผัง | `04_ocr/<ชุด>/openthai/<วิธี>/<ไฟล์>/` `<ไฟล์>_p1.sections.json` `.md` `.chunks.json` | `sections/read.py` |
+| 3a | `layout` | `sections --layout sections --from layout --to layout` | ภาพ `final/` | `03_sections/<ชุด>/default/layout/<ไฟล์>.json` (`layout_sections`, `layout_params`) + `<ไฟล์>_layout.png` ภาพตรวจด้วยตา | `sections/layout.py`, `sections/build.py` |
+| 3b | `images` | `sections --layout sections --from images --to images --variant <วิธี>` | `final/` + ผัง | `03_sections/<ชุด>/default/images/<วิธี>/<ไฟล์>/sNN.png` + `index.json` (รอบหนึ่งเขียนเฉพาะวิธีที่เลือกด้วย `--variant`) | `sections/images.py`, `sections/build.py` |
+| 4 | `ocr` | `sections --layout sections --from ocr --to ocr --variant <วิธี>` | ภาพใน `images/<วิธี>/` + ผัง | `04_ocr/<ชุด>/openthai/<วิธี>/<ไฟล์>/` `<ไฟล์>_p1.sections.json` `.md` `.chunks.json` | `sections/read.py` |
 | 5 | `extract` | `fin_extractor extract ... --engine <engine> --variant <วิธี>` | `.md` ของขั้น 4 | `05_extract/<ชุด>/openthai/<วิธี>/rules/<ไฟล์>_p1.json` + `manifest.json` | `pipeline.py`, `extraction/`, `validation/` |
 
 ขั้น 5 ใช้ CPU ล้วน (`--llm off` = rules ค่าตั้งต้น) ไม่อ่านภาพ อ่านเฉพาะข้อความรายส่วนที่ขั้น 4 เก็บไว้ ไฟล์ที่ยังไม่มีข้อความดิบถูกข้ามพร้อมข้อความบอก
@@ -91,12 +89,12 @@
 
 - **Otsu ใน `bin` ต่างจากใน 3a:** ใน 3a ตัดที่ "ความสว่าง" ของทั้งหน้า ใน `bin` ตัดที่ "ระยะสีจากพื้นรอบข้าง" ของแต่ละ section ชื่อวิธีเดียวกันแต่ใช้กับค่าคนละอย่าง
 - **`--drop-empty-rows`** (ใช้กับ `bin` เท่านั้น ไม่ใช่ค่าตั้งต้น): ทาดำแถวตารางที่ช่องตัวเลขว่าง section ที่ทาดำหมดไม่มีไฟล์ (`file: null`) ขั้น 4 ข้าม รายละเอียดในหัวข้อ "แบบ bin" ข้างล่าง
-- คำสั่ง `sections` เขียนเฉพาะวิธีที่เลือกด้วย `--variant` ส่วน `scripts/sections/make_clean_sections.py` เขียนครบทั้งสามวิธี
+- คำสั่ง `sections` เขียนเฉพาะวิธีที่เลือกด้วย `--variant` ต้องการครบสามวิธีให้รันทีละ `--variant`
 - ภาพทุกวิธีมาจาก **ผังเดียวกัน** (bbox เดียวกัน) จึงเทียบข้ามวิธีได้ตรง ๆ `index.json` ต้องตรงกับผังปัจจุบัน ไม่งั้นขั้น 4 หยุดก่อนโหลดโมเดล
 
 ### ขั้น 4 `ocr`: อ่านทีละ section
 
-engine ที่เลือก (`--engine openthai|typhoon|paddle|oxr`) อ่าน `images/<วิธี>/<ไฟล์>/sNN.png` ทีละภาพตามลำดับใน `index.json` (section ที่ `keep: false` หรือไม่มีไฟล์ถูกข้าม) **ไม่มีการอ่านทั้งหน้า**
+engine ที่เลือก (`--engine openthai|openthai21|openthai-text|typhoon|paddle`) อ่าน `images/<วิธี>/<ไฟล์>/sNN.png` ทีละภาพตามลำดับใน `index.json` (section ที่ `keep: false` หรือไม่มีไฟล์ถูกข้าม) **ไม่มีการอ่านทั้งหน้า**
 ผลอยู่ที่ `04_ocr/<ชุด>/<engine>/<วิธี>/<ไฟล์>/`: `.sections.json` (ข้อความรายส่วน + ลายนิ้วมือของผัง) → `.md` (ทุกส่วนต่อกันตามลำดับอ่าน มี `<!-- sNN kind -->` นำหน้าแต่ละท่อน) → `.chunks.json` (ท่อนข้อความ ↔ ภาพ section ↔ บรรทัดใน `.md`)
 วิธีของภาพเป็นส่วนหนึ่งของพาธ (`…/luma/` `…/flat/` `…/bin/`) ผลของแต่ละวิธีจึงไม่ทับกัน
 
@@ -106,12 +104,12 @@ engine ที่เลือก (`--engine openthai|typhoon|paddle|oxr`) อ่�
 
 ### เลือกวิธีไหน
 
-เทียบ 3 วิธีกับ OpenThai, rules ล้วน, 18 ใบ (ตารางเต็มอยู่ในหัวข้อ "แบบ bin" ข้างล่าง): ฟิลด์ที่ขาดรวม **luma 14** · flat 16 · bin 28 จึงตั้ง **luma เป็นค่าตั้งต้น**
-ข้อจำกัด: วัดแค่ "สกัดเจอครบไหม" ไม่มีเฉลยจึงไม่รู้ว่าค่าถูกหรือไม่ และวัดกับ OpenThai ตัวเดียว ถ้าเป็น Typhoon / Paddle ลำดับอาจต่างไป (ยังไม่ได้วัด) ลองเองได้ด้วย `sections --engine <ตัวนั้น> --variant flat` แล้ว `compare`
+luma ฟิลด์ที่ขาดน้อยสุดในการเทียบ 3 วิธี จึงเป็นค่าตั้งต้น (ตารางผลอยู่ในหัวข้อ "แบบ bin" ข้างล่าง)
+ข้อจำกัด: วัดแค่ "สกัดเจอครบไหม" ไม่มีเฉลยจึงไม่รู้ว่าค่าถูกหรือไม่ และวัดกับ OpenThai ตัวเดียว ถ้าเป็น Typhoon / Paddle ลำดับอาจต่างไป (ยังไม่ได้วัด) ลองเองได้ด้วย `sections --layout sections --engine <ตัวนั้น> --variant flat` แล้ว `compare`
 
 ## แบบ `bin`: ขาวดำ ตัวอักษรขาว กระดาษดำ
 
-`make_clean_sections.py` เขียน `images/bin/<ไฟล์>/sNN.png` เพิ่มจาก luma/flat (flow `sections --variant bin` เขียนเฉพาะ bin) · อ่านด้วย `sections --variant bin` (ผลอยู่ `04_ocr/<ชุด>/<engine>/bin/`) · สกัดซ้ำ `extract --variant bin`
+`sections --layout sections --variant bin` เขียน `images/bin/<ไฟล์>/sNN.png` แล้วอ่าน (ผลอยู่ `04_ocr/<ชุด>/<engine>/bin/`) · สกัดซ้ำ `extract --variant bin`
 - **ไม่ใช้ความสว่าง** ตัดสินจากระยะสี (Lab) ของพิกเซลจากสีพื้นรอบข้าง (median หน้าต่างใหญ่) แล้ว threshold (Otsu ขั้นต่ำ `BIN_FLOOR`) ตัวดำบนขาว ตัวขาวบนแถบเขียว/น้ำเงิน ตัวสีบนพื้นสี ได้ผลแบบเดียวกัน ดูด้วยตาบน 1306 s07/s20, 1310, 1312 s02, 1317 s03, 1318 s03, 1319 s02 ผลวัดกับ OpenThai อยู่ในตารางข้างล่าง (แย่กว่า luma)
 - จุดอ่อน: ขอบของแถบสีมุมโค้ง (1312) เกิดเส้นบางตามขอบ
 - `--drop-empty-rows` (ใช้กับฟอร์มอย่าง 1307 เท่านั้น ไม่ใช่ค่าตั้งต้น): ทาดำแถวตารางที่ช่องตัวเลขว่าง เหลือแถวที่มีค่าพร้อมป้ายของมัน จากภาพล้วน (ไม่ใช้ OCR) หาคอลัมน์ป้ายจากเซลล์กว้างสุดตามเส้นตั้ง ตัดจุดไข่ปลา/เศษเส้นด้วยขนาดชิ้นหมึก (ค่าวัดบน 1307 ที่เดียว ดูค่าคงที่ `MIN_GLYPH_*` `DOT_MAX_H` ใน `sections/images.py`) ใช้คอลัมน์เดียวกันทั้งตาราง (ส่วนที่ตัดมาไม่เห็นเส้นตั้งครบ) ส่วนที่ทาดำหมดไม่มีไฟล์ `bin` ตัวอ่านข้าม 1307: เหลือแถวที่ 1 (วันที่ 05/10/2026, 2,000.00, 60.00), หัวคอลัมน์ และแถวรวม · ผิดพลาดที่เห็น: แถว (1.2) ท้ายส่วน s01 ถูกเก็บไว้ทั้งที่ว่าง (เศษที่ขอบตัด) ตรวจกับใบอื่นแค่ 1307 ใบเดียว
@@ -134,7 +132,7 @@ engine ที่เลือก (`--engine openthai|typhoon|paddle|oxr`) อ่�
 
 ## ไฟล์ chunks: ข้อความท่อนนี้มาจากภาพ section ไหน
 
-`run_sections.py` เขียน `<ไฟล์>_p1.chunks.json` ข้างไฟล์ `.md` และ `.sections.json` ใน `04_ocr/<ชุด>/<engine>/<วิธี>/<ไฟล์>/` (สร้างใหม่จากผลที่มีอยู่ได้โดยไม่ใช้ GPU: `run_sections.py --variant <วิธี> --markdown-only`) `extract` อ่านเฉพาะ `.md` จึงไม่กระทบการสกัด
+ขั้น ocr เขียน `<ไฟล์>_p1.chunks.json` ข้างไฟล์ `.md` และ `.sections.json` ใน `04_ocr/<ชุด>/<engine>/<วิธี>/<ไฟล์>/` (ในโค้ดสร้างใหม่จากผลที่มีอยู่ได้โดยไม่โหลดโมเดล: `sections.read.read_dataset(..., markdown_only=True)` ไม่มีตัวเลือก CLI) `extract` อ่านเฉพาะ `.md` จึงไม่กระทบการสกัด
 
 ต่อหนึ่งท่อนข้อความ (`chunks[]`):
 - `section`, `kind`, `part`/`parts`: ท่อนมาจากส่วนไหนของผัง
@@ -142,7 +140,7 @@ engine ที่เลือก (`--engine openthai|typhoon|paddle|oxr`) อ่�
 - `text`: **ข้อความที่ได้จากภาพนั้น** (ภาพ `image` → `text` อ่านคู่กันได้ในไฟล์เดียว)
 - `image`: ภาพที่ส่งเข้าตัวอ่าน (สัมพัทธ์กับ `data/`, เช่น `03_sections/finance_doc_scan/default/images/luma/<ไฟล์>/s05.png`) `--variant color` ไม่มีไฟล์ ตัดจากภาพ final ตาม `page_bbox_xywh` (บนสำเนาด้านยาว 1600 px)
 - `chars`, `seconds`, `truncated`: ขนาดข้อความ เวลาอ่าน และธงชนเพดาน token
-- `script_mix`: จำนวนอักขระไทย / ละติน / ตัวเลขในข้อความที่ตัวอ่านตอบ (ไม่นับแท็ก HTML) **นับจากผล ไม่ใช่การเลือกภาษาของโมเดล** ดู [12 หัวข้อ 2.1](04-openthai-ocr.md#21-เลือกภาษาไทยอังกฤษอย่างไร)
+- `script_mix`: จำนวนอักขระไทย / ละติน / ตัวเลขในข้อความที่ตัวอ่านตอบ (ไม่นับแท็ก HTML) **นับจากผล ไม่ใช่การเลือกภาษาของโมเดล** ดู [04-openthai-ocr หัวข้อ 2.1](04-openthai-ocr.md#21-เลือกภาษาไทยอังกฤษอย่างไร)
 
 `not_read[]`: ส่วนที่ไม่มีข้อความ พร้อมเหตุผล (`blank` = ผังตัดทิ้งหรือ `bin` ทาดำหมด, `error`, `no text`)
 
@@ -160,7 +158,7 @@ engine ที่เลือก (`--engine openthai|typhoon|paddle|oxr`) อ่�
 | 1310 1312 1318 1319 | ไม่เปลี่ยน (1312 ยัง `failed`) |
 | รวม 6 ใบ | 6 → 6 |
 
-ข้อความที่เดาเองของ 1306 หาย แต่ผลรวมไม่ดีขึ้น (ส่วนใหญ่ขึ้นลงจากการที่ส่วนใหญ่ขึ้น OCR อ่านต่างไป) และส่วนที่ถูกตัดกลางกล่องข้อมูลของ 1317 (ตัดที่ `max_piece_frac` เพราะไม่มีแถวว่างเหลือ) ผังเดิมทั้ง 18 ใบจึงยังเป็นค่าตั้งต้น (ผังเก่าไม่มีคีย์ `fill_text_ink` = แบบเดิม) ใช้เมื่อต้องการ: `sections ... --fill-aware` หรือ `make_section_layouts.py --fill-aware` **ยังไม่ได้ลองวิธีรวมแถบที่เตี้ยกว่าบรรทัดข้อความ** (วัดแล้วแถบที่ปัญหา 30 px สูงกว่าความสูงตัวอักษรอยู่ดี จึงไม่ช่วยกรณี 1306)
+ข้อความที่เดาเองของ 1306 หาย แต่ผลรวมไม่ดีขึ้น (ส่วนใหญ่ขึ้นลงจากการที่ส่วนใหญ่ขึ้น OCR อ่านต่างไป) และส่วนที่ถูกตัดกลางกล่องข้อมูลของ 1317 (ตัดที่ `max_piece_frac` เพราะไม่มีแถวว่างเหลือ) ผังเดิมทั้ง 18 ใบจึงยังเป็นค่าตั้งต้น (ผังเก่าไม่มีคีย์ `fill_text_ink` = แบบเดิม) ใช้เมื่อต้องการ: `sections --layout sections --fill-aware` **ยังไม่ได้ลองวิธีรวมแถบที่เตี้ยกว่าบรรทัดข้อความ** (วัดแล้วแถบที่ปัญหา 30 px สูงกว่าความสูงตัวอักษรอยู่ดี จึงไม่ช่วยกรณี 1306)
 
 ## ผังตัดตามเส้นประ (`--dotted-rules`, ไม่ใช่ค่าตั้งต้น)
 
@@ -243,7 +241,7 @@ engine ที่เลือก (`--engine openthai|typhoon|paddle|oxr`) อ่�
 
 ## เหตุการณ์ที่ทำให้ผลผิดเงียบ ๆ: ตัวตรวจทิศล้ม (1315)
 
-- `preprocess` เมื่อ 17 พ.ย. ได้ภาพ 1315 **ตะแคง 90°** (`orientation: 0`) เพราะตัวตรวจทิศของ Paddle โหลดไม่ได้ (`WinError 127` ที่ `cudnn_cnn64_9.dll`) **สาเหตุ (พบ 20 พ.ย.):** paddlex import `modelscope` ซึ่ง import torch พ่วงมา torch (cu128) ใช้ cuDNN 9.19 ส่วน paddlepaddle-gpu ล็อก cuDNN 9.15 ชื่อ DLL เดียวกันอยู่ใน process เดียวกันไม่ได้ **แก้แล้ว:** `ocr/paddle_engine.without_modelscope` กันไม่ให้ torch ถูกโหลดตอน import paddlex และคำสั่ง `sections` รัน preprocess แยก process รอบ 20 พ.ย. ตรวจทิศได้ครบ 18 ใบ (1315 หมุน 90° อัตโนมัติ) โค้ดเดิมคืน 0 เงียบ ๆ ผัง OCR และการสกัดของ 1315 ทำบนภาพตะแคงโดยไม่มีสัญญาณ
+- `preprocess` เมื่อ 17 พ.ย. ได้ภาพ 1315 **ตะแคง 90°** (`orientation: 0`) เพราะตัวตรวจทิศของ Paddle โหลดไม่ได้ (`WinError 127` ที่ `cudnn_cnn64_9.dll`) **สาเหตุ (พบ 20 พ.ย.):** paddlex import `modelscope` ซึ่ง import torch พ่วงมา torch (cu128) ใช้ cuDNN 9.19 ส่วน paddlepaddle-gpu ล็อก cuDNN 9.15 ชื่อ DLL เดียวกันอยู่ใน process เดียวกันไม่ได้ **แก้แล้ว:** `readers/paddle.py: without_modelscope` กันไม่ให้ torch ถูกโหลดตอน import paddlex และคำสั่ง `sections` รัน preprocess แยก process รอบ 20 พ.ย. ตรวจทิศได้ครบ 18 ใบ (1315 หมุน 90° อัตโนมัติ) โค้ดเดิมคืน 0 เงียบ ๆ ผัง OCR และการสกัดของ 1315 ทำบนภาพตะแคงโดยไม่มีสัญญาณ
 - แก้โค้ด: `orient.detect_orientation_checked` คืน (มุม, ข้อผิดพลาด) · `preprocess` บันทึก `meta.orientation_error` (เห็นใน `manifest.json`) และ CLI พิมพ์คำเตือน · `preprocess <ไฟล์> --orientation 90` สั่งทิศเอง ทำใหม่ไฟล์นั้นทันที (ไม่ต้อง `--force`) และไม่เก็บลง `settings.json` กัน `--force` ล้างทั้งโปรไฟล์
 - 1315 แก้แล้วด้วย `--orientation 90` (ตรงกับค่าที่ตัวตรวจเคยตรวจได้ตอนแรก) ทำใหม่ผัง → ภาพย่อย → OCR → สกัด ภาพอ่านได้ปกติ แต่ยังตก `failed` ด้วยเหตุที่ต่างออกไป: **OCR ไม่ได้อ่านเลขฝั่งขวาของแถบ (0.00 / 149.16) เลย** และโปรไฟล์ศุลกากรของ rules คาดว่า `Special Entry Number : ค่า` อยู่บรรทัดเดียวกัน แต่ตารางแยกเป็นสองบรรทัด
 - ข้อควรระวัง: ถ้าตัวตรวจล้มอีก ภาพตะแคงจะไม่ถูกจับ ตรวจ `manifest.json` หา `orientation_error` ก่อนเชื่อผลเสมอ (17 ใบที่เหลือตั้งตรงอยู่แล้ว ผลจึงไม่กระทบ)

@@ -1,7 +1,7 @@
 # ชนิดเอกสารของโหมด regions: ชื่อไฟล์ (doc_id) → ชนิด ซึ่งเลือก template ใน templates/<ชนิด>.yaml
 # **เป็นตาราง lookup ตามชื่อไฟล์ของสแกน 18 ใบนี้ ไม่ใช่ตัวจำแนก** (คัดลอกจาก learning/preprocess_finance/configs/doc_types.yaml)
 # ไฟล์ที่ไม่อยู่ในตาราง = default_type (generic: แบ่งตามเส้น ไม่ต้องตั้งค่า) — เอกสารใหม่จึงยังทำงานได้ แค่ไม่ได้ชื่อฟิลด์จาก template
-# ค่าแทนรายไฟล์ได้ทุกคีย์ใน pipeline.yaml `defaults` (clean, mode, anchor, ...)
+# ค่าแทนรายไฟล์ได้ทุกคีย์ใน pipeline.yaml `defaults` (clean, mode, use_lines, mask_codes)
 
 default_type: generic
 

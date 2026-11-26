@@ -5,22 +5,12 @@
 Debug artefacts: per-stage snapshots, region overlays, contact sheets."""
 from __future__ import annotations
 
-from pathlib import Path
 
 import cv2
 import numpy as np
 
 PALETTE = [(220, 50, 50), (40, 160, 40), (30, 90, 220), (200, 120, 0), (160, 40, 160),
            (0, 150, 170), (120, 120, 0), (90, 60, 200), (0, 100, 255), (180, 0, 90)]
-
-
-def imwrite(path: Path, img: np.ndarray) -> None:
-    """cv2.imwrite cannot handle non-ASCII paths on Windows; encode in memory instead."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    ok, buf = cv2.imencode(path.suffix or ".png", img)
-    if not ok:
-        raise OSError(f"failed to encode {path}")
-    buf.tofile(str(path))
 
 
 def draw_regions(img: np.ndarray, regions: list[dict], frame=None, hlines=None) -> np.ndarray:

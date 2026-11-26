@@ -15,10 +15,8 @@ import sys
 import time
 from pathlib import Path
 
-import cv2
-import numpy as np
-
 from ..extraction.rule_extractor import SUPPLEMENT
+from ..io import read_image
 from ..paths import DataPaths, doc_dir
 from ..readers import TORCH_ENGINES, make_reader
 from .crops import load_final_image, masked_final
@@ -60,12 +58,6 @@ def clean_index(clean_dir: Path, layout: list[dict], stem: str) -> dict[str, dic
     if [(s["id"], list(s["bbox"])) for s in index] != kept_layout(layout):
         sys.exit(f"{stem[-4:]}: ภาพย่อยใน {clean_dir} ไม่ตรงกับผังแบ่งปัจจุบัน (สร้างจากผังเก่า) — รัน: python -m fin_extractor sections <input> --from images --redo")
     return {s["id"]: s for s in index}
-
-
-def read_clean_image(clean_dir: Path, entry: dict, variant: str) -> np.ndarray:
-    """ภาพเทาช่องเดียวจากไฟล์ → BGR."""
-    gray = cv2.imdecode(np.fromfile(str(clean_dir / entry["file"]), dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
-    return cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
 
 
 def markdown_blocks(doc: dict) -> list[tuple[dict, str]]:
@@ -121,6 +113,20 @@ def chunks_of(doc: dict, image_of) -> dict:
             "chunks": chunks, "not_read": not_read}
 
 
+def coverage_file(sections_json: Path) -> Path:
+    """ข้อความของตัวอ่านเสริม + ส่วนที่ถูกชี้ (ชั้นตรวจความครบ sections/coverage.py)."""
+    return sections_json.with_name(sections_json.name.removesuffix(".sections.json") + ".coverage.json")
+
+
+def split_file(sections_json: Path) -> Path:
+    """ผลอ่านใหม่แบบแยกซ้าย/ขวา (ชั้นตรวจความครบ)."""
+    return sections_json.with_name(sections_json.name.removesuffix(".sections.json") + ".split.json")
+
+
+def joined_halves(r: dict) -> str:
+    return r["left"].strip() + "\n\n" + r["right"].strip()
+
+
 def write_markdown(sections_json: Path, image_of=lambda s: None, layout: list[dict] | None = None) -> Path:
     """เขียน .md (ข้อความดิบที่ extract อ่าน) และ .chunks.json (ที่มาของแต่ละท่อน ไม่ถูกอ่านโดย extract)
     ``layout`` = ผังปัจจุบัน: ธง ``repeat_header`` ของส่วนมาจากผัง (ผล OCR ที่อ่านก่อนมีธงนี้ก็เขียน .md ใหม่ได้ไม่ต้อง OCR ซ้ำ)."""
@@ -130,15 +136,15 @@ def write_markdown(sections_json: Path, image_of=lambda s: None, layout: list[di
         flags = {s["id"] for s in layout if s.get("repeat_header")}
         for s in doc["sections"]:
             s["repeat_header"] = s["id"] in flags
-    spl = sections_json.with_name(stem + ".split.json")  # ชั้นตรวจความครบ: ส่วนที่อ่านใหม่แบบแยกซ้าย/ขวาแล้วค่าที่ขาดลดลง (sections/coverage.py)
+    spl = split_file(sections_json)  # ชั้นตรวจความครบ: ส่วนที่อ่านใหม่แบบแยกซ้าย/ขวาแล้วค่าที่ขาดลดลง (sections/coverage.py)
     if spl.exists():
         sp = json.loads(spl.read_text(encoding="utf-8"))
         if layout is None or sp.get("layout") == fingerprint(layout):
             for s in doc["sections"]:
                 r = sp["sections"].get(s["id"]) or {}
                 if r.get("accepted"):
-                    s["text"], s["split"] = r["left"].strip() + "\n\n" + r["right"].strip(), r["split"]
-    cov = sections_json.with_name(stem + ".coverage.json")  # ชั้นตรวจความครบ: ข้อความเสริมของส่วนที่ถูกชี้ (sections/coverage.py)
+                    s["text"], s["split"] = joined_halves(r), r["split"]
+    cov = coverage_file(sections_json)  # ชั้นตรวจความครบ: ข้อความเสริมของส่วนที่ถูกชี้ (sections/coverage.py)
     if cov.exists():
         c = json.loads(cov.read_text(encoding="utf-8"))
         if layout is None or c.get("layout") == fingerprint(layout):
@@ -252,7 +258,6 @@ def read_dataset(paths: DataPaths, cfg: dict, dataset: str, stems: list[str], en
 
         def save(complete: bool) -> None:
             out.write_text(json.dumps({"source": stem, "page": 1, "engine": reader.name, "variant": variant,
-                                       "max_new_tokens": getattr(reader, "max_new_tokens", None),
                                        "layout": fingerprint(layout), "complete": complete, "sections": rows}, ensure_ascii=False, indent=1), encoding="utf-8")
 
         for s in layout:
@@ -267,7 +272,7 @@ def read_dataset(paths: DataPaths, cfg: dict, dataset: str, stems: list[str], en
             if variant != "color" and not entries[s["id"]].get("file"):  # เช่น bin ที่ทาดำหมดส่วน (--drop-empty-rows)
                 rows.append({**row, "skipped": "blank"})
                 continue
-            img = crop_full(full, work, s) if variant == "color" else read_clean_image(clean_dir, entries[s["id"]], variant)
+            img = crop_full(full, work, s) if variant == "color" else read_image(clean_dir / entries[s["id"]]["file"])  # PNG เทา → BGR 3 ช่อง
             t = time.perf_counter()
             try:
                 res = reader.recognize(img)

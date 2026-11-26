@@ -3,8 +3,8 @@
     .venv/Scripts/python -X utf8 scripts/demo/ocr_demo_app.py
     .venv/Scripts/python -X utf8 scripts/demo/ocr_demo_app.py --port 8766
 
-เปิด http://127.0.0.1:8766 (ผูกกับ 127.0.0.1 เท่านั้น ไม่มีอะไรส่งออกนอกเครื่อง ยกเว้นเลือก engine typhoon ที่ตั้ง provider เป็น API)
-ขั้นที่แสดง = flow ของคำสั่ง ``sections`` ด้วยค่าตั้งต้นเสมอ (``FLOW_DEFAULTS``: ผัง regions) เลือกได้แค่ตัวอ่าน ใช้ฟังก์ชันเดียวกับ pipeline จริง ไม่ได้เขียนตรรกะใหม่
+เปิด http://127.0.0.1:8766 (ผูกกับ 127.0.0.1 เท่านั้น ไม่มีอะไรส่งออกนอกเครื่อง ยกเว้นเลือก engine typhoon หรือ LLM ที่ตั้ง provider เป็น API)
+ขั้นที่แสดง = flow ของคำสั่ง ``sections`` ด้วยค่าตั้งต้นเสมอ (``FLOW_DEFAULTS``: ผัง regions) เลือกได้แค่ตัวอ่าน และวิธีสกัด (rules / hybrid / winner เหมือน ``extract --llm``) ใช้ฟังก์ชันเดียวกับ pipeline จริง ไม่ได้เขียนตรรกะใหม่
     1 อินพุต → 2 preprocess* → 3 ผังแบ่งส่วน → 4 ภาพรายส่วน → 5 OCR ทีละส่วน* → 6 รวมข้อความ → 7 สกัดฟิลด์ → 8 ตรวจ/สถานะ → 9 JSON
     (* รันใน ``ocr_demo_worker.py`` แยก process: Paddle กับ torch อยู่ process เดียวกันไม่ได้ และโมเดลล้มแล้วเซิร์ฟเวอร์ไม่ล้มตาม)
 ขั้น 3 วาดภาพกลางทาง (เส้นตาราง หมึก จุดตัด) จากฟังก์ชันใน ``sections/layout.py`` ส่วนผังจริงมาจาก ``layout_sections`` ตัวเดียวกับ flow หลัก
@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import mimetypes
 import re
 import subprocess
@@ -37,8 +38,7 @@ import numpy as np  # noqa: E402
 
 from fin_extractor.config import load_config  # noqa: E402
 from fin_extractor.doctypes import DOC_PREFIX, squash  # noqa: E402
-from fin_extractor.extraction import lines_with_chunks  # noqa: E402
-from fin_extractor.extraction.rule_extractor import supplement_of  # noqa: E402
+from fin_extractor.extraction.rule_extractor import chunk_lines  # noqa: E402
 from fin_extractor.extraction.patterns import find_dates, find_numbers, find_percents  # noqa: E402
 from fin_extractor.io import load_pages, read_image, save_image  # noqa: E402
 from fin_extractor.io.loader import SUPPORTED_EXTS  # noqa: E402
@@ -50,7 +50,6 @@ from fin_extractor.readers import ENGINES, make_reader  # noqa: E402
 from fin_extractor.sections import graphics as G  # noqa: E402
 from fin_extractor.sections import images as I  # noqa: E402,E741
 from fin_extractor.sections import layout as L  # noqa: E402
-from fin_extractor.sections.build import write_png  # noqa: E402
 from fin_extractor.sections.coverage import missing_values, n_missing, normalize_digits, split_column, word_coverage  # noqa: E402
 from fin_extractor.sections.regions.run import RegionConfig  # noqa: E402
 from fin_extractor.sections.read import markdown_of  # noqa: E402
@@ -65,11 +64,12 @@ FONTS = ROOT / "assets" / "fonts"
 MAX_UPLOAD = 50 * 2**20
 # ตั้งค่าของขั้น preprocess/แบ่งส่วน = ค่าตั้งต้นของคำสั่ง sections (ไม่ให้เลือกบนหน้าเว็บ): ตรวจทิศอัตโนมัติ · ไม่ใช้ --fill-aware / --dotted-rules · ระบาย QR/บาร์โค้ด
 # layout = ผังที่ใช้ (ค่าตั้งต้นของ flow = regions) · ตัวเลือกที่เหลือใช้กับผัง sections แบบเดิมเท่านั้น (เปลี่ยน layout เป็น "sections" เพื่อดูแบบเดิม)
+LLM_MODES = ("off", "hybrid", "on")  # เหมือน extract --llm (auto = on) off เป็นค่าตั้งต้นของ flow · หน้าเว็บมี "all" = สกัดทั้งสามแบบเทียบกัน
 FLOW_DEFAULTS = {"layout": "regions", "orientation": "auto", "fill": False, "dotted": False, "codes": True, "trim": None}
 
 STAGES = [("input", "อินพุต"), ("preprocess", "ปรับภาพ (preprocess)"), ("layout", "แบ่งเป็นส่วน (layout)"),
           ("crops", "ภาพรายส่วนก่อน OCR"), ("ocr", "OCR ทีละส่วน"), ("text", "รวมข้อความ → บรรทัด"),
-          ("extract", "สกัดฟิลด์ (rules)"), ("validate", "ตรวจความสอดคล้อง + สถานะ"), ("review", "ตรวจ/แก้รายฟิลด์"),
+          ("extract", "สกัดฟิลด์"), ("validate", "ตรวจความสอดคล้อง + สถานะ"), ("review", "ตรวจ/แก้รายฟิลด์"),
           ("result", "JSON สุดท้าย")]
 
 state_lock = threading.RLock()  # กันอ่านสถานะงาน (หน้าเว็บ poll) ระหว่างที่เธรดงานกำลังแก้ (RLock: ขั้น 7–9 ประกาศพร้อมกันในล็อกเดียว)
@@ -177,11 +177,11 @@ def stage_layout(job: dict, d: Path, cfg: dict) -> dict:
     save_image(d / "lay_work.jpg", work)
     save_image(d / "lay_before.jpg", before)
     save_image(d / "lay_gray.jpg", gray)
-    write_png(d / "lay_bw.png", bw)
-    write_png(d / "lay_lines.png", lines_view(horiz, vert, bw))
-    write_png(d / "lay_ink.png", ink_view(ink_all))
+    save_image(d / "lay_bw.png", bw)
+    save_image(d / "lay_lines.png", lines_view(horiz, vert, bw))
+    save_image(d / "lay_ink.png", ink_view(ink_all))
     if region is not None:
-        write_png(d / "lay_fill.png", ink_view(region))
+        save_image(d / "lay_fill.png", ink_view(region))
     hh, ww = bw.shape
     profile = (cut_ink > 0).mean(axis=1)
     (d / "layout.json").write_text(json.dumps({"layout_sections": secs, "masked_codes": found}, ensure_ascii=False), encoding="utf-8")
@@ -214,7 +214,7 @@ def stage_crops(job: dict, d: Path, cfg: dict) -> dict:
             e = src[s["id"]]
             x, y, w, h = s["bbox"]
             gray = cv2.imdecode(np.fromfile(str(d / "regions" / "crops" / e["file"]), dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
-            write_png(out / f"{s['id']}.png", gray)
+            save_image(out / f"{s['id']}.png", gray)
             save_image(out / f"{s['id']}_color.jpg", full[y:y + h, x:x + w])
             index.append({"id": s["id"], "kind": s["kind"], "bbox": s["bbox"], "table": None,
                           **({"part": s["part"], "parts": s["parts"]} if s.get("part") else {}),
@@ -229,7 +229,7 @@ def stage_crops(job: dict, d: Path, cfg: dict) -> dict:
         crop = L.crop_full(full, work, s)
         if not crop.size:
             continue
-        write_png(out / f"{s['id']}.png", enhance.to_gray(crop))
+        save_image(out / f"{s['id']}.png", enhance.to_gray(crop))
         save_image(out / f"{s['id']}_color.jpg", crop)
         index.append({"id": s["id"], "kind": s["kind"], "bbox": s["bbox"], "table": s["table"],
                       **({"part": s["part"], "parts": s["parts"]} if s.get("part") else {}),
@@ -246,8 +246,7 @@ def stage_text(job: dict, d: Path, cfg: dict) -> dict:
     coverage = check_coverage(job, d, cfg, doc)
     md = markdown_of(doc)
     (d / "page.md").write_text(md, encoding="utf-8")
-    pairs = list(zip(lines_with_chunks(md), supplement_of(md), strict=True))
-    return {"markdown": md, "lines": [{"text": t, "section": c, **({"supplement": s} if s else {})} for (t, c), s in pairs],
+    return {"markdown": md, "lines": [{"text": t, "section": c, **({"supplement": s} if s else {})} for t, c, s in chunk_lines(md)],
             "coverage": coverage}
 
 
@@ -362,22 +361,108 @@ def found_in(key: str, value, kind: str | None, lines: list[str]) -> list[int]:
     return [i for i, ln in enumerate(lines) if hit(ln)][:6]
 
 
+class _Collect(logging.Handler):
+    """เก็บ warning ของ pipeline ระหว่างสกัด: LLM ล่ม/ตอบผิด schema แล้ว pipeline ถอยไปใช้ rules โดยแค่ log ไว้."""
+
+    def __init__(self):
+        super().__init__(logging.WARNING)
+        self.messages: list[str] = []
+
+    def emit(self, record):
+        self.messages.append(record.getMessage())
+
+
+MODE_LABEL = {"off": "rules", "hybrid": "hybrid", "on": "winner"}
+
+
 def stage_extract(job: dict, d: Path, cfg: dict) -> None:
-    """ขั้น 7–9 จาก ``build_result`` ตัวเดียวกับคำสั่ง extract (rules ล้วน ไม่ใช้ LLM)."""
+    """ขั้น 7–9 จาก ``build_result`` ตัวเดียวกับคำสั่ง extract ``options.llm``: off = rules ล้วน · hybrid · on (winner) เหมือน ``extract --llm``
+    · all = สกัดทั้งสามแบบเทียบกัน แบบที่ใช้กับขั้นตรวจ/JSON เลือกสลับได้ในหน้าเว็บ (``use_result``) ค่าตั้งต้น rules
+    เมื่อใช้ LLM สกัดแบบ rules ล้วนด้วยเสมอ (ไม่ถึงวินาที) ไว้แสดงว่า LLM เปลี่ยนค่าไหน."""
     md = job_stage(job, "text")["data"]["markdown"]
     ocr = job_stage(job, "ocr")["data"]
-    pipe = FinanceOCRPipeline(cfg, engine=job["options"]["engine"], use_llm=False, with_reader=False)
-    lines = pipe.lines_from_raw(md)
+    mode = job["options"].get("llm", "off")
+    engine = job["options"]["engine"]
+    base = FinanceOCRPipeline(cfg, engine=engine)
+    lines = base.lines_from_raw(md)
     confs = [r["confidence"] for r in ocr["sections"] if r.get("confidence") is not None]
-    extra = [pipe._incomplete_check()] if any(r.get("truncated") for r in ocr["sections"]) else []
-    res = pipe.build_result(job["file"], 1, lines, md, sum(confs) / len(confs) if confs else None, extra)
+    extra = [base._incomplete_check()] if any(r.get("truncated") for r in ocr["sections"]) else []
+    args = (job["file"], 1, lines, md, sum(confs) / len(confs) if confs else None, extra)
+    modes = list(LLM_MODES) if mode == "all" else list(dict.fromkeys(["off", mode]))
+    results = {}
+    for m in modes:
+        pipe = base if m == "off" else FinanceOCRPipeline(cfg, engine=engine, use_llm=True, strategy="hybrid" if m == "hybrid" else "winner")
+        collect, logger = _Collect(), logging.getLogger("fin_extractor.pipeline")
+        logger.addHandler(collect)
+        t = time.perf_counter()
+        try:
+            res = pipe.build_result(*args)
+        finally:
+            logger.removeHandler(collect)
+        results[m] = {"res": res, "seconds": round(time.perf_counter() - t, 1), "errors": collect.messages}
+    job["extract_ctx"] = {"lines": lines, "results": results, "dir": str(d), "model": cfg["llm_extractor"]["model"]}
+    use_result(job, "off" if mode == "all" else mode)
+
+
+def _flat_str(res) -> dict[str, str]:
+    return {k: "" if v is None else str(v) for k, v in flatten(res.data).items()}
+
+
+def _not_in_text(res) -> list[str]:
+    return [k for k, rv in res.review.items() if any("ไม่ปรากฏในข้อความ" in x for x in rv.reasons)]
+
+
+def compare_modes(ctx: dict) -> dict | None:
+    """ตารางเทียบผลทุกแบบที่สกัดไว้: สรุปต่อแบบ + ค่ารายฟิลด์ (เฉพาะฟิลด์แกนกลาง/ประจำชนิด ไม่รวม remark)."""
+    results = ctx["results"]
+    if len(results) < 2:
+        return None
+    flats = {m: _flat_str(r["res"]) for m, r in results.items()}
+    keys = [k for k in dict.fromkeys(k for f in flats.values() for k in f) if not k.startswith("remark[")]
+    summary = []
+    for m, r in results.items():
+        res = r["res"]
+        summary.append({"mode": m, "label": MODE_LABEL[m], "status": res.status, "missing": len(res.missing_fields),
+                        "pass": sum(c.passed is True for c in res.checks), "fail": sum(c.passed is False for c in res.checks),
+                        "not_in_text": _not_in_text(res), "from_llm": [k for k, rv in res.review.items() if rv.source == "llm"],
+                        "rejected": [x.model_dump() for x in res.rejected], "seconds": r["seconds"], "errors": r["errors"]})
+    rows = []
+    for k in keys:
+        cells = {m: {"value": flats[m].get(k, ""), "source": (results[m]["res"].review[k].source if k in results[m]["res"].review else None) or "rules",
+                     "level": results[m]["res"].review[k].level if k in results[m]["res"].review else None} for m in results}
+        rows.append({"key": k, "cells": cells, "differs": len({c["value"] for c in cells.values()}) > 1})
+    rows.sort(key=lambda r: not r["differs"])  # ฟิลด์ที่ได้ค่าต่างกันขึ้นก่อน
+    return {"modes": list(results), "summary": summary, "rows": rows}
+
+
+def use_result(job: dict, mode: str) -> None:
+    """ตั้งขั้น 7–9 จากผลของแบบ ``mode`` ที่สกัดไว้แล้ว (ไม่สกัดใหม่ ไม่เรียก LLM) ใช้ทั้งตอนจบขั้นสกัดและตอนผู้ใช้สลับแบบ."""
+    ctx = job["extract_ctx"]
+    cfg = load_config()
+    d, lines = Path(ctx["dir"]), ctx["lines"]
+    pipe = FinanceOCRPipeline(cfg, engine=job["options"]["engine"])
+    entry = ctx["results"][mode]
+    res = entry["res"]
+    llm_info = None
+    if mode != "off":
+        rules = ctx["results"]["off"]["res"]
+        before, after = flatten(rules.data), flatten(res.data)
+        llm_info = {"mode": mode, "model": ctx["model"], "seconds": entry["seconds"],
+                    "errors": entry["errors"], "rules_status": rules.status,
+                    "changes": [{"key": k, "rules": "" if before.get(k) is None else str(before.get(k)),
+                                 "final": "" if after.get(k) is None else str(after.get(k)),
+                                 "source": (res.review[k].source if k in res.review else None) or "rules"}
+                                for k in dict.fromkeys([*before, *after]) if str(before.get(k)) != str(after.get(k))
+                                and not (k.startswith("remark[") and (res.review[k].source if k in res.review else None) != "llm")],  # remark ของ rules แค่เลื่อนลำดับ (dedupe) ไม่ใช่การเปลี่ยนค่า
+                    "rejected": [r.model_dump() for r in res.rejected]}
     data = res.data
     profile = pipe.profile_for(data)
     sq = squash("\n".join(lines))
     kinds = {DOC_PREFIX + f.key: f.type for f in profile.fields}
     labels = {DOC_PREFIX + f.key: f.label for f in profile.fields}
     flat = flatten(data)
-    fields = [{"key": k, "label": labels.get(k), "value": str(v), "found": found_in(k, v, kinds.get(k), lines)} for k, v in flat.items()]
+    fields = [{"key": k, "label": labels.get(k), "value": str(v), "found": found_in(k, v, kinds.get(k), lines),
+               "source": (res.review[k].source if k in res.review else None) or "rules"} for k, v in flat.items()]
     out = json.loads(res.model_dump_json())
     (d / "result.json").write_text(res.model_dump_json(indent=2), encoding="utf-8")
 
@@ -389,7 +474,7 @@ def stage_extract(job: dict, d: Path, cfg: dict) -> None:
                         "not_applicable": sorted(profile.not_applicable), "checks": list(profile.checks) if profile.checks else None,
                         "fields": [{"key": f.key, "label": f.label, "type": f.type} for f in profile.fields]},
             "document_type": data.document_type, "fields": fields, "items": out["data"]["items"], "remark": out["data"]["remark"],
-            "lines": lines,
+            "lines": lines, "llm": llm_info, "used": mode, "compare": compare_modes(ctx),
         })
         checks = res.checks
         primary = profile.primary_amount
@@ -410,9 +495,10 @@ def stage_extract(job: dict, d: Path, cfg: dict) -> None:
         sections = {f["key"]: sorted({text_lines[i]["section"] for i in f["found"] if text_lines[i]["section"]}) for f in fields}
         original = {k: "" if v is None else str(v) for k, v in flat.items()}
         extra_checks = [c for c in res.checks if c.name == "reader_complete"]
+        sources = {k: rv.source for k, rv in res.review.items() if rv.source}  # llm / ตัวอ่านเสริม: คงไว้ตอนตรวจใหม่หลังคนแก้
         job["review_ctx"] = {"engine": job["options"]["engine"], "lines": lines, "extra": [c.model_dump() for c in extra_checks],
-                             "base": out, "sections": sections, "original": original}
-        set_stage(job, "review", "done", R.build(pipe, data, lines, extra_checks, set(), sections, original))
+                             "base": out, "sections": sections, "original": original, "sources": sources}
+        set_stage(job, "review", "done", R.build(pipe, data, lines, extra_checks, set(), sections, original, sources))
 
 
 # ---------------------------------------------------------------- ขั้นที่รันใน worker (โหลดโมเดล)
@@ -539,14 +625,14 @@ def new_job(name: str, body: bytes, options: dict) -> dict:
 
 
 def public(job: dict) -> dict:
-    return {k: v for k, v in job.items() if k not in ("proc", "dir", "review_ctx")}
+    return {k: v for k, v in job.items() if k not in ("proc", "dir", "review_ctx", "extract_ctx")}
 
 
 def review_request(job: dict, edits: dict, save: bool = False) -> dict:
     """ตรวจใหม่จากค่าที่คนแก้ (``edits`` = {คีย์แบบ flatten: ค่า}) ไม่ OCR ไม่สกัดใหม่ ``save`` = เขียน corrected.json + edits.json ในโฟลเดอร์งาน."""
     ctx = job["review_ctx"]
     cfg = load_config()
-    pipe = FinanceOCRPipeline(cfg, engine=ctx["engine"], use_llm=False, with_reader=False)
+    pipe = FinanceOCRPipeline(cfg, engine=ctx["engine"], use_llm=False)
     base_items = [{k: "" if it.get(k) is None else str(it.get(k)) for k in R.ITEM_KEYS} for it in ctx["base"]["data"]["items"]]
     edits = {k: v for k, v in edits.items()  # เก็บเฉพาะที่ต่างจากผลของระบบจริง (แก้แล้วแก้กลับ = ไม่นับ)
              if (v != base_items if k == "items" else str(v if v is not None else "").strip() != ctx["original"].get(k, ""))}
@@ -554,10 +640,10 @@ def review_request(job: dict, edits: dict, save: bool = False) -> dict:
     if data is None:
         return {"errors": errors}
     extra = [ValidationCheck(**c) for c in ctx["extra"]]
-    out = R.build(pipe, data, ctx["lines"], extra, set(edits), ctx["sections"], ctx["original"])
+    out = R.build(pipe, data, ctx["lines"], extra, set(edits), ctx["sections"], ctx["original"], ctx.get("sources"))
     if save:
         d = Path(job["dir"])
-        res = R.corrected_result(ctx["base"], pipe, data, ctx["lines"], extra, set(edits))
+        res = R.corrected_result(ctx["base"], pipe, data, ctx["lines"], extra, set(edits), ctx.get("sources"))
         (d / "corrected.json").write_text(res.model_dump_json(indent=2), encoding="utf-8")
         log = [{"key": k, "before": (base_items if k == "items" else ctx["original"].get(k) or None), "after": v} for k, v in edits.items()]
         (d / "edits.json").write_text(json.dumps({"file": job["file"], "edits": log}, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -587,7 +673,8 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/":
             return self.send(200, PAGE.read_bytes(), "text/html; charset=utf-8")
         if path == "/api/info":
-            return self.json({"engines": ENGINES, "busy": run_lock.locked(), "exts": sorted(SUPPORTED_EXTS)})
+            return self.json({"engines": ENGINES, "llm_modes": LLM_MODES, "llm_model": load_config()["llm_extractor"]["model"],
+                              "busy": run_lock.locked(), "exts": sorted(SUPPORTED_EXTS)})
         if m := re.fullmatch(r"/font/(Sarabun-(?:Regular|Bold)\.ttf)", path):
             return self.send(200, (FONTS / m.group(1)).read_bytes(), "font/ttf")
         if m := re.fullmatch(r"/api/job/([\w-]+)", path):
@@ -617,13 +704,13 @@ class Handler(BaseHTTPRequestHandler):
             if not 0 < size <= MAX_UPLOAD:
                 return self.json({"error": f"ขนาดไฟล์ต้องไม่เกิน {MAX_UPLOAD // 2**20} MB"}, 400)
             body = self.rfile.read(size)
-            engine = q.get("engine", "openthai")
-            if engine not in ENGINES:
+            engine, llm = q.get("engine", "openthai"), q.get("llm", "off")
+            if engine not in ENGINES or llm not in (*LLM_MODES, "all"):
                 return self.json({"error": "ตัวเลือกไม่ถูกต้อง"}, 400)
             if not run_lock.acquire(blocking=False):
                 return self.json({"error": "มีงานกำลังรันอยู่ รอให้เสร็จก่อน (รันทีละงานเพื่อไม่ให้ GPU รับงานซ้อน)"}, 409)
             try:
-                job = new_job(name, body, {"engine": engine, **FLOW_DEFAULTS})
+                job = new_job(name, body, {"engine": engine, "llm": llm, **FLOW_DEFAULTS})
             except Exception:
                 run_lock.release()
                 raise
@@ -634,6 +721,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self.json({"error": "งานนี้ยังไม่มีผลสกัด"}, 404)
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
             return self.json(review_request(job, body.get("edits") or {}, save=bool(m.group(2))))
+        if m := re.fullmatch(r"/api/job/([\w-]+)/use", url.path):  # สลับแบบสกัดที่ใช้กับขั้นตรวจ/JSON (ผลที่สกัดไว้แล้ว)
+            job = JOBS.get(m.group(1))
+            mode = parse_qs(url.query).get("mode", [""])[0]
+            if not job or "extract_ctx" not in job or mode not in job["extract_ctx"]["results"]:
+                return self.json({"error": "ไม่มีผลของแบบนี้"}, 404)
+            use_result(job, mode)
+            return self.json({"ok": True})
         if m := re.fullmatch(r"/api/job/([\w-]+)/cancel", url.path):
             job = JOBS.get(m.group(1))
             if job and (proc := job.get("proc")):

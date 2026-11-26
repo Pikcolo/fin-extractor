@@ -33,7 +33,7 @@
             }
           ],
           "default": null,
-          "description": "รหัส section ที่บรรทัดนี้มาจาก (sNN ใน .md ของขั้น OCR รายส่วน) None = ไม่ทราบ (อ่านทั้งหน้า)",
+          "description": "รหัส section ที่บรรทัดนี้มาจาก (sNN ใน .md ของขั้น OCR รายส่วน) None = ไม่ทราบ (ข้อความไม่มีคอมเมนต์ <!-- sNN -->)",
           "title": "Source Chunk"
         }
       },

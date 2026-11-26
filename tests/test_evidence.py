@@ -135,16 +135,6 @@ def test_review_orders_fields_by_what_to_check_first_and_explains_why():
     assert ValidationCheck  # import ใช้ได้
 
 
-def test_schema_3_results_still_load_and_missing_fields_is_derived():
-    old = {"schema_version": "3.0", "source_file": "x", "engine": "e", "status": "failed", "data": {},
-           "checks": [{"name": "date_range", "passed": None, "detail": "ไม่พบวันที่"}],
-           "field_evidence": {"total_amount": {"level": "missing"}, "vendor.name": {"level": "unverified", "value": "A", "source": "rules"}},
-           "missing_fields": ["total_amount"], "handwritten_fields": [], "ocr_confidence": None, "rejected": []}
-    r = ExtractionResult.model_validate(old)
-    assert r.missing_fields == ["total_amount"] and list(r.review) == ["total_amount", "vendor.name"]
-    assert '"field_evidence"' not in r.model_dump_json() and r.model_dump()["schema_version"] == "3.0"  # คงเลขรุ่นของไฟล์เดิม
-
-
 class _StubLLM:
     def __init__(self, data=None, error=None):
         self.data, self.error = data, error
@@ -161,7 +151,7 @@ def _pipe(llm):
     p = object.__new__(FinanceOCRPipeline)  # ไม่โหลดตัวอ่าน — ทดสอบเฉพาะตรรกะรวมผล
     p.cfg = {"validation": {"amount_tolerance": 0.02, "default_vat_rate": 0.07}}
     p.llm = llm
-    p.profiles, p.doc_table, p.core_labels = [], {}, ()
+    p.profiles, p.core_labels = [], ()
     return p
 
 
@@ -196,8 +186,6 @@ def test_llm_normalize_accepts_list_or_dict_and_drops_empty_values():
     assert normalize_llm_output({})["remark"] == []
     echoed = normalize_llm_output({"remark": [{"label": "ผู้จัดการ", "value": " ผู้จัดการ "}]})
     assert echoed["remark"] == []
-    legacy = normalize_llm_output({"extra_fields": [{"label": "PO", "value": "123"}]})  # ชื่อเดิมของ schema 2.x
-    assert legacy["remark"] == [{"label": "PO", "value": "123"}] and "extra_fields" not in legacy  # ค่าซ้ำกับป้าย = ช่องว่างของแบบฟอร์ม ไม่ใช่ข้อมูล
 
 
 def test_remark_gets_evidence_without_check_and_is_never_verified():
@@ -209,13 +197,9 @@ def test_remark_gets_evidence_without_check_and_is_never_verified():
 
 
 def test_not_applicable_is_distinct_from_missing():
-    from fin_extractor.doctypes import legacy_not_applicable
     from fin_extractor.validation.scoring import decide_status
 
-    table = {"หนังสือรับรอง 50 ทวิ": {"not_applicable": ["invoice_no", "total_amount"]}}
-    na = legacy_not_applicable(table, " หนังสือรับรอง  50 ทวิ ")
-    assert na == {"invoice_no", "total_amount"} and legacy_not_applicable(table, "ใบเสร็จ") == set()
-    assert legacy_not_applicable(table, None) == set() and legacy_not_applicable(None, "x") == set()
+    na = {"invoice_no", "total_amount"}  # โปรไฟล์ชนิดเอกสารที่ไม่มีสองช่องนี้ (Profile.not_applicable)
 
     d = InvoiceData(vendor={"name": "A", "tax_id": "0105559117128"}, date=date(2023, 5, 18))
     ev = evidence(d, not_applicable=na)

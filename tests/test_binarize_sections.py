@@ -1,15 +1,9 @@
-"""ภาพย่อยแบบ bin (labkit.binarize_inverted / drop_empty_rows_by_table): ตัวขาวบนดำ ไม่ขึ้นกับสีพื้น และลบแถวตารางที่ช่องค่าว่าง."""
-
-import sys
-from pathlib import Path
+"""ภาพย่อยแบบ bin (images.binarize_inverted / drop_empty_rows_by_table): ตัวขาวบนดำ ไม่ขึ้นกับสีพื้น และลบแถวตารางที่ช่องค่าว่าง."""
 
 import cv2
 import numpy as np
-import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "notebooks" / "preprocess_lab"))
-labkit = pytest.importorskip("labkit")
+from fin_extractor.sections import images
 
 
 def _text(img: np.ndarray, s: str, org: tuple[int, int], color) -> None:
@@ -22,7 +16,7 @@ def test_binarize_is_white_text_on_black_for_any_fill():
     green = np.full((200, 600, 3), (60, 170, 60), np.uint8)  # แถบเขียว ตัวขาว
     _text(green, "2,000.00", (20, 100), (255, 255, 255))
     for img in (paper, green):
-        b = labkit.binarize_inverted(img)
+        b = images.binarize_inverted(img)
         assert set(np.unique(b)) <= {0, 255}
         assert b[:20].mean() == 0  # พื้นดำ
         assert 0 < (b > 0).mean() < 0.2  # ตัวอักษรเป็นขาว ส่วนน้อย
@@ -47,9 +41,9 @@ def _form(with_value_in_row2: bool) -> np.ndarray:
 
 
 def test_drop_empty_rows_keeps_only_rows_with_values():
-    b = labkit.binarize_inverted(_form(False))
+    b = images.binarize_inverted(_form(False))
     sec = {"id": "s00", "table": 0}
-    (out, info), = labkit.drop_empty_rows_by_table([(sec, b)])
+    (out, info), = images.drop_empty_rows_by_table([(sec, b)])
     assert info["applied"]
     assert out[60:130, 60:500].any()  # ป้ายของแถวที่มีค่า
     assert out[90:130, 820:980].any()  # ตัวเลข
@@ -60,6 +54,6 @@ def test_drop_empty_rows_keeps_only_rows_with_values():
 def test_drop_empty_rows_leaves_tables_without_any_value():
     img = _form(False)
     img[60:130, 800:1000] = 255  # ลบเลขทิ้ง
-    b = labkit.binarize_inverted(img)
-    (out, info), = labkit.drop_empty_rows_by_table([({"id": "s00", "table": 0}, b)])
+    b = images.binarize_inverted(img)
+    (out, info), = images.drop_empty_rows_by_table([({"id": "s00", "table": 0}, b)])
     assert not info["applied"] and (out == b).all()

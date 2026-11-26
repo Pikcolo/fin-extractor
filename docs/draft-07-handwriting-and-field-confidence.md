@@ -11,8 +11,8 @@
 รับภาพหรือ PDF คืน JSON ตาม schema เดียวกันทุกครั้ง โดยตัดสินความน่าเชื่อถือจากการตรวจตัวเลขกันเอง
 (checksum เลขภาษี, ผลรวมรายการ, ก่อน VAT + VAT = รวม) ไม่ได้ตัดสินจาก confidence ของ OCR
 ภาพ flow ของระบบอยู่ใน [README.md](README.md) จุดที่เกี่ยวกับเอกสารนี้คือ
-**ขั้นอ่านข้อความส่งต่อแค่ข้อความให้ขั้นสกัด** (`pipeline.read_prepared` คืน `lines` ที่เป็นสตริงล้วน) confidence ต่อคำและ bbox ของ Paddle จึงหายตรงนั้น
-ส่วน VLM (Typhoon, OpenThai, OXR) ไม่มี confidence ต่อคำตั้งแต่ต้น
+**ขั้นอ่านข้อความส่งต่อแค่ข้อความให้ขั้นสกัด** (ขั้น ocr รายส่วน `sections/read.py` เก็บแค่ข้อความ แล้ว `pipeline.process_raw` สกัดจากข้อความนั้น · `read_prepared` เดิมถูกลบแล้ว) confidence ต่อคำและ bbox ของ Paddle จึงหายตรงนั้น
+ส่วน VLM (Typhoon, OpenThai) ไม่มี confidence ต่อคำตั้งแต่ต้น
 
 ### confidence ตอนนี้ทำงานอย่างไร
 
@@ -38,7 +38,7 @@
 | P7 | ลายเซ็น/ขีดเขียนทับอาจถูกอ่านเป็นข้อความขยะ | ยังไม่มีตัวอย่างยืนยัน | ต่ำ-กลาง |
 | P8 | ไม่มีข้อมูลเฉลย จึงตั้งเกณฑ์หรือเลือก engine ไม่ได้ | ไม่มีตัวอย่าง | บล็อกทุกอย่างที่ต้องมี threshold |
 | P9 | เลขลายมือสับสนกัน (1/7, 0/6, 4/9), เลขไทย, พ.ศ./ค.ศ. | ลักษณะของลายมือ | กลาง |
-| P10 | confidence ต่อคำของ OCR ถูกทิ้งก่อนถึงขั้น extract จึงใส่ `model_conf` ไม่ได้ | `pipeline.read_prepared` ส่งต่อแค่ข้อความ | กลาง |
+| P10 | confidence ต่อคำของ OCR ถูกทิ้งก่อนถึงขั้น extract จึงใส่ `model_conf` ไม่ได้ | ขั้น ocr (`sections/read.py`) เก็บแค่ข้อความ `pipeline.process_raw` รับแค่ข้อความ | กลาง |
 
 ## 3. Flow เป้าหมาย
 
@@ -87,8 +87,8 @@ flowchart TD
 - แก้: P10
 
 ### เฟส 2: Baseline และ error analysis (ต้องมีข้อมูลจากเฟส 0)
-- ขยาย `scripts/eval/benchmark.py` (ตอนนี้เทียบกับเฉลยของชุด benchmark ภาษาอังกฤษที่ดาวน์โหลดมา ไม่ใช่เอกสารไทยหรือลายมือ ยังไม่แยกตัวพิมพ์/ลายมือ) ให้เทียบกับเฉลยแยก field และแยกตัวพิมพ์/ลายมือ
-- รัน Paddle เทียบ Typhoon OCR (และ OpenThai/OXR ที่เพิ่มมา ดู [04-openthai-ocr](04-openthai-ocr.md), [archive/oxr](archive/oxr.md)) บนชุดเดียวกัน
+- ให้ตัววัดเทียบกับเฉลยแยก field และแยกตัวพิมพ์/ลายมือ (`scripts/eval/benchmark.py` เดิมถูกลบ 2026-11-26 ตัววัดกับเฉลยที่มีตอนนี้คือ `scripts/eval/score_groundtruth.py`)
+- รัน Paddle เทียบ Typhoon OCR (และ OpenThai ที่เพิ่มมา ดู [04-openthai-ocr](04-openthai-ocr.md) · OXR ลองแล้วอ่านภาษาไทยไม่ได้ จึงลบออก โค้ดและบันทึกผลอยู่ในประวัติ git ถึง commit f6cc6eb) บนชุดเดียวกัน
 - ผ่านเมื่อ: มีตารางอัตราผิดต่อ field ต่อ engine จากข้อมูลจริง
 - แก้: P1, P8
 
@@ -136,7 +136,7 @@ flowchart TD
 
 ```
 OCRResult (คำ + bbox + conf)
-  └─ read_prepared: [ln.text for ln in res.lines]   ← เหลือแค่ข้อความ
+  └─ ReadResult.text → .md ของขั้น ocr (sections/read.py)   ← เหลือแค่ข้อความ
       └─ extract_traced(lines) → InvoiceData          ← ไม่รู้ว่าค่ามาจากคำไหน
 ```
 
@@ -172,7 +172,7 @@ OCRResult (คำ + bbox + conf)
 | `extraction/llm_extractor.py` | จับคู่ค่ากลับหา OCR |
 | `llm_client.py` | (ถ้าเลือก logprobs) ขอและเก็บ logprobs |
 | `validation/evidence.py` | ใส่ `model_conf` (และ `engines_agree` ถ้าทำ) |
-| `scripts/eval/benchmark.py` | เพิ่มการวัด calibration |
+| `scripts/eval/score_groundtruth.py` (แทน `benchmark.py` ที่ลบแล้ว) | เพิ่มการวัด calibration |
 
 ## 6. จุดตัดสินใจที่ยังเปิดอยู่
 
