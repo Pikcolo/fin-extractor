@@ -22,7 +22,9 @@ def test_amounts_in_passing_formulas_are_verified():
     total = ev["total_amount"]
     assert total.level == "verified"
     assert "before_vat_plus_vat" in total.checks_passed and total.grounded is True
-    assert ev["vendor.tax_id"].level == "verified" and ev["vendor.tax_id"].format_valid is True
+    # checksum ผ่าน = รูปแบบใช้ได้ ไม่บอกว่าเป็นของฝ่ายไหน จึงไม่ verified
+    assert ev["vendor.tax_id"].level == "unverified" and ev["vendor.tax_id"].format_valid is True
+    assert ev["vendor.tax_id"].checks_passed == []
 
 
 def test_fields_without_a_corroborating_check_are_never_verified():

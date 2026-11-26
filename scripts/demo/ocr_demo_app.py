@@ -717,7 +717,14 @@ def review_request(job: dict, edits: dict, save: bool = False) -> dict:
         res = R.corrected_result(ctx["base"], pipe, data, ctx["lines"], extra, set(edits), ctx.get("sources"), ctx.get("codes", []))
         (d / "corrected.json").write_text(res.model_dump_json(indent=2), encoding="utf-8")
         log = [{"key": k, "before": (base_items if k == "items" else ctx["original"].get(k) or None), "after": v} for k, v in edits.items()]
-        (d / "edits.json").write_text(json.dumps({"file": job["file"], "edits": log}, ensure_ascii=False, indent=1), encoding="utf-8")
+        # ระดับ/check ของทุกช่องก่อนแก้ ไว้นับว่าช่องแต่ละระดับถูกแก้บ่อยแค่ไหน (scripts/eval/edit_rates.py) ช่องที่ไม่อยู่ใน edits = คนตรวจแล้วไม่แก้
+        base = ctx["base"]
+        (d / "edits.json").write_text(json.dumps({
+            "file": job["file"], "mode": (job_stage(job, "extract").get("data") or {}).get("used"),
+            "profile": base["data"].get("document_profile"), "edits": log,
+            "review": {k: {"level": v["level"], "source": v.get("source")} for k, v in base["review"].items()},
+            "checks": [{"name": c["name"], "passed": c["passed"], "fields": c.get("fields", [])} for c in base["checks"]],
+        }, ensure_ascii=False, indent=1), encoding="utf-8")
         out["saved"] = {"corrected": "corrected.json", "edits": "edits.json", "count": len(log)}
     return out
 
