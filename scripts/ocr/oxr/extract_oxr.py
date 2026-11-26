@@ -33,6 +33,7 @@ from fin_extractor.io import iter_input_files  # noqa: E402
 from fin_extractor.paths import DEFAULT_PROFILE, DataPaths, dataset_of, doc_dir, find_dir, nest_per_file  # noqa: E402
 from fin_extractor.pipeline import FinanceOCRPipeline  # noqa: E402
 from fin_extractor.runs import Run  # noqa: E402
+from fin_extractor.schema import ExtractionResult  # noqa: E402
 from fin_extractor.stages import prepared_pages, save_raw  # noqa: E402
 
 
@@ -92,7 +93,7 @@ def main() -> None:
                 out = find_dir(final_dir, f.stem) / f"{stem}.json"  # ที่ที่ผลเก่า (ถ้ามี) อยู่ ใช้ตรวจว่าข้ามได้ไหม
                 if out.exists() and not args.redo:
                     old = json.loads(out.read_text(encoding="utf-8"))  # manifest ของรอบต่อยังนับหน้าที่ทำไว้แล้วด้วย
-                    run.add(file=f.name, page=page_no, status=old["status"], missing_fields=old["missing_fields"],
+                    run.add(file=f.name, page=page_no, status=old["status"], missing_fields=ExtractionResult.model_validate(old).missing_fields,
                             output=out.relative_to(run.dir).as_posix(), skipped=True)
                     print(f"ข้าม {stem} (มีผลแล้ว)", flush=True)
                     continue

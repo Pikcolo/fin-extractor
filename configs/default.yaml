@@ -79,6 +79,15 @@ openthai-text:
   model_dir: models/OpenThai2.1-OCR-Text-20261118
   threads: 1                     # ตาม model card (หนึ่ง worker ต่อ core)
 
+# ชั้นตรวจความครบของ OCR รายส่วน (sections/coverage.py) รันในขั้น ocr ของคำสั่ง sections หลังตัวอ่านหลัก (ปิด: --no-coverage-check)
+# 1) ตัวอ่านเสริมอ่านภาพย่อยชุดเดียวกันบน CPU ชี้ภาพที่มียอดเงิน/วันที่/รหัสยาวที่ตัวอ่านหลักไม่เห็น
+# 2) ภาพที่ถูกชี้และหาจุดแยกได้: ตัวอ่านหลัก (GPU) อ่านครึ่งซ้าย/ขวาใหม่ ใช้ผลเมื่อค่าที่ขาดลดลงเท่านั้น
+# 3) ภาพที่ยังขาดยอดเงิน/วันที่: แนบข้อความของตัวอ่านเสริมต่อท้าย .md
+# วัด 2026-11-25 (OpenThai regions 18 ใบ): ยอดเงินถูก 27 → 34 เลขที่ 5 → 10 วันที่ 10 → 13 ไม่มีค่าผิดเพิ่ม (docs/04-openthai-ocr.md §7)
+coverage_check:
+  enabled: true
+  engine: openthai-text
+
 # OXR-1.0 (SoMarkAI) ใช้ด้วย --engine oxr โหลดตรงด้วย Transformers ไม่ใช้ Docker — อ่านภาพย่อย (section) เฉพาะส่วนที่เป็นตัวเลข/อังกฤษ (ไม่รู้ภาษาไทย ดู docs/archive/oxr.md)
 # ดาวน์โหลด weights ~3GB เก็บนอก repo ได้: hf download SoMarkAI/OXR-1.0 --local-dir <model_dir>
 oxr:
@@ -169,6 +178,8 @@ document_types:
     aliases: ["ใบสำคัญรับเงิน"]
     core_labels:
       - {key: buyer.name, aliases: ["ได้รับเงินจาก"], source: "001322 (001320 ลายมือ ค่าว่าง)"}
+      # ผู้ขาย = ผู้รับเงินที่เขียนชื่อหลัง "ข้าพเจ้า" ตามด้วยคำกำกับ (ผู้ขายสินค้า/ให้บริการ) ซึ่งตัดทิ้งด้วยกฎคำกำกับในวงเล็บ
+      - {key: vendor.name, aliases: ["ข้าพเจ้า"], source: "001320, 001322 (ลายมือ OCR สะกดเพี้ยนบางตัว)"}
     # ใบสำคัญรับเงินไม่มี VAT/ส่วนลด: ใช้เลขภาษี วันที่ และผลรวมรายการ
     checks: [vendor_tax_id_checksum, buyer_tax_id_checksum, items_sum, date_range]
     fields:

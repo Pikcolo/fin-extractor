@@ -1,4 +1,4 @@
-"""อ่านฟิลด์แกนกลางจากคู่ ป้าย→ค่า ที่พิมพ์บนเอกสาร (ตอนนี้: ``buyer.name`` ชื่อลูกค้า).
+"""อ่านฟิลด์แกนกลางจากคู่ ป้าย→ค่า ที่พิมพ์บนเอกสาร (ตอนนี้: ``buyer.name`` ชื่อลูกค้า, ``vendor.name`` ชื่อผู้ขายในใบสำคัญรับเงิน).
 
 ป้ายมาจาก config (``core_labels`` ค่าตั้งต้น และ ``document_types.<ชนิด>.core_labels`` ทับต่อชนิด) ไม่ฝังในโค้ด
 ใช้เฉพาะป้ายที่เห็นจริงบนสแกน (ระบุ ``source``) ป้ายกว้าง ๆ อย่าง "ลูกค้า" เปล่า ๆ ไม่ใช้ เพราะเจอเป็นป้ายหลอกหลายแบบ:
@@ -87,10 +87,14 @@ def _read(spec: FieldSpec, lines: list[str]) -> str | None:
     return None
 
 
-def extract_buyer_name(lines: list[str], specs: tuple[FieldSpec, ...]) -> tuple[str | None, str | None]:
-    """(ชื่อลูกค้า, สาขา) จากป้ายใน ``specs`` (key ``buyer.name``) สาขา = ``(สำนักงานใหญ่)`` ที่ติดท้ายชื่อถ้ามี."""
+def extract_party_name(lines: list[str], specs: tuple[FieldSpec, ...], key: str) -> tuple[str | None, str | None]:
+    """(ชื่อ, สาขา) จากป้ายใน ``specs`` ที่ key ตรง (``buyer.name`` / ``vendor.name``) สาขา = ``(สำนักงานใหญ่)`` ที่ติดท้ายชื่อถ้ามี."""
     for spec in specs:
-        if spec.key == "buyer.name" and (value := _read(spec, lines)):
+        if spec.key == key and (value := _read(spec, lines)):
             name, branch = split_branch(value)
             return (name or None), branch
     return None, None
+
+
+def extract_buyer_name(lines: list[str], specs: tuple[FieldSpec, ...]) -> tuple[str | None, str | None]:
+    return extract_party_name(lines, specs, "buyer.name")

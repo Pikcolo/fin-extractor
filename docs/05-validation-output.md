@@ -25,9 +25,9 @@ check ใช้ทำสามอย่าง
 |---|---|---|
 | `vendor_tax_id_checksum` | หลักที่ 13 = (11 − (Σ d[i] × (13 − i), i = 0..11) mod 11) mod 10 | ✓ 0105559117128 |
 | `buyer_tax_id_checksum` | สูตรเดียวกัน (ตรวจเมื่อมีเลขผู้ซื้อ) | — |
-| `items_sum` | ผลรวมรายการ = subtotal (ถ้าไม่มีใช้ยอดก่อน VAT หรือยอดรวม) | ✓ 47.98 |
+| `items_sum` | ผลรวมรายการ = ยอดใดยอดหนึ่ง: subtotal / ยอดก่อน VAT / ยอดรวม (ราคารายการรวม VAT) / ยอดรวม − VAT (เมื่อไม่มียอดก่อน VAT) · ไม่ผ่าน: ชี้รายการ + ยอดที่ check อื่นยังไม่ยืนยัน | ✓ 47.98 |
 | `discount` | subtotal − discount = ยอดก่อน VAT **หรือ** = ยอดรวม | ✓ 47.98 − 0.42 = 47.56 |
-| `before_vat_plus_vat` | ยอดก่อน VAT + VAT = ยอดรวม | ✓ 44.45 + 3.11 = 47.56 |
+| `before_vat_plus_vat` | ยอดก่อน VAT + VAT = ยอดรวม (ไม่มียอดก่อน VAT ใช้ subtotal − ส่วนลด ยกเว้นเท่ากับยอดรวม = ราคารวม VAT แล้ว ไม่ตรวจ) | ✓ 44.45 + 3.11 = 47.56 |
 | `vat_rate` | VAT = ยอดก่อน VAT × อัตรา (ถ้าไม่มี ใช้ ยอดรวม × r / (1 + r)) | ✓ 3.11 |
 | `date_range` | 2000-01-01 ≤ วันที่ ≤ วันนี้ (ตรวจแค่ความสมเหตุสมผล ไม่นับเป็นตัวยืนยันว่าอ่านถูกวัน) | ✓ 2023-05-18 |
 | `reader_complete` | ตัวอ่านตอบจบ ไม่ถูกตัดเพราะชนเพดาน token (pipeline เพิ่มให้เมื่อตอบไม่จบเท่านั้น จึงมีแต่ `passed=false` ผลก่อน 2026-11-20 ชื่อ `vlm_complete`) | — |
@@ -59,7 +59,7 @@ check ใช้ทำสามอย่าง
 
 | ค่า | ที่มา |
 |---|---|
-| `missing_fields` | field ที่ชนิดเอกสารต้องมีแต่หาไม่เจอ ค่าตั้งต้น (generic) คือ `vendor.name`, `vendor.tax_id`, `invoice_no`, `date`, `total_amount` โปรไฟล์ชนิดเอกสารกำหนด `required` เองได้ และตัดช่องที่ชนิดนั้นไม่มี (`not_applicable`) ออก |
+| ฟิลด์ที่ขาด (`review` ระดับ `missing`) | field ที่ชนิดเอกสารต้องมีแต่หาไม่เจอ ค่าตั้งต้น (generic) คือ `vendor.name`, `vendor.tax_id`, `invoice_no`, `date`, `total_amount` โปรไฟล์ชนิดเอกสารกำหนด `required` เองได้ และตัดช่องที่ชนิดนั้นไม่มี (`not_applicable`) ออก |
 | `checks` | ผล check แต่ละข้อจาก 5E |
 | `ocr_confidence` | ค่าเฉลี่ยที่ OCR engine รายงานเอง (โหมด vlm เป็น `null`) — รายงานไว้ดู ไม่ได้ใช้ตัดสินสถานะ เพราะยังไม่มีข้อมูลบอกว่าค่าเท่าไรถึงเชื่อได้ |
 
@@ -68,22 +68,22 @@ check ใช้ทำสามอย่าง
 | สถานะ | เงื่อนไข | ความหมาย |
 |---|---|---|
 | `failed` | หายอดหลัก (`primary_amount` ของโปรไฟล์ ค่าตั้งต้น `total_amount`) ไม่เจอ | สกัดไม่สำเร็จ |
-| `auto_approved` | `missing_fields` ว่าง **และ** ไม่มี check ไหนไม่ผ่าน **และ** มี check ผ่านอย่างน้อยหนึ่งข้อ | ใช้ต่อได้เลย |
+| `auto_approved` | ไม่มีฟิลด์ที่ขาด **และ** ไม่มี check ไหนไม่ผ่าน **และ** มี check ผ่านอย่างน้อยหนึ่งข้อ | ใช้ต่อได้เลย |
 | `needs_review` | กรณีอื่น รวมถึงโปรไฟล์ที่ยังเป็นฉบับร่าง (`status: draft…` ใน config ตอนนี้ทั้ง 3 ชนิดเป็นร่าง จึงไม่มีทางได้ `auto_approved`) | ควรให้คนตรวจ |
 
-**ตัวอย่าง:** `BITKUB-001.jpg` ผ่าน check 6/6 แต่ช่องเลขที่เอกสารในใบว่าง → `missing_fields: ["invoice_no"]` → `needs_review`
+**ตัวอย่าง:** `BITKUB-001.jpg` ผ่าน check 6/6 แต่ช่องเลขที่เอกสารในใบว่าง → `review.invoice_no.level = "missing"` → `needs_review`
 
 **ข้อควรระวัง: `auto_approved` ไม่ได้แปลว่าค่าถูก แปลว่าตัวเลข "สอดคล้องกันเอง"** (พบจากการรัน `--mode vlm` กับสแกนจริง 18 ใบ)
 ใบ 001307 (หนังสือรับรองหัก ณ ที่จ่าย) ได้ `auto_approved` ทั้งที่ข้อความดิบมีตัวเลขเงิน (ทศนิยม 2 ตำแหน่ง) แค่ `2,000.00` และ `60.00` (ภาษีที่หัก)
 LLM สกัดเป็น VAT `120.0` อัตรา 6% และยอดรวม `2120.0` ซึ่ง **ไม่พบในข้อความดิบ** (ตรวจเฉพาะรูปแบบทศนิยม 2 ตำแหน่ง) แต่ผ่าน check "ก่อน VAT + VAT = รวม" ทุกข้อเพราะตัวเลขที่แต่งขึ้นสอดคล้องกันเอง
 check จับได้เฉพาะค่าที่ไม่สอดคล้อง (เช่น เลขภาษีที่ checksum ไม่ผ่าน) จับค่าที่ถูกแต่งให้สอดคล้องไม่ได้
-ผู้ใช้ผลจากโหมดที่ใช้ LLM จึงไม่ควรอนุมัติอัตโนมัติโดยไม่ตรวจว่าค่าอยู่ในข้อความดิบจริง ปัจจุบัน `field_evidence[].grounded` ตรวจว่าค่าอยู่ในข้อความหรือไม่ และ `--llm hybrid` ปัดค่าที่ไม่อยู่ในข้อความ แต่ `decide_status` ยังไม่ใช้ `grounded`
+ผู้ใช้ผลจากโหมดที่ใช้ LLM จึงไม่ควรอนุมัติอัตโนมัติโดยไม่ตรวจว่าค่าอยู่ในข้อความดิบจริง ปัจจุบันหลักฐานรายฟิลด์ตรวจว่าค่าอยู่ในข้อความหรือไม่ (ไม่อยู่ = `review` ระดับ `conflict` เหตุผล "ค่านี้ไม่ปรากฏในข้อความที่ OCR อ่านได้") และ `--llm hybrid` ปัดค่าที่ไม่อยู่ในข้อความ แต่ `decide_status` ยังไม่ใช้ `grounded`
 
 **ถ้าอยากได้คะแนนเป็นตัวเลขในอนาคต** ต้องหาน้ำหนักและเกณฑ์จากข้อมูล ไม่ใช่ตั้งเอง: เก็บเอกสารที่มีเฉลย
 แล้วดูว่าสัญญาณแต่ละตัว (check, field ที่ขาด, ocr_confidence) ทำนายว่าผลถูกหรือผิดได้ดีแค่ไหน
 
-**ข้อควรรู้:** สถานะนี้เป็นของ **ทั้งเอกสาร** คนตรวจจึงรู้ว่าเอกสารน่าสงสัย แต่ไม่รู้ว่า **ช่องไหน**
-ถ้าหน้าตรวจทานต้องไฮไลต์เฉพาะช่องที่ไม่แน่ใจ ต้องมีคะแนนรายฟิลด์ (โปรเจกต์รุ่นก่อนใช้ 6 สัญญาณต่อฟิลด์:
+**ข้อควรรู้:** สถานะเป็นของ **ทั้งเอกสาร** ส่วนว่า **ช่องไหน** ต้องดูอยู่ใน `review` (ระดับ + เหตุผลรายฟิลด์ เรียงตามที่ควรตรวจก่อน)
+ถ้าต้องการคะแนนรายฟิลด์เป็นตัวเลข ต้องมีสัญญาณมากกว่านี้ (โปรเจกต์รุ่นก่อนใช้ 6 สัญญาณต่อฟิลด์:
 ความมั่นใจของโมเดล, หาค่าเจอในข้อความจริงไหม, รูปแบบถูกไหม, ยอดเงินลงตัวไหม, ผู้ขายอยู่ในทะเบียนไหม,
 ถามซ้ำได้คำตอบเดิมไหม)
 
@@ -91,7 +91,7 @@ check จับได้เฉพาะค่าที่ไม่สอดค�
 
 โค้ด: `src/fin_extractor/cli.py → cmd_extract`
 
-บันทึกเป็น `data/05_extract/<dataset>/<engine>/<วิธี>/<rules|llm|hybrid>/<ชื่อไฟล์>_p<หน้า>.json` (วิธี = `page` อ่านทั้งหน้า หรือ `luma|flat|bin|color` อ่านทีละ section ข้อความดิบแยกไว้ที่ `data/04_ocr/<dataset>/<engine>/<วิธี>/` พร้อม `manifest.json` ของรัน) ตามโครง `ExtractionResult` (JSON Schema เต็มอยู่ที่ `schemas/invoice.schema.json`)
+บันทึกเป็น `data/05_extract/<dataset>/<engine>/<วิธี>/<rules|llm|hybrid>/<ชื่อไฟล์>_p<หน้า>.json` (วิธี = `regions-luma` ค่าตั้งต้น หรือ `luma|flat|bin|color` ของผัง section แบบเดิม ข้อความดิบแยกไว้ที่ `data/04_ocr/<dataset>/<engine>/<วิธี>/` พร้อม `manifest.json` ของรัน) ตามโครง `ExtractionResult` (JSON Schema เต็มอยู่ที่ `schemas/invoice.schema.json`)
 
 ### หลักการของ schema (Data Contract)
 
@@ -106,19 +106,18 @@ engine ได้โดยไม่ทำให้ฝั่งนั้นพั�
 
 ```
 ExtractionResult                     ผลของ 1 หน้า
-├── schema_version                   "3.0"
+├── schema_version                   "4.0"
 ├── source_file, page, engine
-├── data: InvoiceData                ข้อมูลที่ระบบบัญชีใช้
+├── data: InvoiceData                ข้อมูลที่ระบบบัญชีใช้ (ค่าอยู่ที่นี่ที่เดียว)
 │   ├── vendor / buyer: Party
 │   ├── items: [LineItem]
 │   └── ยอดเงิน, วันที่, เลขที่เอกสาร, เล่มที่
 ├── checks: [ValidationCheck]        ผลการตรวจแต่ละข้อ + ฟิลด์ที่ใช้ตรวจ (fields)
-├── field_evidence                   ระดับหลักฐานรายฟิลด์ (missing/not_applicable/conflict/verified/unverified)
-├── ocr_confidence, missing_fields
-├── handwritten_fields               ตอนนี้ pipeline ไม่ได้เติม (ว่างเสมอ)
+├── review: {คีย์: FieldReview}      ต่อฟิลด์: level + reasons (+ source ถ้าไม่ใช่ rules) เรียงตามที่ควรตรวจก่อน
 ├── status
-├── raw_text                         ข้อความดิบไว้ debug (เฉพาะเมื่อใส่ --keep-raw)
-└── rejected: [RejectedValue]        ค่าที่ LLM เสนอแต่ไม่ถูกรับ (--llm hybrid): key, reason
+├── ocr_confidence                   (มีเฉพาะเมื่อตัวอ่านรายงาน: Paddle / OpenThai Text)
+├── raw_text                         (เฉพาะเมื่อใส่ --keep-raw) ข้อความดิบไว้ debug
+└── rejected: [RejectedValue]        (เฉพาะเมื่อมี: --llm hybrid) ค่าที่ LLM เสนอแต่ไม่ถูกรับ: key, reason
 ```
 
 หลักที่ใช้ออกแบบ
@@ -131,8 +130,21 @@ ExtractionResult                     ผลของ 1 หน้า
 ยอดเงิน 5 ช่องของ `data` และ `items[].amount` ถูกปัดเป็น 2 ตำแหน่ง (ROUND_HALF_UP) ส่วน `vat_rate`, `quantity`, `unit_price`
 เป็น Decimal ที่ไม่ปัด ระบบปลายทางที่เคยอ่านเป็นตัวเลข (schema 1.x) ต้องแปลงสตริงเอง ค่าคลาดของ check ยังเป็น ±0.02 บาทตาม config
 
-**`field_evidence`** คีย์เป็นชื่อฟิลด์แบบ `vendor.tax_id`, `total_amount`, `items[0].amount` ค่าเป็น `level` กับสัญญาณที่ใช้ตัดสิน
-(`checks_passed`, `checks_failed`, `grounded`, `sources_agree`, `source` ฯลฯ) กฎและข้อจำกัดอยู่ใน [06 หัวข้อ 4.3](06-design-and-roadmap.md)
+**`review`** คีย์เป็นชื่อฟิลด์แบบ `vendor.tax_id`, `total_amount`, `items[0].amount`, `document_fields.<key>` เรียง conflict → missing → unverified → verified → not_applicable
+ค่าเป็น `level` + `reasons` (คำพูด เช่น "check items_sum ไม่ผ่าน (…)", "ค่านี้ไม่ปรากฏในข้อความที่ OCR อ่านได้", "ยืนยันแล้วด้วย before_vat_plus_vat") และ `source` เมื่อค่ามาจาก `llm` หรือ `human`
+ฟิลด์ที่ไม่มีค่าและไม่บังคับไม่อยู่ใน `review` สร้างจากหลักฐานละเอียด (`FieldEvidence`: checksum, check ที่ผ่าน/ไม่ผ่าน, อยู่ในข้อความไหม, สองแหล่งตรงกันไหม) ซึ่งใช้ภายใน (`validation/evidence.py → review_from_evidence`) กฎอยู่ใน [06 หัวข้อ 4.3](06-design-and-roadmap.md)
+
+```json
+"review": {
+  "invoice_no":    {"level": "missing", "reasons": ["เอกสารชนิดนี้ต้องมี แต่ระบบหาไม่เจอ ให้กรอกจากภาพ"]},
+  "vendor.name":   {"level": "unverified", "reasons": ["ไม่มี check ที่ยืนยันค่านี้ได้ ให้ดูเทียบกับภาพ"]},
+  "vendor.tax_id": {"level": "verified", "reasons": ["ยืนยันแล้วด้วย vendor_tax_id_checksum"]}
+}
+```
+
+**schema 4.0 (2026-11-24)** เทียบ 3.0: `field_evidence` (10 ช่องต่อฟิลด์ ส่วนใหญ่ว่างเสมอ และเก็บค่าซ้ำกับ `data`) → `review` · ตัด `missing_fields` (= `review` ระดับ `missing` ใน Python ยังเรียก `result.missing_fields` ได้) และ `handwritten_fields` (ว่างเสมอ) · `ocr_confidence` `raw_text` `rejected` ไม่ถูกเขียนเมื่อว่าง
+บน 18 ใบ (OpenThai luma rules): ค่า สถานะ check และฟิลด์ที่ขาดเหมือน 3.0 ทุกใบ ระดับรายฟิลด์เหมือนทุกใบ JSON รวมเล็กลง 35% (6,010 → 3,879 บรรทัด)
+**อ่านไฟล์ 3.x ได้:** `ExtractionResult.model_validate` แปลง `field_evidence` เป็น `review` ให้เอง (คง `schema_version` เดิมของไฟล์) สคริปต์ที่อ่าน JSON ตรง (`scripts/eval/compare_file.py`) รับได้ทั้งสองรุ่น
 
 | Field | ความหมาย |
 |---|---|
@@ -140,13 +152,12 @@ ExtractionResult                     ผลของ 1 หน้า
 | `engine` | `<engine>[:<โมเดล>]+<ผู้สกัด>` เช่น `paddle+rules`, `openthai:OpenThai2.0-OCR-Markdown+rules`, `typhoon:scb10x/typhoon-ocr1.5-3b+llm:qwen2.5:3b` (ผลก่อน 2026-11-20 ใช้ `vlm:<โมเดล>`) |
 | `data` | field ที่สกัดได้ (`InvoiceData`) |
 | `checks` | ผลการตรวจทุกข้อพร้อมรายละเอียด |
-| `schema_version` | เวอร์ชันของ schema (ตอนนี้ `"3.0"`) |
-| `field_evidence` | ระดับหลักฐานรายฟิลด์ ไว้ไฮไลต์ใน Review UI |
-| `ocr_confidence` | ความมั่นใจเฉลี่ยของ OCR (โหมด vlm เป็น `null`) |
-| `missing_fields`, `status` | field สำคัญที่หาไม่เจอ และสถานะจาก 5F |
+| `schema_version` | เวอร์ชันของ schema (ตอนนี้ `"4.0"`) |
+| `review` | ระดับ + เหตุผลรายฟิลด์ ไว้ไฮไลต์ในหน้าตรวจ (ฟิลด์ที่ขาด = ระดับ `missing`) |
+| `ocr_confidence` | ความมั่นใจเฉลี่ยที่ตัวอ่านรายงาน (มีเฉพาะ Paddle / OpenThai Text ไม่มี = ไม่มีคีย์) |
+| `status` | สถานะจาก 5F |
 | `raw_text` | ข้อความดิบจาก OCR/VLM (เฉพาะเมื่อใส่ `--keep-raw`) |
-| `rejected` | ค่าที่ LLM เสนอแต่ด่านของ `--llm hybrid` ปัดตก (`key`, `reason`) |
-| `handwritten_fields` | field ที่อ่านจากลายมือ ตอนนี้ไม่มีตัวตรวจลายมือใน pipeline จึงว่าง |
+| `rejected` | ค่าที่ LLM เสนอแต่ด่านของ `--llm hybrid` ปัดตก (`key`, `reason`) ไม่มีคีย์เมื่อว่าง |
 
 ### โครง `data`
 
@@ -170,6 +181,13 @@ ExtractionResult                     ผลของ 1 หน้า
 | `total_amount` | decimal (สตริง) | ยอดสุทธิรวม VAT |
 
 ภาพทุกขั้นของ preprocess ดูได้ด้วย `python -m fin_extractor preprocess <input> --steps` (เก็บที่ `data/02_preprocess/<dataset>/<profile>/steps/`)
+
+### ข้อจำกัดของ check ที่เจอระหว่างทำหน้าตรวจ
+
+แก้แล้ว (2026-11-24): เดิม `items_sum` เทียบกับยอดตัวแรกที่มีเท่านั้น (subtotal → ก่อน VAT → ยอดสุทธิ) ร้านที่พิมพ์ราคารายการรวม VAT แล้วจึงไม่ผ่านแม้รายการถูก และ `before_vat_plus_vat` ไม่ตรวจเมื่อมีแค่ subtotal
+ตอนนี้ผ่านถ้าตรงยอดใดยอดหนึ่ง (รวม ยอดรวม − VAT) · subtotal แทนยอดก่อน VAT ได้ · ถ้าไม่ผ่าน ยอดที่ check อื่นยืนยันแล้วไม่ถูกชี้ว่าขัดแย้ง
+ผลบน 18 ใบ (OpenThai regions ไม่ OCR ใหม่): 1308 ผ่านทั้งสอง check (subtotal 23,140.19 + VAT 1,619.81 = 24,760.00 = รายการ) สถานะเป็น auto_approved ·
+1309 `before_vat_plus_vat` ผ่าน รายการรวม 3,860 ไม่ตรงยอดใด ชี้เฉพาะรายการ · 1318 รายการ 7,500 = 8,025 − 525 ผ่าน
 
 ## Ground truth ที่คนกรอก (วัดความถูก ไม่ใช่แค่ความครบ)
 

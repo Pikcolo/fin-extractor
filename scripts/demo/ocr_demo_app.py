@@ -4,7 +4,7 @@
     .venv/Scripts/python -X utf8 scripts/demo/ocr_demo_app.py --port 8766
 
 เปิด http://127.0.0.1:8766 (ผูกกับ 127.0.0.1 เท่านั้น ไม่มีอะไรส่งออกนอกเครื่อง ยกเว้นเลือก engine typhoon ที่ตั้ง provider เป็น API)
-ขั้นที่แสดง = flow ของคำสั่ง ``sections`` ด้วยค่าตั้งต้นเสมอ (``FLOW_DEFAULTS``: luma, table_mode rows, ระบาย QR) เลือกได้แค่ตัวอ่าน ใช้ฟังก์ชันเดียวกับ pipeline จริง ไม่ได้เขียนตรรกะใหม่
+ขั้นที่แสดง = flow ของคำสั่ง ``sections`` ด้วยค่าตั้งต้นเสมอ (``FLOW_DEFAULTS``: ผัง regions) เลือกได้แค่ตัวอ่าน ใช้ฟังก์ชันเดียวกับ pipeline จริง ไม่ได้เขียนตรรกะใหม่
     1 อินพุต → 2 preprocess* → 3 ผังแบ่งส่วน → 4 ภาพรายส่วน → 5 OCR ทีละส่วน* → 6 รวมข้อความ → 7 สกัดฟิลด์ → 8 ตรวจ/สถานะ → 9 JSON
     (* รันใน ``ocr_demo_worker.py`` แยก process: Paddle กับ torch อยู่ process เดียวกันไม่ได้ และโมเดลล้มแล้วเซิร์ฟเวอร์ไม่ล้มตาม)
 ขั้น 3 วาดภาพกลางทาง (เส้นตาราง หมึก จุดตัด) จากฟังก์ชันใน ``sections/layout.py`` ส่วนผังจริงมาจาก ``layout_sections`` ตัวเดียวกับ flow หลัก
@@ -38,6 +38,7 @@ import numpy as np  # noqa: E402
 from fin_extractor.config import load_config  # noqa: E402
 from fin_extractor.doctypes import DOC_PREFIX, squash  # noqa: E402
 from fin_extractor.extraction import lines_with_chunks  # noqa: E402
+from fin_extractor.extraction.rule_extractor import supplement_of  # noqa: E402
 from fin_extractor.extraction.patterns import find_dates, find_numbers, find_percents  # noqa: E402
 from fin_extractor.io import load_pages, read_image, save_image  # noqa: E402
 from fin_extractor.io.loader import SUPPORTED_EXTS  # noqa: E402
@@ -45,24 +46,31 @@ from fin_extractor.paths import DataPaths  # noqa: E402
 from fin_extractor.pipeline import FinanceOCRPipeline  # noqa: E402
 from fin_extractor.preprocessing import binarize as bin_ops  # noqa: E402
 from fin_extractor.preprocessing import enhance  # noqa: E402
-from fin_extractor.readers import ENGINES  # noqa: E402
+from fin_extractor.readers import ENGINES, make_reader  # noqa: E402
 from fin_extractor.sections import graphics as G  # noqa: E402
 from fin_extractor.sections import images as I  # noqa: E402,E741
 from fin_extractor.sections import layout as L  # noqa: E402
 from fin_extractor.sections.build import write_png  # noqa: E402
+from fin_extractor.sections.coverage import missing_values, n_missing, normalize_digits, split_column, word_coverage  # noqa: E402
+from fin_extractor.sections.regions.run import RegionConfig  # noqa: E402
 from fin_extractor.sections.read import markdown_of  # noqa: E402
+from fin_extractor.schema import ValidationCheck  # noqa: E402
 from fin_extractor.validation.evidence import flatten  # noqa: E402
+
+import review as R  # noqa: E402  (scripts/demo/review.py)
 
 WORKER = Path(__file__).with_name("ocr_demo_worker.py")
 PAGE = Path(__file__).with_name("ocr_demo.html")
 FONTS = ROOT / "assets" / "fonts"
 MAX_UPLOAD = 50 * 2**20
 # ตั้งค่าของขั้น preprocess/แบ่งส่วน = ค่าตั้งต้นของคำสั่ง sections (ไม่ให้เลือกบนหน้าเว็บ): ตรวจทิศอัตโนมัติ · ไม่ใช้ --fill-aware / --dotted-rules · ระบาย QR/บาร์โค้ด
-FLOW_DEFAULTS = {"orientation": "auto", "fill": False, "dotted": False, "codes": True, "trim": None}  # trim = --trim-sections (ไม่หดเป็นค่าตั้งต้น)
+# layout = ผังที่ใช้ (ค่าตั้งต้นของ flow = regions) · ตัวเลือกที่เหลือใช้กับผัง sections แบบเดิมเท่านั้น (เปลี่ยน layout เป็น "sections" เพื่อดูแบบเดิม)
+FLOW_DEFAULTS = {"layout": "regions", "orientation": "auto", "fill": False, "dotted": False, "codes": True, "trim": None}
 
 STAGES = [("input", "อินพุต"), ("preprocess", "ปรับภาพ (preprocess)"), ("layout", "แบ่งเป็นส่วน (layout)"),
           ("crops", "ภาพรายส่วนก่อน OCR"), ("ocr", "OCR ทีละส่วน"), ("text", "รวมข้อความ → บรรทัด"),
-          ("extract", "สกัดฟิลด์ (rules)"), ("validate", "ตรวจความสอดคล้อง + สถานะ"), ("result", "JSON สุดท้าย")]
+          ("extract", "สกัดฟิลด์ (rules)"), ("validate", "ตรวจความสอดคล้อง + สถานะ"), ("review", "ตรวจ/แก้รายฟิลด์"),
+          ("result", "JSON สุดท้าย")]
 
 state_lock = threading.RLock()  # กันอ่านสถานะงาน (หน้าเว็บ poll) ระหว่างที่เธรดงานกำลังแก้ (RLock: ขั้น 7–9 ประกาศพร้อมกันในล็อกเดียว)
 run_lock = threading.Lock()  # ทีละงาน: OCR สองงานพร้อมกันบน GPU 6 GB ไม่ไหว
@@ -104,9 +112,34 @@ def stage_input(job: dict, d: Path, cfg: dict) -> dict:
             "size": [w, h], "dpi": cfg["loader"]["pdf_dpi"] if src.suffix.lower() == ".pdf" else None, "image": "input.jpg"}
 
 
+def stage_layout_regions(job: dict, d: Path, cfg: dict, src_dpi: float) -> dict:
+    """ผังแบบ regions (คำสั่ง ``regions`` / ``sections --layout regions``): ``regions/run.run_page`` ตัวเดียวกัน ภาพกลางทางของมันเอง
+    region = กรอบชิดข้อความ (หดขอบแล้ว) ตาราง = แบ่งตามเส้น · ชนิดเอกสาร (template 50 ทวิ ฯลฯ) จำแนกจากชื่อไฟล์ตาม configs/regions/doc_types.yaml."""
+    from fin_extractor.sections.regions.run import RegionConfig, run_page
+
+    full = read_image(d / "final.png")
+    m = run_page(full, Path(job["file"]).stem, src_dpi, RegionConfig(), d / "regions", debug_images=True)
+    m.pop("_overlay", None)
+    secs = json.loads((d / "regions" / "sections.json").read_text(encoding="utf-8"))["layout_sections"]
+    (d / "layout.json").write_text(json.dumps({"layout_sections": secs, "masked_codes": [], "mode": "regions"}, ensure_ascii=False), encoding="utf-8")
+    save_view(d / "lay_final.jpg", full)
+    regs = m["stages"]["regions"]["regions"]
+    tables = m["stages"]["tables"]["tables"]
+    images = {k: f"regions/{k}.png" for k in ("01_normalize", "02_mask", "04_regions", "05_tables", "06_pieces") if (d / "regions" / f"{k}.png").exists()}
+    return {"mode": "regions", "work_size": [int(full.shape[1]), int(full.shape[0])], "full_size": [int(full.shape[1]), int(full.shape[0])],
+            "sections": secs, "doc_type": m["doc_type"], "region_mode": regs[0]["mode"] if regs else None, "regions": len(regs),
+            "tables": len(tables), "cells": sum(len(t.get("cells", [])) for t in tables),
+            "merged": [r for r in m["stages"]["regions"].get("ocr_regions", []) if r["merged"] > 1],
+            "codes": [{"kind": c["kind"], "data": c["data"]} for c in m["stages"]["mask"]["codes"]],
+            "elapsed": m.get("elapsed_s"), "images": {"final": "lay_final.jpg", **images}}
+
+
 def stage_layout(job: dict, d: Path, cfg: dict) -> dict:
-    """ผังแบ่งส่วนแบบเดียวกับ ``build_layouts`` + ภาพกลางทางของแต่ละขั้นย่อย."""
+    """ผังแบ่งส่วนแบบเดียวกับ ``build_layouts`` + ภาพกลางทางของแต่ละขั้นย่อย (หรือแบบ regions ถ้าเลือก)."""
     opts = job["options"]
+    if opts.get("layout") == "regions":
+        src_dpi = cfg["loader"]["pdf_dpi"] * float(job_stage(job, "preprocess")["data"]["meta"].get("scale", 1.0))
+        return stage_layout_regions(job, d, cfg, src_dpi)
     full = read_image(d / "final.png")
     src_dpi = cfg["loader"]["pdf_dpi"] * float(job_stage(job, "preprocess")["data"]["meta"].get("scale", 1.0))
     found = G.find_codes(full, src_dpi) if opts["codes"] else []  # ระบาย QR/บาร์โค้ดก่อนแบ่ง เหมือน build_layouts
@@ -174,6 +207,20 @@ def stage_crops(job: dict, d: Path, cfg: dict) -> dict:
     secs = lay["layout_sections"]
     out = d / "sections"
     out.mkdir(exist_ok=True)
+    if lay.get("mode") == "regions":  # ภาพ luma ที่ regions เขียนไว้แล้ว (หดขอบ + ระบาย QR) + ภาพสีจากกรอบบนภาพ final
+        src = {e["id"]: e for e in json.loads((d / "regions" / "crops" / "index.json").read_text(encoding="utf-8"))["sections"]}
+        index = []
+        for s in secs:
+            e = src[s["id"]]
+            x, y, w, h = s["bbox"]
+            gray = cv2.imdecode(np.fromfile(str(d / "regions" / "crops" / e["file"]), dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
+            write_png(out / f"{s['id']}.png", gray)
+            save_image(out / f"{s['id']}_color.jpg", full[y:y + h, x:x + w])
+            index.append({"id": s["id"], "kind": s["kind"], "bbox": s["bbox"], "table": None,
+                          **({"part": s["part"], "parts": s["parts"]} if s.get("part") else {}),
+                          "size": [int(gray.shape[1]), int(gray.shape[0])], "file": f"{s['id']}.png", "color": f"{s['id']}_color.jpg"})
+        (out / "index.json").write_text(json.dumps({"sections": index}, ensure_ascii=False, indent=1), encoding="utf-8")
+        return {"sections": index, "blank": [], "variant": "luma"}
     index, blank = [], []
     for s in secs:
         if not s["keep"]:
@@ -195,11 +242,100 @@ def stage_text(job: dict, d: Path, cfg: dict) -> dict:
     secs = json.loads((d / "layout.json").read_text(encoding="utf-8"))["layout_sections"]
     read = {r["id"]: r for r in job_stage(job, "ocr")["data"]["sections"]}
     doc = {"sections": [{"id": s["id"], "kind": s["kind"], **({"part": s["part"], "parts": s["parts"]} if s.get("part") else {}),
-                         "text": (read.get(s["id"]) or {}).get("text")} for s in secs]}
+                         "repeat_header": s.get("repeat_header"), "text": (read.get(s["id"]) or {}).get("text")} for s in secs]}
+    coverage = check_coverage(job, d, cfg, doc)
     md = markdown_of(doc)
     (d / "page.md").write_text(md, encoding="utf-8")
-    pairs = lines_with_chunks(md)
-    return {"markdown": md, "lines": [{"text": t, "section": c} for t, c in pairs]}
+    pairs = list(zip(lines_with_chunks(md), supplement_of(md), strict=True))
+    return {"markdown": md, "lines": [{"text": t, "section": c, **({"supplement": s} if s else {})} for (t, c), s in pairs],
+            "coverage": coverage}
+
+
+_check_reader = None
+
+
+def check_coverage(job: dict, d: Path, cfg: dict, doc: dict) -> dict:
+    """ชั้นตรวจความครบแบบเดียวกับ flow หลัก (sections/coverage.py: check_dataset) แก้ ``doc`` ในที่ คืนสรุปไว้แสดง:
+    1. ตัวอ่านเสริมบน CPU อ่านภาพย่อยซ้ำ ชี้ส่วนที่มียอดเงิน/วันที่/รหัสยาวที่ตัวอ่านหลักไม่เห็น
+    2. ส่วนที่ถูกชี้และหาจุดแยกได้: ตัวอ่านหลักอ่านครึ่งซ้าย/ขวาใน worker (GPU) ใช้ผลเมื่อค่าที่ขาดลดลงเท่านั้น
+    3. ส่วนที่ยังขาดยอดเงิน/วันที่: ``supplement`` (ข้อความเสริมต่อท้าย .md)."""
+    global _check_reader
+    cc = cfg.get("coverage_check") or {}
+    engine = cc.get("engine", "openthai-text")
+    if not cc.get("enabled", True):
+        return {"skipped": "ปิดใน config (coverage_check.enabled)"}
+    if job["options"]["engine"] == engine:
+        return {"skipped": f"ตัวอ่านหลักคือ {engine} เอง"}
+    try:
+        if _check_reader is None:
+            _check_reader = make_reader(engine, cfg)
+            _check_reader._load()
+    except Exception as e:  # noqa: BLE001 — ไม่มีโมเดล/onnxruntime: ข้าม ไม่ทำให้งานล้ม
+        return {"skipped": f"{engine} ใช้ไม่ได้: {type(e).__name__}: {str(e)[:120]}"}
+    files = {e["id"]: e["file"] for e in json.loads((d / "sections" / "index.json").read_text(encoding="utf-8"))["sections"]}
+    by_id = {s["id"]: s for s in doc["sections"]}
+    t0, checks, images, lines = time.perf_counter(), {}, {}, {}
+    for s in doc["sections"]:
+        if not s.get("text") or s["id"] not in files:
+            continue
+        images[s["id"]] = cv2.imdecode(np.fromfile(str(d / "sections" / files[s["id"]]), np.uint8), cv2.IMREAD_COLOR)
+        r = _check_reader._load().read(images[s["id"]])  # ผลเต็มของ LineOCR: ข้อความ + กรอบรายบรรทัด/รายคำ (ไว้วาดว่าตัวอ่านหลักอ่านส่วนไหน)
+        checks[s["id"]], lines[s["id"]] = r.get("text", ""), r.get("lines", [])
+    seconds = round(time.perf_counter() - t0, 1)
+    first = {sid: by_id[sid]["text"] for sid in checks}
+
+    # 2) แยกซ้าย/ขวา ส่วนที่ถูกชี้ (สัญญาณใดก็ได้) แล้วให้ตัวอ่านหลักอ่านใหม่ใน worker
+    before = {sid: missing_values(by_id[sid]["text"], t) for sid, t in checks.items()}
+    rcfg = RegionConfig().cfg
+    plan, todo = {}, []
+    (d / "split").mkdir(exist_ok=True)
+    for sid, m in before.items():
+        if not n_missing(m):
+            continue
+        x = split_column(images[sid], rcfg)
+        plan[sid] = {"id": sid, "split": x, "missing_before": n_missing(m)}
+        if x is None:
+            continue
+        for side, part in (("left", images[sid][:, :x]), ("right", images[sid][:, x:])):
+            name = f"{sid}_{side}.png"
+            cv2.imencode(".png", part)[1].tofile(str(d / "split" / name))
+            todo.append({"id": sid, "side": side, "file": name})
+            plan[sid][f"{side}_image"] = f"split/{name}"
+    split_seconds = None
+    if todo:
+        (d / "split" / "index.json").write_text(json.dumps(todo, ensure_ascii=False), encoding="utf-8")
+        halves: dict[tuple[str, str], str] = {}
+        t1 = time.perf_counter()
+        run_worker(job, d, "split", ["--engine", job["options"]["engine"]],
+                   lambda ev: halves.__setitem__((ev["id"], ev["side"]), ev["text"]) if ev["event"] == "half" else None)
+        split_seconds = round(time.perf_counter() - t1, 1)
+        for sid, p in plan.items():
+            if p["split"] is None or (sid, "left") not in halves or (sid, "right") not in halves:
+                continue
+            merged = halves[(sid, "left")].strip() + "\n\n" + halves[(sid, "right")].strip()
+            after = n_missing(missing_values(merged, checks[sid]))
+            p.update(missing_after=after, accepted=after < p["missing_before"],
+                     left=halves[(sid, "left")], right=halves[(sid, "right")])
+            if p["accepted"]:
+                by_id[sid]["text"], by_id[sid]["split"] = merged, p["split"]
+
+    # 3) ส่วนที่ยังขาดยอดเงิน/วันที่ หลังใช้ผลที่แยก: แนบข้อความเสริม
+    flagged = []
+    for sid, t in checks.items():
+        m = missing_values(by_id[sid]["text"], t)
+        if m["money"] or m["dates"]:
+            by_id[sid]["supplement"] = {"engine": engine, "text": normalize_digits(t)}
+            flagged.append({"id": sid, "money": m["money"], "dates": m["dates"]})
+    # ภาพ: คำของตัวอ่านเสริม (กรอบ) พบ/ไม่พบในข้อความของตัวอ่านหลัก ก่อนแยก และหลังใช้ผลที่แยก
+    sections = []
+    for sid in checks:
+        before_w = word_coverage(lines[sid], first[sid])
+        row = {"id": sid, "size": [int(images[sid].shape[1]), int(images[sid].shape[0])], "words": before_w}
+        if by_id[sid].get("split"):
+            row["words_after"] = word_coverage(lines[sid], by_id[sid]["text"])
+        sections.append(row)
+    return {"engine": engine, "checked": len(checks), "seconds": seconds, "flagged": flagged,
+            "splits": list(plan.values()), "split_seconds": split_seconds, "sections": sections}
 
 
 def found_in(key: str, value, kind: str | None, lines: list[str]) -> list[int]:
@@ -260,7 +396,7 @@ def stage_extract(job: dict, d: Path, cfg: dict) -> None:
         na = set(profile.not_applicable)
         has_primary = not primary or primary in na or flat.get(primary) not in (None, "")
         set_stage(job, "validate", "done", {
-            "checks": out["checks"], "evidence": out["field_evidence"], "missing": res.missing_fields, "status": res.status,
+            "checks": out["checks"], "evidence": out["review"], "missing": res.missing_fields, "status": res.status,
             "rules": [
                 {"rule": f"มียอดหลัก ({primary or 'ไม่กำหนด'})", "ok": has_primary, "fail_to": "failed"},
                 {"rule": "ฟิลด์ที่ต้องมีครบ", "ok": not res.missing_fields, "fail_to": "needs_review"},
@@ -270,6 +406,13 @@ def stage_extract(job: dict, d: Path, cfg: dict) -> None:
             ],
         })
         set_stage(job, "result", "done", {"json": out, "path": (d / "result.json").relative_to(ROOT).as_posix()})
+        text_lines = job_stage(job, "text")["data"]["lines"]
+        sections = {f["key"]: sorted({text_lines[i]["section"] for i in f["found"] if text_lines[i]["section"]}) for f in fields}
+        original = {k: "" if v is None else str(v) for k, v in flat.items()}
+        extra_checks = [c for c in res.checks if c.name == "reader_complete"]
+        job["review_ctx"] = {"engine": job["options"]["engine"], "lines": lines, "extra": [c.model_dump() for c in extra_checks],
+                             "base": out, "sections": sections, "original": original}
+        set_stage(job, "review", "done", R.build(pipe, data, lines, extra_checks, set(), sections, original))
 
 
 # ---------------------------------------------------------------- ขั้นที่รันใน worker (โหลดโมเดล)
@@ -358,7 +501,7 @@ def run_job(job: dict) -> None:
     cfg = load_config()
     try:
         for key, _title in STAGES:
-            if key in ("validate", "result"):
+            if key in ("validate", "review", "result"):
                 continue  # เขียนพร้อมกับ extract
             set_stage(job, key, "running", started=time.time())
             t = time.perf_counter()
@@ -396,7 +539,30 @@ def new_job(name: str, body: bytes, options: dict) -> dict:
 
 
 def public(job: dict) -> dict:
-    return {k: v for k, v in job.items() if k not in ("proc", "dir")}
+    return {k: v for k, v in job.items() if k not in ("proc", "dir", "review_ctx")}
+
+
+def review_request(job: dict, edits: dict, save: bool = False) -> dict:
+    """ตรวจใหม่จากค่าที่คนแก้ (``edits`` = {คีย์แบบ flatten: ค่า}) ไม่ OCR ไม่สกัดใหม่ ``save`` = เขียน corrected.json + edits.json ในโฟลเดอร์งาน."""
+    ctx = job["review_ctx"]
+    cfg = load_config()
+    pipe = FinanceOCRPipeline(cfg, engine=ctx["engine"], use_llm=False, with_reader=False)
+    base_items = [{k: "" if it.get(k) is None else str(it.get(k)) for k in R.ITEM_KEYS} for it in ctx["base"]["data"]["items"]]
+    edits = {k: v for k, v in edits.items()  # เก็บเฉพาะที่ต่างจากผลของระบบจริง (แก้แล้วแก้กลับ = ไม่นับ)
+             if (v != base_items if k == "items" else str(v if v is not None else "").strip() != ctx["original"].get(k, ""))}
+    data, errors = R.apply_edits(ctx["base"]["data"], edits)
+    if data is None:
+        return {"errors": errors}
+    extra = [ValidationCheck(**c) for c in ctx["extra"]]
+    out = R.build(pipe, data, ctx["lines"], extra, set(edits), ctx["sections"], ctx["original"])
+    if save:
+        d = Path(job["dir"])
+        res = R.corrected_result(ctx["base"], pipe, data, ctx["lines"], extra, set(edits))
+        (d / "corrected.json").write_text(res.model_dump_json(indent=2), encoding="utf-8")
+        log = [{"key": k, "before": (base_items if k == "items" else ctx["original"].get(k) or None), "after": v} for k, v in edits.items()]
+        (d / "edits.json").write_text(json.dumps({"file": job["file"], "edits": log}, ensure_ascii=False, indent=1), encoding="utf-8")
+        out["saved"] = {"corrected": "corrected.json", "edits": "edits.json", "count": len(log)}
+    return out
 
 
 # ---------------------------------------------------------------- HTTP
@@ -462,6 +628,12 @@ class Handler(BaseHTTPRequestHandler):
                 run_lock.release()
                 raise
             return self.json({"id": job["id"]})
+        if m := re.fullmatch(r"/api/job/([\w-]+)/review(/save)?", url.path):
+            job = JOBS.get(m.group(1))
+            if not job or "review_ctx" not in job:
+                return self.json({"error": "งานนี้ยังไม่มีผลสกัด"}, 404)
+            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
+            return self.json(review_request(job, body.get("edits") or {}, save=bool(m.group(2))))
         if m := re.fullmatch(r"/api/job/([\w-]+)/cancel", url.path):
             job = JOBS.get(m.group(1))
             if job and (proc := job.get("proc")):

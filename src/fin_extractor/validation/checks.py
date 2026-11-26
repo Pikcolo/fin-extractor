@@ -57,17 +57,19 @@ def _run_all_checks(
     if d.buyer.tax_id:
         add("buyer_tax_id_checksum", is_valid_thai_tax_id(d.buyer.tax_id), d.buyer.tax_id, ["buyer.tax_id"])
 
-    # 2) ผลรวมรายการ = subtotal (หรือ = ยอดก่อน VAT / ยอดรวม ถ้าไม่มี subtotal)
+    # 2) ผลรวมรายการ = ยอดใดยอดหนึ่ง: subtotal / ยอดก่อน VAT (ราคาไม่รวมภาษี) หรือยอดรวม (ร้านที่พิมพ์ราคารายการรวม VAT แล้ว เช่น 1308 1312)
+    #    ไม่มียอดก่อน VAT ที่อ่านได้: ยอดก่อน VAT = ยอดรวม − VAT (สูตรเดียวกับข้อ 4 · 1318: 8,025 − 525 = 7,500 = รายการ)
     item_fields = [f"items[{i}].amount" for i, it in enumerate(d.items) if it.amount is not None]
     item_amounts = [it.amount for it in d.items if it.amount is not None]
-    target_name, target = next(
-        ((n, v) for n, v in (("subtotal", d.subtotal), ("amount_before_vat", d.amount_before_vat),
-                             ("total_amount", d.total_amount)) if v is not None),
-        (None, None),
-    )
-    if item_amounts and target is not None:
+    targets = [([n], n, v) for n, v in (("subtotal", d.subtotal), ("amount_before_vat", d.amount_before_vat),
+                                        ("total_amount", d.total_amount)) if v is not None]
+    if d.amount_before_vat is None and None not in (d.vat_amount, d.total_amount):
+        targets.append((["total_amount", "vat_amount"], "total_amount − vat_amount", d.total_amount - d.vat_amount))
+    if item_amounts and targets:
         s = sum(item_amounts)
-        add("items_sum", _close(s, target, tol), f"sum(items)={s} vs {target}", [*item_fields, target_name])
+        matched = [f for fs, _n, v in targets if _close(s, v, tol) for f in fs]
+        add("items_sum", bool(matched), f"sum(items)={s} vs {' / '.join(f'{n} {v}' for _fs, n, v in targets)}",
+            [*item_fields, *dict.fromkeys(matched or [f for fs, _n, _v in targets for f in fs])])
     else:
         add("items_sum", None, "ไม่มีรายการหรือยอดรวม")
 
@@ -81,12 +83,18 @@ def _run_all_checks(
             f"{d.subtotal} - {d.discount} = {net} vs {[str(v) for _, v in candidates]}",
             ["subtotal", "discount", *(matched or [n for n, _ in candidates])] if candidates else [])
 
-    # 4) ยอดก่อน VAT + VAT = ยอดรวม
-    if None not in (d.amount_before_vat, d.vat_amount, d.total_amount):
-        s = d.amount_before_vat + d.vat_amount
+    # 4) ยอดก่อน VAT + VAT = ยอดรวม · ไม่มียอดก่อน VAT ใช้ subtotal (− ส่วนลด) แทน (1308: รวมเงิน 23,140.19 + VAT 1,619.81 = 24,760.00)
+    #    ยกเว้น subtotal (− ส่วนลด) = ยอดรวม: ราคารวม VAT แล้ว subtotal ไม่ใช่ฐานก่อน VAT ไม่ตรวจ (ไม่ให้ล้มผิด)
+    base_name, base = ("amount_before_vat", d.amount_before_vat) if d.amount_before_vat is not None else (None, None)
+    if base is None and d.subtotal is not None:
+        net = d.subtotal - (d.discount or 0)
+        if d.total_amount is None or not _close(net, d.total_amount, tol):
+            base_name, base = "subtotal", net
+    if None not in (base, d.vat_amount, d.total_amount):
+        s = base + d.vat_amount
+        used = [base_name, *(["discount"] if base_name == "subtotal" and d.discount else [])]
         add("before_vat_plus_vat", _close(s, d.total_amount, tol),
-            f"{d.amount_before_vat} + {d.vat_amount} = {s} vs {d.total_amount}",
-            ["amount_before_vat", "vat_amount", "total_amount"])
+            f"{base} + {d.vat_amount} = {s} vs {d.total_amount}", [*used, "vat_amount", "total_amount"])
     else:
         add("before_vat_plus_vat", None, "ข้อมูลไม่ครบ")
 
@@ -112,5 +120,12 @@ def _run_all_checks(
         add("date_range", date(2000, 1, 1) <= d.date <= date.today(), d.date.isoformat(), ["date"])
     else:
         add("date_range", None, "ไม่พบวันที่")
+
+    # items_sum ไม่ผ่าน: ยอดที่ check อื่นยืนยันแล้วไม่ใช่ตัวผิด ชี้เฉพาะรายการ + ยอดที่ยังไม่มีอะไรยืนยัน
+    # (1309: รวมเงิน + VAT = ยอดรวม ผ่าน แต่รายการรวม 3,860 ไม่ตรง → รายการหายหรืออ่านผิด ไม่ใช่ยอดรวม)
+    items_check = next(c for c in checks if c.name == "items_sum")
+    if items_check.passed is False:
+        confirmed = {f for c in checks if c.passed for f in c.fields}
+        items_check.fields = [f for f in items_check.fields if f.startswith("items[") or f not in confirmed]
 
     return checks

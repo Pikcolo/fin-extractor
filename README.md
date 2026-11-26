@@ -1,15 +1,14 @@
 # fin_extractor
 
 OCR + Information Extraction สำหรับเอกสารการเงินไทย (ใบกำกับภาษี / ใบเสร็จ / invoice) ที่ **ไม่มี pattern ตายตัว**
-ผลลัพธ์เป็น JSON มาตรฐานตาม [`schemas/invoice.schema.json`](schemas/invoice.schema.json) (schema 3.0: ยอดเงินเป็น `Decimal`
-ระดับหลักฐานรายฟิลด์ `field_evidence`, ฟิลด์เฉพาะชนิดเอกสาร `document_fields` ตามโปรไฟล์ และ `remark` สำหรับข้อมูลที่ไม่มีช่อง)
+ผลลัพธ์เป็น JSON มาตรฐานตาม [`schemas/invoice.schema.json`](schemas/invoice.schema.json) (schema 4.0: ยอดเงินเป็น `Decimal` ระดับ + เหตุผลรายฟิลด์ `review` เรียงตามที่ควรตรวจก่อน ฟิลด์เฉพาะชนิดเอกสาร `document_fields` ตามโปรไฟล์ และ `remark` สำหรับข้อมูลที่ไม่มีช่อง)
 อธิบายขั้นตอนการทำงานแบบละเอียดอยู่ใน [`docs/`](docs/README.md)
 
 ```
 ไฟล์ (jpg/png/pdf)
   └─ io/loader          โหลด + render PDF เป็นภาพทีละหน้า
       └─ preprocessing  upscale → orientation → deskew   (คงสี; denoise/CLAHE/binarize ปิดเป็นค่าตั้งต้น)
-          └─ sections/  flow หลัก: แบ่งเป็นส่วน → ภาพรายส่วน → อ่านทีละส่วน → .md + chunks.json → rules   (ดู "flow หลัก")
+          └─ sections/  flow หลัก: แบ่งเป็น region (sections/regions/) → อ่านทีละส่วน → .md + chunks.json → rules   (ดู "flow หลัก")
               ├─ readers/   ตัวอ่านทุก engine ทางเดียวกัน: openthai (ค่าตั้งต้น) · typhoon · paddle · oxr → ReadResult
               └─ extraction/  rules (regex+keyword)  และ/หรือ  LLM → InvoiceData
                   └─ validation/  checksum เลขภาษี, Σitems, ส่วนลด, ก่อนVAT+VAT=รวม, VAT 7% → status + field_evidence
@@ -39,7 +38,7 @@ pytest                                    # ต้องผ่านทั้ง
 
 ```powershell
 python scripts/data/make_synthetic_samples.py                  # ใบกำกับภาษีสมมติ 21 ใบ → data/01_input/synthetic/
-python -X utf8 -m fin_extractor sections data/01_input/synthetic --engine paddle   # Paddle ทีละ section + rules → data/05_extract/synthetic/paddle/luma/rules/
+python -X utf8 -m fin_extractor sections data/01_input/synthetic --engine paddle   # Paddle ทีละท่อน + rules → data/05_extract/synthetic/paddle/regions-luma/rules/
 ```
 
 ### คำสั่งหลัก
@@ -57,28 +56,28 @@ pytest
 **ห้ามอ่านทั้งหน้า:** ทุก engine อ่านทีละ section ผ่านคำสั่ง `sections` เท่านั้น คำสั่ง `ocr` ถูกปิด และ `extract` สกัดจากข้อความรายส่วนที่เก็บไว้เท่านั้น
 `--engine typhoon` ต้อง `ollama pull scb10x/typhoon-ocr1.5-3b` · LLM สกัด (`extract --llm on`) ต้อง `ollama pull qwen2.5:3b` (หรือใช้ Typhoon API ตั้งค่าใน `.env`)
 
-### flow หลัก: แบ่ง section แล้วอ่านด้วย OpenThai (สแกนจริง)
+### flow หลัก: แบ่งเป็น region แล้วอ่านด้วย OpenThai (สแกนจริง)
 
-อินพุต → preprocess → **แบ่งเป็นส่วน (เก็บผังไว้ดู/debug)** → ภาพแต่ละส่วนที่เตรียมก่อน OCR → OCR ทีละส่วน → **ข้อความ + ที่มาของแต่ละท่อน** → สกัดเป็น schema (ข้อมูลสำคัญที่ไม่มีช่องไปอยู่ใน `remark`)
-ไม่ใช้ OCR คัดส่วน ตารางเป็นก้อนเดียว ตัดท่อนสูงไม่เกิน 0.3 ของหน้า ใช้ GPU เฉพาะขั้น 4 ([docs/03](docs/03-sections.md))
+อินพุต → preprocess → **แบ่งเป็น region (กรอบชิดข้อความ ตารางตามเส้น ระบาย QR/บาร์โค้ด)** → OCR ทีละท่อน → **ข้อความ + ที่มาของแต่ละท่อน** → สกัดเป็น schema (ข้อมูลสำคัญที่ไม่มีช่องไปอยู่ใน `remark`)
+ไม่ใช้ OCR คัดส่วน ท่อนที่ไม่มีข้อความ (มีแต่เส้นตาราง) ไม่ส่ง OCR ใช้ GPU เฉพาะขั้น 4 ([docs/03-regions.md](docs/03-regions.md))
 
 ```powershell
 python -X utf8 -m fin_extractor sections data/01_input/finance_doc_scan            # รันครบทุกขั้น ขั้นที่ผลยังใช้ได้ถูกข้าม
-python -X utf8 -m fin_extractor sections data/01_input/finance_doc_scan --from ocr --only 1306   # เริ่มกลางทาง/เฉพาะบางไฟล์
+python -X utf8 -m fin_extractor sections data/01_input/finance_doc_scan --from ocr --only 1306   # เริ่มกลางทาง/เฉพาะบางไฟล์ (GPU: รันทีละชุด)
+python -X utf8 scripts/demo/ocr_demo_app.py                                          # หน้าเว็บลอง 1 ไฟล์ ดูทุกขั้น + ตรวจ/แก้รายฟิลด์
 ```
 
 | ขั้น | ผลที่ดูได้ (ใต้ `data/`) | ใช้อะไรดู debug |
 |---|---|---|
 | 2 preprocess | `02_preprocess/<ชุด>/<profile>/final/` ภาพทั้งหน้าตรงแล้ว | ภาพ + `manifest.json` (`orientation_error`) |
-| 3a layout | `03_sections/<ชุด>/<profile>/layout/<ไฟล์>.json` + `_layout.png` | ภาพกรอบสี + เลข id ของแต่ละส่วน |
-| 3b images | `03_sections/<ชุด>/<profile>/images/luma/<ไฟล์>/sNN.png` | ภาพที่ส่งเข้า OCR จริง |
-| 4 ocr | `04_ocr/<ชุด>/openthai/luma/<ไฟล์>/` `.md` `.sections.json` `.chunks.json` | `chunks.json` = ท่อนข้อความ ↔ ภาพ section ↔ บรรทัดใน `.md` |
-| 5 extract | `05_extract/<ชุด>/openthai/luma/rules/<ไฟล์>_p1.json` | `field_evidence`, `remark[].source_chunk` ชี้กลับไปที่ section |
+| 3 layout | `03_sections/<ชุด>/<profile>/regions/<ไฟล์>/` `01_normalize` … `06_pieces.png` · `crops/` · `sections.json` · `manifest.json` | `06_pieces.png` = กรอบที่ส่ง OCR จริง · `manifest.json → stages.mask.codes` (ข้อความใน QR) · `skipped_regions` (ท่อนที่ไม่ส่ง) |
+| 4 ocr | `04_ocr/<ชุด>/openthai/regions-luma/<ไฟล์>/` `.md` `.sections.json` `.chunks.json` | `chunks.json` = ท่อนข้อความ ↔ ภาพ ↔ บรรทัดใน `.md` |
+| 5 extract | `05_extract/<ชุด>/openthai/regions-luma/rules/<ไฟล์>_p1.json` | `review` (ระดับ + เหตุผลรายฟิลด์), `remark[].source_chunk` ชี้กลับไปที่ท่อน |
 
-- **ค่าตั้งต้นคือ `luma`**: เทียบ 3 แบบบน 18 ใบ (ไม่มีเฉลย วัดแค่ความครบ) luma ขาดฟิลด์รวม 14, flat 16, bin (ตัวขาวบนดำ) 28 ([docs/03](docs/03-sections.md)) `--variant flat|bin|color` ผลแยกโฟลเดอร์ ไม่ทับกัน
-- รันทีละขั้นได้ด้วยสคริปต์เดิม (`scripts/sections/make_section_layouts.py` `make_clean_sections.py` `run_sections.py` เป็นตัวห่อบางๆ ของ `src/fin_extractor/sections/`)
-- เทียบผลสกัดข้ามวิธี: `python -m fin_extractor compare <input> [--variants luma flat bin] [--out ไฟล์.md]` ติดธงแถวที่เทียบไม่แฟร์ (ผังต่างกัน / ผลเก่ากว่าผัง / `--drop-empty-rows` / ไม่มีผล) และไม่นับในยอดรวม
-- ข้อมูลภาษีจริงไม่ถูก commit และผลวัดทั้งหมดไม่ใช่คะแนนความถูกต้อง
+- **ค่าตั้งต้นคือผัง regions ตั้งแต่ 2026-11-24** (ผู้ใช้เลือกหลังดูภาพที่ส่ง OCR) ผลวัดเดิม (OpenThai 18 ใบ rules ล้วน ไม่มีเฉลย) ฟิลด์ที่ขาดรวม regions 20 เทียบ sections 14 → ควรวัดซ้ำกับเฉลย ([docs/03-regions.md](docs/03-regions.md))
+- **ผังแบบเดิม** (แถบเต็มหน้า ภาพ `luma|flat|bin|color`) ยังใช้ได้ด้วย `--layout sections` ผลที่ `<engine>/luma/` ฯลฯ ไม่ทับกัน ([docs/03-sections.md](docs/03-sections.md)) สคริปต์เดิม `scripts/sections/` ใช้กับแบบนี้
+- เทียบผลสกัดข้ามวิธี: `python -m fin_extractor compare <input> --variants luma regions-luma [--out ไฟล์.md]` ติดธงแถวที่เทียบไม่แฟร์และไม่นับในยอดรวม
+- ข้อมูลภาษีจริงไม่ถูก commit และผลวัดทั้งหมดไม่ใช่คะแนนความถูกต้อง (มีเฉลยแล้วใช้ `scripts/eval/score_groundtruth.py`)
 - ข้อควรระวัง: ตรวจ `orientation_error` ใน `manifest.json` ของ preprocess ก่อนเชื่อผล (ตัวตรวจทิศอาจล้มเงียบ)
 
 ### ผลลัพธ์อยู่ที่ไหน
@@ -89,16 +88,16 @@ python -X utf8 -m fin_extractor sections data/01_input/finance_doc_scan --from o
 data/
 ├── 01_input/<ชุด>/                              ไฟล์อินพุต
 ├── 02_preprocess/<ชุด>/<profile>/{final,steps}  ภาพสุดท้ายที่ทุกขั้นถัดไปใช้ร่วมกัน · ภาพทีละขั้น
-├── 03_sections/<ชุด>/<profile>/                 แบ่งเป็นส่วน: layout/ (ผัง + ภาพตรวจ) · images/<luma|flat|bin>/<ไฟล์>/ (ภาพรายส่วน)
-├── 04_ocr/<ชุด>/<engine>/<วิธี>/<ไฟล์>/          ข้อความจาก OCR (วิธี = page อ่านทั้งหน้า · luma|flat|bin|color อ่านทีละส่วน) + visualize/
+├── 03_sections/<ชุด>/<profile>/                 แบ่งเป็นส่วน: regions/<ไฟล์>/ (ค่าตั้งต้น: ภาพแต่ละขั้น + crops/) · layout/ + images/<luma|flat|bin>/ (ผังแบบเดิม)
+├── 04_ocr/<ชุด>/<engine>/<วิธี>/<ไฟล์>/          ข้อความจาก OCR (วิธี = regions-luma ค่าตั้งต้น · luma|flat|bin|color ผังแบบเดิม) + visualize/
 ├── 05_extract/<ชุด>/<engine>/<วิธี>/<extractor>/ ผลตาม schema (JSON) extractor = rules | llm | hybrid
 ├── etc/benchmarks/ · etc/compare/ · etc/experiments/   งานทดสอบ/เปรียบเทียบ
 └── reports/                                     รายงานภาพ
 ```
 
-ถ้ารันหนึ่งครั้งมีไฟล์อินพุตมากกว่า 2 ไฟล์ ผลของแต่ละไฟล์จะอยู่ในโฟลเดอร์ย่อยชื่อไฟล์ (เช่น `05_extract/<ชุด>/openthai/luma/rules/<ไฟล์>/<ไฟล์>_p1.json`) ไม่เกิน 2 ไฟล์ก็วางตรง ๆ (ตั้งที่ `NEST_OVER` ใน `src/fin_extractor/paths.py`)
+ถ้ารันหนึ่งครั้งมีไฟล์อินพุตมากกว่า 2 ไฟล์ ผลของแต่ละไฟล์จะอยู่ในโฟลเดอร์ย่อยชื่อไฟล์ (เช่น `05_extract/<ชุด>/openthai/regions-luma/rules/<ไฟล์>/<ไฟล์>_p1.json`) ไม่เกิน 2 ไฟล์ก็วางตรง ๆ (ตั้งที่ `NEST_OVER` ใน `src/fin_extractor/paths.py`)
 
-เช่น `sections data/01_input/finance_doc_scan --engine typhoon` → ข้อความรายส่วนที่ `data/04_ocr/finance_doc_scan/typhoon/luma/` และ JSON ที่ `data/05_extract/finance_doc_scan/typhoon/luma/rules/`
+เช่น `sections data/01_input/finance_doc_scan --engine typhoon` → ข้อความรายส่วนที่ `data/04_ocr/finance_doc_scan/typhoon/regions-luma/` และ JSON ที่ `data/05_extract/finance_doc_scan/typhoon/regions-luma/rules/`
 `extract ... --engine <ตัวเดิม>` สกัดซ้ำจากข้อความนั้นโดยไม่อ่านภาพ/ไม่ใช้ GPU ดู [docs/00-setup-and-usage.md](docs/00-setup-and-usage.md#โครงเก็บผลลัพธ์)
 
 ## โครงสร้างโฟลเดอร์
@@ -151,4 +150,4 @@ fin_extractor/
 - **Ollama ใช้ native API** เพราะ endpoint แบบ OpenAI ตั้ง `num_ctx` ไม่ได้ (default 4096 ทำให้ VLM ตอบไม่จบ)
 - **LLM + rules + cross-check**: mode `vlm` รันทั้งสองแบบ เลือกผลที่ตัวเลขสอดคล้องกันมากกว่า แล้วเติม field ที่ขาดจากอีกฝั่ง
 - **status**: `auto_approved` (field สำคัญครบ, ไม่มี check ไหน fail และผ่านอย่างน้อย 1 ข้อ) / `needs_review` / `failed` (หา total ไม่เจอ)
-- **field_evidence**: ระดับหลักฐานรายฟิลด์ (`missing` / `not_applicable` / `conflict` / `verified` / `unverified`) จากกฎจริง/เท็จ ไม่มีน้ำหนักหรือ threshold ที่เดาเอง ไว้ไฮไลต์ในหน้าตรวจทานของนักบัญชี ทุกเอกสารยังต้องผ่านคนตรวจ
+- **review** (schema 4.0): ระดับรายฟิลด์ (`conflict` / `missing` / `unverified` / `verified` / `not_applicable`) + เหตุผลเป็นคำพูด เรียงตามที่ควรตรวจก่อน ค่าอยู่ใน `data` ที่เดียว ดู [docs/05-validation-output.md](docs/05-validation-output.md)

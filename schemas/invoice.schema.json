@@ -44,11 +44,11 @@
       "title": "ExtraField",
       "type": "object"
     },
-    "FieldEvidence": {
-      "description": "หลักฐานของ field หนึ่งช่อง ไว้ไฮไลต์ใน Review UI (ไม่ใช่ความน่าจะเป็น ไม่มีน้ำหนักหรือ threshold).",
+    "FieldReview": {
+      "description": "ฟิลด์หนึ่งช่องในมุมของคนตรวจ: ต้องดูไหม และทำไม (ค่าอยู่ใน ``data`` ที่เดียว).",
       "properties": {
         "level": {
-          "description": "missing=เอกสารชนิดนี้ควรมีแต่หาไม่เจอ · not_applicable=เอกสารชนิดนี้ไม่มีฟิลด์นี้ · conflict=ขัดแย้ง ต้องแก้หรือยืนยัน · verified=มี check ผ่านและไม่มีอะไรขัด · unverified=ไม่มีตัวยืนยัน ให้ดูเทียบภาพ",
+          "description": "conflict=ขัดแย้ง ต้องแก้หรือยืนยัน · missing=เอกสารชนิดนี้ต้องมีแต่หาไม่เจอ · unverified=ไม่มีตัวยืนยัน ให้ดูเทียบภาพ · verified=มี check ผ่านและไม่มีอะไรขัด · not_applicable=เอกสารชนิดนี้ไม่มีฟิลด์นี้",
           "enum": [
             "missing",
             "not_applicable",
@@ -59,99 +59,13 @@
           "title": "Level",
           "type": "string"
         },
-        "value": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "ค่าที่ระบบสกัดได้ (เป็นสตริง) ไว้เทียบกับภาพ",
-          "title": "Value"
-        },
-        "format_valid": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "ผ่านรูปแบบ (เลขภาษี 13 หลัก + checksum); None = field นี้ไม่มีกฎรูปแบบ",
-          "title": "Format Valid"
-        },
-        "checks_passed": {
-          "description": "check ที่ผ่านและยืนยันค่านี้ได้",
+        "reasons": {
+          "description": "เหตุผลเป็นคำพูด เช่น check ที่ไม่ผ่าน, ค่าไม่ปรากฏในข้อความ, check ที่ยืนยันค่านี้",
           "items": {
             "type": "string"
           },
-          "title": "Checks Passed",
+          "title": "Reasons",
           "type": "array"
-        },
-        "checks_failed": {
-          "description": "check ที่ใช้ค่านี้และไม่ผ่าน",
-          "items": {
-            "type": "string"
-          },
-          "title": "Checks Failed",
-          "type": "array"
-        },
-        "grounded": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "ค่าปรากฏในข้อความที่อ่านได้หรือไม่; None = ไม่ได้ตรวจ",
-          "title": "Grounded"
-        },
-        "sources_agree": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "rules กับ LLM ได้ค่าเดียวกันหรือไม่; None = มีแหล่งเดียว",
-          "title": "Sources Agree"
-        },
-        "handwritten": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "True = อ่านจากลายมือ; None = ยังไม่มีตัวตรวจลายมือ",
-          "title": "Handwritten"
-        },
-        "model_conf": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "ยังไม่ได้เก็บ (ต้นทางระดับคำของ OCR ยังไม่ถูกส่งต่อ) จึงเป็น null เสมอ",
-          "title": "Model Conf"
         },
         "source": {
           "anyOf": [
@@ -163,14 +77,14 @@
             }
           ],
           "default": null,
-          "description": "ตัวสกัดที่ให้ค่านี้: rules หรือ llm",
+          "description": "ผู้ให้ค่าเมื่อไม่ใช่ rules: llm | human | ชื่อตัวอ่านเสริม เช่น openthai-text (ค่าที่พบเฉพาะในข้อความเสริมของชั้นตรวจความครบ) (ไม่มีคีย์ = rules)",
           "title": "Source"
         }
       },
       "required": [
         "level"
       ],
-      "title": "FieldEvidence",
+      "title": "FieldReview",
       "type": "object"
     },
     "InvoiceData": {
@@ -550,7 +464,7 @@
   },
   "properties": {
     "schema_version": {
-      "default": "3.0",
+      "default": "4.0",
       "title": "Schema Version",
       "type": "string"
     },
@@ -564,7 +478,7 @@
       "type": "integer"
     },
     "engine": {
-      "description": "เช่น paddle+rules, vlm:typhoon-ocr+llm",
+      "description": "<engine>[:<โมเดล>]+<ผู้สกัด> เช่น paddle+rules, openthai:OpenThai2.0-OCR-Markdown+rules, typhoon:scb10x/typhoon-ocr1.5-3b+llm",
       "title": "Engine",
       "type": "string"
     },
@@ -578,13 +492,22 @@
       "title": "Checks",
       "type": "array"
     },
-    "field_evidence": {
+    "review": {
       "additionalProperties": {
-        "$ref": "#/$defs/FieldEvidence"
+        "$ref": "#/$defs/FieldReview"
       },
-      "description": "หลักฐานรายฟิลด์ คีย์แบบ vendor.tax_id, total_amount, items[0].amount",
-      "title": "Field Evidence",
+      "description": "ระดับ + เหตุผลรายฟิลด์ เรียงตามที่ควรตรวจก่อน (conflict → missing → unverified → verified → not_applicable) คีย์แบบ vendor.tax_id, total_amount, items[0].amount, document_fields.<key> · ฟิลด์ที่ไม่มีค่าและไม่บังคับไม่อยู่ที่นี่",
+      "title": "Review",
       "type": "object"
+    },
+    "status": {
+      "enum": [
+        "auto_approved",
+        "needs_review",
+        "failed"
+      ],
+      "title": "Status",
+      "type": "string"
     },
     "ocr_confidence": {
       "anyOf": [
@@ -598,33 +521,8 @@
         }
       ],
       "default": null,
-      "description": "ค่าเฉลี่ยที่ OCR engine รายงานเอง (VLM ไม่มีค่านี้)",
+      "description": "ค่าเฉลี่ยที่ OCR engine รายงานเอง (มีเฉพาะ Paddle / OpenThai Text) ไม่มี = ไม่มีคีย์",
       "title": "Ocr Confidence"
-    },
-    "missing_fields": {
-      "description": "field สำคัญที่หาไม่เจอ",
-      "items": {
-        "type": "string"
-      },
-      "title": "Missing Fields",
-      "type": "array"
-    },
-    "handwritten_fields": {
-      "description": "field ที่อ่านมาจากลายมือ (เช่น vendor.name, total_amount) — ต้องมีหลักฐานยืนยันจึงอนุมัติอัตโนมัติ",
-      "items": {
-        "type": "string"
-      },
-      "title": "Handwritten Fields",
-      "type": "array"
-    },
-    "status": {
-      "enum": [
-        "auto_approved",
-        "needs_review",
-        "failed"
-      ],
-      "title": "Status",
-      "type": "string"
     },
     "raw_text": {
       "anyOf": [
@@ -636,11 +534,11 @@
         }
       ],
       "default": null,
-      "description": "ข้อความดิบจาก OCR/VLM ไว้ debug",
+      "description": "ข้อความดิบจากตัวอ่าน (เฉพาะเมื่อสั่ง --keep-raw) ไว้ debug",
       "title": "Raw Text"
     },
     "rejected": {
-      "description": "ค่าที่ LLM เสนอแต่ไม่ถูกรับ (โหมด hybrid) พร้อมเหตุผล",
+      "description": "ค่าที่ LLM เสนอแต่ไม่ถูกรับ (โหมด hybrid) พร้อมเหตุผล ไม่มี = ไม่มีคีย์",
       "items": {
         "$ref": "#/$defs/RejectedValue"
       },

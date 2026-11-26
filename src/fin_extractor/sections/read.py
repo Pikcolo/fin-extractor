@@ -18,6 +18,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from ..extraction.rule_extractor import SUPPLEMENT
 from ..paths import DataPaths, doc_dir
 from ..readers import TORCH_ENGINES, make_reader
 from .crops import load_final_image, masked_final
@@ -68,14 +69,20 @@ def read_clean_image(clean_dir: Path, entry: dict, variant: str) -> np.ndarray:
 
 
 def markdown_blocks(doc: dict) -> list[tuple[dict, str]]:
-    """(ส่วน, บล็อกข้อความ) ของทุกส่วนที่อ่านแล้วตามลำดับอ่าน บล็อกขึ้นต้นด้วยคอมเมนต์ HTML บอกว่ามาจากส่วนไหน (rules ตัดคอมเมนต์ทิ้ง)."""
-    blocks = []
+    """(ส่วน, บล็อกข้อความ) ของทุกส่วนที่อ่านแล้วตามลำดับอ่าน บล็อกขึ้นต้นด้วยคอมเมนต์ HTML บอกว่ามาจากส่วนไหน (rules ตัดคอมเมนต์ทิ้ง)
+    ส่วนที่มี ``supplement`` (ชั้นตรวจชี้ว่าตัวอ่านหลักอ่านไม่ครบ) ได้ท่อนเสริมต่อท้าย **หลังท่อนหลักทุกท่อน** ค่าจากตัวอ่านหลักจึงชนะเมื่อมีทั้งคู่."""
+    blocks, extra = [], []
     for s in doc["sections"]:
         if not s.get("text"):
             continue
         part = f" {s['part']}/{s['parts']}" if s.get("part") else ""
-        blocks.append((s, f"<!-- {s['id']} {s['kind']}{part} -->\n{s['text'].strip()}"))
-    return blocks
+        repeat = " repeat-header" if s.get("repeat_header") else ""  # ภาพมีหัวคอลัมน์ต่อไว้ ขั้นสกัดตัดหัวที่อ่านซ้ำ (rule_extractor.lines_with_chunks)
+        split = " split-lr" if s.get("split") else ""  # อ่านใหม่แบบแยกซ้าย/ขวา (ชั้นตรวจความครบ) ข้อความ = ครึ่งซ้าย ต่อด้วยครึ่งขวา
+        blocks.append((s, f"<!-- {s['id']} {s['kind']}{part}{repeat}{split} -->\n{s['text'].strip()}"))
+        if sup := s.get("supplement"):
+            extra.append(({**s, "text": sup["text"], "supplement": sup["engine"]},
+                          f"<!-- {s['id']} {s['kind']}{part} {SUPPLEMENT} {sup['engine']} -->\n{sup['text'].strip()}"))
+    return blocks + extra
 
 
 def markdown_of(doc: dict) -> str:
@@ -102,6 +109,8 @@ def chunks_of(doc: dict, image_of) -> dict:
         chunks.append({"section": s["id"], "kind": s["kind"], **({"part": s["part"], "parts": s["parts"]} if s.get("part") else {}),
                        "md_lines": [line, line + n - 1], "page_bbox_xywh": s["bbox"], "image": image_of(s), "text": s["text"].strip(),
                        "chars": len(s["text"].strip()), "script_mix": script_mix(s["text"]),
+                       **({"supplement": s["supplement"]} if isinstance(s.get("supplement"), str) else {}),
+                       **({"split_x": s["split"]} if s.get("split") else {}),
                        **({"truncated": True} if s.get("truncated") else {}), **({"seconds": s["seconds"]} if "seconds" in s else {})})
         line += n + 1  # + บรรทัดว่างคั่นบล็อก
     not_read = [{"section": s["id"], "kind": s["kind"], "reason": s.get("skipped") or ("error" if "error" in s else "no text")}
@@ -112,10 +121,33 @@ def chunks_of(doc: dict, image_of) -> dict:
             "chunks": chunks, "not_read": not_read}
 
 
-def write_markdown(sections_json: Path, image_of=lambda s: None) -> Path:
-    """เขียน .md (ข้อความดิบที่ extract อ่าน) และ .chunks.json (ที่มาของแต่ละท่อน ไม่ถูกอ่านโดย extract)."""
+def write_markdown(sections_json: Path, image_of=lambda s: None, layout: list[dict] | None = None) -> Path:
+    """เขียน .md (ข้อความดิบที่ extract อ่าน) และ .chunks.json (ที่มาของแต่ละท่อน ไม่ถูกอ่านโดย extract)
+    ``layout`` = ผังปัจจุบัน: ธง ``repeat_header`` ของส่วนมาจากผัง (ผล OCR ที่อ่านก่อนมีธงนี้ก็เขียน .md ใหม่ได้ไม่ต้อง OCR ซ้ำ)."""
     stem = sections_json.name.removesuffix(".sections.json")
     doc = json.loads(sections_json.read_text(encoding="utf-8"))
+    if layout is not None:
+        flags = {s["id"] for s in layout if s.get("repeat_header")}
+        for s in doc["sections"]:
+            s["repeat_header"] = s["id"] in flags
+    spl = sections_json.with_name(stem + ".split.json")  # ชั้นตรวจความครบ: ส่วนที่อ่านใหม่แบบแยกซ้าย/ขวาแล้วค่าที่ขาดลดลง (sections/coverage.py)
+    if spl.exists():
+        sp = json.loads(spl.read_text(encoding="utf-8"))
+        if layout is None or sp.get("layout") == fingerprint(layout):
+            for s in doc["sections"]:
+                r = sp["sections"].get(s["id"]) or {}
+                if r.get("accepted"):
+                    s["text"], s["split"] = r["left"].strip() + "\n\n" + r["right"].strip(), r["split"]
+    cov = sections_json.with_name(stem + ".coverage.json")  # ชั้นตรวจความครบ: ข้อความเสริมของส่วนที่ถูกชี้ (sections/coverage.py)
+    if cov.exists():
+        c = json.loads(cov.read_text(encoding="utf-8"))
+        if layout is None or c.get("layout") == fingerprint(layout):
+            from .coverage import normalize_digits
+
+            sup = {r["id"]: r["text"] for r in c["sections"] if r["id"] in c.get("flagged", [])}
+            for s in doc["sections"]:
+                if s["id"] in sup:
+                    s["supplement"] = {"engine": c.get("engine") or "openthai-text", "text": normalize_digits(sup[s["id"]])}
     out = sections_json.with_name(stem + ".md")
     out.write_text(markdown_of(doc), encoding="utf-8")
     sections_json.with_name(stem + ".chunks.json").write_text(json.dumps(chunks_of(doc, image_of), ensure_ascii=False, indent=1), encoding="utf-8")
@@ -163,7 +195,8 @@ def read_dataset(paths: DataPaths, cfg: dict, dataset: str, stems: list[str], en
         for stem in stems:
             src = doc_dir(raw_dir, stem, nest=True) / f"{stem}_p1.sections.json"
             if src.exists():
-                print(f"{stem[-4:]}: {write_markdown(src, image_locator(paths, dataset, stem, variant))}", flush=True)
+                lay = json.loads(layout_file(paths, dataset, stem, variant).read_text(encoding="utf-8"))["layout_sections"]
+                print(f"{stem[-4:]}: {write_markdown(src, image_locator(paths, dataset, stem, variant), lay)}", flush=True)
             else:
                 print(f"{stem[-4:]}: ข้าม (ยังไม่มีผล {src.name})", flush=True)
         return []
@@ -238,7 +271,7 @@ def read_dataset(paths: DataPaths, cfg: dict, dataset: str, stems: list[str], en
             t = time.perf_counter()
             try:
                 res = reader.recognize(img)
-                row.update(text=res.text, truncated=res.truncated)
+                row.update(text=res.text, truncated=res.truncated, **({"blocks": res.blocks} if res.blocks is not None else {}))
             except Exception as e:  # noqa: BLE001
                 row.update(text=None, error=repr(e)[:300])
                 rows.append(row)
@@ -256,7 +289,7 @@ def read_dataset(paths: DataPaths, cfg: dict, dataset: str, stems: list[str], en
             print(f"    {stem[-4:]} {s['id']} {s['kind']:4s} {img.shape[1]}x{img.shape[0]} {row['seconds']:5.1f}s "
                   f"{'ชนเพดาน token ' if row['truncated'] else ''}| {reserved}GPU {gpu_status()}", flush=True)
         save(True)
-        write_markdown(out, image_locator(paths, dataset, stem, variant))
+        write_markdown(out, image_locator(paths, dataset, stem, variant), layout)
         ran = [r for r in rows if "skipped" not in r]
         info = {"file": stem[-4:], "sections": len(rows), "ran": len(ran), "skipped": len(rows) - len(ran),
                 "truncated": sum(bool(r.get("truncated")) for r in ran), "seconds": round(time.perf_counter() - t_file, 1)}

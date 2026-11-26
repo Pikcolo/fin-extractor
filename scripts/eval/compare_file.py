@@ -120,7 +120,8 @@ def main() -> None:
         row = []
         for c in cols:
             r = results[c]
-            v = {"status": r["status"], "missing_fields": ",".join(r["missing_fields"]) or "—",
+            missing = r.get("missing_fields") or [k for k, x in (r.get("review") or {}).items() if x["level"] == "missing"]  # 3.x มีคีย์นี้ · 4.0 อ่านจาก review
+            v = {"status": r["status"], "missing_fields": ",".join(missing) or "—",
                  "checks_failed": ",".join(x["name"] for x in r["checks"] if x["passed"] is False) or "—"}[key]
             row.append(v)
         lines.append(f"| {key} | " + " | ".join(row) + " |")

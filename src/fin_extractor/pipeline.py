@@ -22,7 +22,8 @@ from .doctypes import (
     squash,
 )
 from .extraction import extract_fields, lines_with_chunks, markdown_to_lines
-from .extraction.core_labels import extract_buyer_name
+from .extraction.rule_extractor import SUPPLEMENT, chunk_lines
+from .extraction.core_labels import extract_party_name
 from .extraction.hybrid import known_context, merge_llm, top_level, unresolved_keys
 from .extraction.llm_extractor import profile_schema
 from .extraction.profile_extractor import (
@@ -37,7 +38,7 @@ from .readers import make_reader, reader_label
 from .readers.lines import normalize_thai
 from .schema import ExtractionResult, InvoiceData, RejectedValue, ValidationCheck
 from .validation import decide_status, run_checks
-from .validation.evidence import build_field_evidence, comparable, flatten
+from .validation.evidence import build_field_evidence, comparable, field_grounding, flatten, review_from_evidence
 
 log = logging.getLogger(__name__)
 
@@ -122,7 +123,9 @@ class FinanceOCRPipeline:
 
     @staticmethod
     def lines_from_raw(raw_text: str) -> list[str]:
-        """ข้อความดิบที่เก็บไว้ → บรรทัดสำหรับขั้นสกัด (แบบเดียวกับตอนอ่านสด ทุก engine)."""
+        """ข้อความดิบที่เก็บไว้ → บรรทัดสำหรับขั้นสกัด (แบบเดียวกับตอนอ่านสด ทุก engine) ข้อความรายส่วนตัดหัวตารางที่อ่านซ้ำออก (lines_with_chunks)."""
+        if "<!-- s" in raw_text:
+            return [ln for ln, _c in lines_with_chunks(raw_text)]
         return markdown_to_lines(raw_text)
 
     def _consistency(self, d: InvoiceData) -> float:
@@ -140,6 +143,25 @@ class FinanceOCRPipeline:
     def extract_traced(
         self, lines: list[str], raw_text: str
     ) -> tuple[InvoiceData, dict[str, str], dict[str, bool | None]]:
+        """``_extract`` + ที่มาของค่าที่พบเฉพาะในท่อนเสริมของชั้นตรวจความครบ (ตัวอ่านหลักอ่านส่วนนั้นไม่ครบ) = ชื่อตัวอ่านเสริม."""
+        data, sources, agree = self._extract(lines, raw_text)
+        if SUPPLEMENT not in raw_text:
+            return data, sources, agree
+        rows = chunk_lines(raw_text)
+        engines = sorted({s for _ln, _c, s in rows if s})
+        if not engines:
+            return data, sources, agree
+        profile = self.profile_for(data)
+        main = field_grounding(data, "\n".join(ln for ln, _c, s in rows if not s), profile)
+        extra = field_grounding(data, "\n".join(ln for ln, _c, s in rows if s), profile)
+        for key, src in sources.items():
+            if src == "rules" and main.get(key) is False and extra.get(key):
+                sources[key] = engines[0]
+        return data, sources, agree
+
+    def _extract(
+        self, lines: list[str], raw_text: str
+    ) -> tuple[InvoiceData, dict[str, str], dict[str, bool | None]]:
         """rules ทำงานเสมอ; ถ้ามี LLM ด้วยจะเลือกผลที่ตัวเลขสอดคล้องกันมากกว่า แล้วเติม field ที่ขาดจากอีกฝั่ง.
 
         LLM เล็ก ๆ (เช่น 3B) มักสลับ field ยอดเงิน ส่วน rules เปราะกับ layout — ใช้ cross-check เป็นกรรมการ
@@ -148,14 +170,16 @@ class FinanceOCRPipeline:
         ผลเทียบเป็น True/False เมื่อทั้งสองแหล่งมีค่า ไม่มีคีย์ = มีแหล่งเดียว (รายการสินค้าไม่เทียบรายตัว
         เพราะสองแหล่งแบ่งรายการไม่ตรงกัน ใช้ check items_sum ยืนยันแทน)
         """
-        rules = extract_fields(lines)
+        rules = extract_fields(lines, raw_text)
         profile = classify(self.profiles, "\n".join(lines), rules.document_type)
         rules.document_profile = profile.name
         rules.document_fields = extract_document_fields(lines, profile)
-        name, branch = extract_buyer_name(lines, core_labels_for(profile, self.core_labels))
-        if name and not rules.buyer.name:
-            rules.buyer.name = name
-            rules.buyer.branch = rules.buyer.branch or branch
+        labels = core_labels_for(profile, self.core_labels)
+        for party, key in ((rules.buyer, "buyer.name"), (rules.vendor, "vendor.name")):
+            name, branch = extract_party_name(lines, labels, key)
+            if name and not party.name:
+                party.name = name
+                party.branch = party.branch or branch
         chunks = self._chunks_of(lines, raw_text)
         rules.remark = [*extract_remark(lines, profile, rules, chunks), *extract_unmapped(lines, rules, chunks)]
         if not self.llm:
@@ -163,7 +187,7 @@ class FinanceOCRPipeline:
         if self.strategy == "hybrid":
             return self._extract_hybrid(rules, profile, lines, raw_text)
         try:
-            llm = self.llm.extract(raw_text, profile)
+            llm = self.llm.extract(normalize_thai(raw_text), profile)  # เหมือน hybrid: LLM ลอก "ํา" (นิคหิต+า) ของ OpenThai มา ค่าจึงไม่ตรงกับบรรทัดที่ normalize แล้ว (ถูกนับว่าไม่พบในข้อความ)
         except Exception as e:  # noqa: BLE001 — LLM ล่ม/ตอบผิด schema → ใช้ rules
             log.warning("LLM extraction failed, falling back to rules: %s", e)
             return rules, dict.fromkeys(flatten(rules), "rules"), {}
@@ -222,23 +246,35 @@ class FinanceOCRPipeline:
             sources[key] = "llm" if key in accepted else sources.get(key, "rules")
         return merged, sources, agree
 
-    def build_result(self, source_file: str, page: int, lines: list[str], raw_text: str,
-                     ocr_conf: float | None, extra: list[ValidationCheck]) -> ExtractionResult:
-        """ข้อความที่อ่านได้ของหน้าหนึ่ง → ผลสกัด/ตรวจ/สถานะ (ไม่แตะ OCR จึงรันซ้ำจาก ``raw_text`` ที่เก็บไว้ได้)."""
-        data, sources, agree = self.extract_traced(lines, raw_text)
+    def assess(self, data: InvoiceData, lines: list[str], sources: dict[str, str] | None = None,
+               agree: dict[str, bool | None] | None = None, extra: list[ValidationCheck] | tuple = ()):
+        """ตรวจข้อมูลที่สกัดแล้ว (หรือที่คนแก้แล้ว) → (checks, ฟิลด์ที่ขาด, สถานะ, หลักฐานรายฟิลด์) ไม่สกัดใหม่ ใช้โปรไฟล์ตาม ``data.document_profile``
+        ``lines`` = บรรทัดของข้อความที่อ่านได้ (ใช้ตรวจว่าค่าปรากฏในข้อความไหม)."""
         profile = self.profile_for(data)
         checks = run_checks(data, self.cfg["validation"]["amount_tolerance"],
-                            self.cfg["validation"]["default_vat_rate"], applicable=profile.checks) + extra
+                            self.cfg["validation"]["default_vat_rate"], applicable=profile.checks) + list(extra)
         na = set(profile.not_applicable) | legacy_not_applicable(self.doc_table, data.document_type)
         missing, status = decide_status(data, checks, not_applicable=na, required=profile.required,
                                         primary_amount=profile.primary_amount,
                                         can_auto_approve=profile.can_auto_approve)
         evidence = build_field_evidence(data, checks, "\n".join(lines), sources, agree, not_applicable=na,
                                         required=profile.required, profile=profile)
+        return checks, missing, status, evidence
+
+    def build_result(self, source_file: str, page: int, lines: list[str], raw_text: str,
+                     ocr_conf: float | None, extra: list[ValidationCheck]) -> ExtractionResult:
+        """ข้อความที่อ่านได้ของหน้าหนึ่ง → ผลสกัด/ตรวจ/สถานะ (ไม่แตะ OCR จึงรันซ้ำจาก ``raw_text`` ที่เก็บไว้ได้)."""
+        data, sources, agree = self.extract_traced(lines, raw_text)
+        checks, _missing, status, evidence = self.assess(data, lines, sources, agree, extra)
+        if status == "auto_approved" and any(src not in ("rules", "llm", "human") and key in evidence and evidence[key].level != "verified"
+                                             for key, src in sources.items()):
+            # ค่าจากตัวอ่านเสริมที่ไม่มี check ยืนยัน ต้องให้คนดู: ตัวอ่านเสริมอ่านวันที่/เลขที่เพี้ยนได้ (1318: 16/10 แทน 15/10, ST69100-0036)
+            status = "needs_review"
+        review = review_from_evidence(evidence, checks, self.profile_for(data).primary_amount)
         return ExtractionResult(
             source_file=source_file, page=page, engine=self.engine_name, data=data,
-            checks=checks, field_evidence=evidence, ocr_confidence=round(ocr_conf, 4) if ocr_conf is not None else None,
-            missing_fields=missing, status=status, raw_text=raw_text,
+            checks=checks, review=review, ocr_confidence=round(ocr_conf, 4) if ocr_conf is not None else None,
+            status=status, raw_text=raw_text,
             rejected=[RejectedValue(key=k, reason=why) for k, why in (self.last_rejected if self.strategy == "hybrid" else [])],
         )
 

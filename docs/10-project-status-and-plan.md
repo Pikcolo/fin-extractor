@@ -28,11 +28,11 @@
 |---|---|---|
 | Preprocess: deskew / rotate | **ทำแล้ว ใช้อยู่** | หมุนด้วยตัวจำแนกทิศของ Paddle (แยก 90° กับ 270° ได้), deskew [02](02-preprocessing.md) |
 | Preprocess: denoise / binarize / CLAHE | **ทำแล้ว ปิดไว้** | วัดแล้วไม่ช่วย binarize ทำให้อ่านเลขภาษีได้น้อยลง ([02](02-preprocessing.md) หัวข้อ 2.6–2.8) |
-| แบ่งหน้าเป็นส่วนก่อน OCR | **ทำแล้ว** (เกินขอบเขต) | ผัง section ([03-sections](03-sections.md)) และโหมด regions/ตาราง/QR ([03-regions](03-regions.md)) |
-| OCR engine | **ทำแล้ว 4 ตัว** | OpenThai (ค่าตั้งต้น), Typhoon, PaddleOCR, OXR (เลิกใช้: อ่านไทยไม่ได้) Tesseract/EasyOCR เคยมี วัดแล้วแพ้ ([04](04-ocr.md)) |
+| แบ่งหน้าเป็นส่วนก่อน OCR | **ทำแล้ว** (เกินขอบเขต) | **ค่าตั้งต้นเป็นผัง regions ตั้งแต่ 2026-11-24** ([03-regions](03-regions.md): กรอบชิดข้อความ ตารางตามเส้น ระบาย QR/บาร์โค้ด ท่อนที่ไม่มีข้อความไม่ส่ง OCR) ผู้ใช้เลือกหลังดูภาพ ทั้งที่ผลวัดเดิมขาดฟิลด์ 20 เทียบผัง section 14 (ไม่มีเฉลย ต้องวัดซ้ำ) ผัง section แบบเดิมยังใช้ได้ด้วย `--layout sections` ([03-sections](03-sections.md)) |
+| OCR engine | **ทำแล้ว 6 ตัว** | OpenThai 2.0 (ค่าตั้งต้น), OpenThai 2.1 Markdown (≈ 2.0 บน 18 ใบ), OpenThai 2.1 Text (CPU ไม่มีตาราง ลายมือแย่), Typhoon, PaddleOCR, OXR (เลิกใช้: อ่านไทยไม่ได้) ผลเทียบ [04-openthai-ocr](04-openthai-ocr.md) หัวข้อ 6 |
 | Regex เลขภาษี / วันที่ / ยอดเงิน | **ทำแล้ว** | `extraction/` + โปรไฟล์ชนิดเอกสาร ([05-extraction](05-extraction.md)) |
 | Cross-check ตัวเลข | **ทำแล้ว** | checksum เลขภาษี, ผลรวมรายการ, ส่วนลด, ก่อน VAT + VAT = รวม, อัตรา VAT, ช่วงวันที่ ([05-validation-output](05-validation-output.md)) |
-| LLM ช่วยสกัด | **ทำแล้ว ปิดเป็นค่าตั้งต้น** | `--llm on/hybrid` ใช้ Ollama ในเครื่อง พบว่า LLM แต่งค่าได้ จึงให้ rules นำ |
+| LLM ช่วยสกัด | **ทำแล้ว ปิดเป็นค่าตั้งต้น** | `--llm on/hybrid` ใช้ Ollama ในเครื่อง (`qwen2.5:3b`) วัดบนผัง regions 2026-11-26: winner แต่งค่า 35 ค่า · hybrid failed 2 → 1, auto 5 → 6 ไม่มีค่าที่ไม่อยู่ในข้อความ ([05-extraction](05-extraction.md) §5D) ยังให้ rules นำ |
 
 ### เฟส 3: FastAPI Microservice — **ยังไม่ทำ**
 
@@ -41,8 +41,9 @@
 
 ### เฟส 4: เชื่อมระบบบัญชี + Human-in-the-loop — **ยังไม่ทำ** (มีแผน)
 
-- ระดับหลักฐานรายช่อง (`field_evidence`) สำหรับไฮไลต์มีแล้ว
-- หน้าตรวจ, บันทึกการแก้ (ReviewRecord) และ export ยังไม่มี แผนอยู่ใน [06](06-design-and-roadmap.md) หัวข้อ 4.5 และ U5–U6
+- ระดับหลักฐานรายช่อง (`review` ใน schema 4.0 เดิมชื่อ `field_evidence`) สำหรับไฮไลต์มีแล้ว
+- หน้าตรวจ, บันทึกการแก้ (ReviewRecord) และ export ยังไม่มีในระบบจริง แผนอยู่ใน [06](06-design-and-roadmap.md) หัวข้อ 4.5 และ U5–U6
+- **ต้นแบบ (2026-11-24):** หน้า demo ในเครื่อง (`scripts/demo/`) มีขั้นตรวจ/แก้รายฟิลด์: เรียงฟิลด์ตามที่ควรตรวจก่อนจากระดับหลักฐาน (ไม่ใช้ decision engine) บอกเหตุผลเป็นคำพูด แก้ค่า/รายการแล้วตรวจใหม่ทันที (`FinanceOCRPipeline.assess`) บันทึก `corrected.json` + `edits.json` (ค่าเดิม → ค่าที่แก้ = รูปแบบเริ่มต้นของ ReviewRecord) ดู [00-setup-and-usage](00-setup-and-usage.md)
 - เครื่องมือกรอก ground truth (`scripts/eval/groundtruth_app.py`) มีหน้าตาใกล้กับหน้าตรวจ (ภาพคู่ฟอร์ม ช่องที่ต่างเป็นสีเหลือง) ใช้เป็นต้นแบบได้
 
 ### เฟส 5: Deployment, Testing, Documentation

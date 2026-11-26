@@ -83,6 +83,16 @@ def detect_vlines(img: np.ndarray, min_len_frac: float = 0.03, side_max_ink: flo
     return sorted(merged, key=lambda l: l["x"])
 
 
+MIN_COLUMN_RULES = 3  # ตารางที่มีอย่างน้อย 2 คอลัมน์มีเส้นตั้งอย่างน้อย 3 เส้น (ซ้าย · เส้นแบ่ง · ขวา) ขอบกรอบเฉย ๆ มีแค่ 2 (ซ้าย/ขวา) ไม่นับเป็นตาราง
+
+
+def crosses_column_rule(y: int, vlines: list[dict], x0: int, x1: int, tol_px: int) -> bool:
+    """แนวตัด y อยู่กลางตารางที่มีคอลัมน์ไหม: เส้นตั้งในช่วง x0–x1 ที่พาดผ่าน y (ห่างจากปลายเส้นเกิน ``tol_px``) มีอย่างน้อย ``MIN_COLUMN_RULES`` เส้น
+    ตัดตรงนั้นแถวจะแยกจากหัวคอลัมน์ ปลายเส้นตรงขอบบน/ล่างของตารางไม่นับ และขอบกรอบเอกสาร (ซ้าย/ขวา 2 เส้น) อย่างเดียวไม่นับ
+    (1308: ขอบกรอบพาดตั้งแต่กล่องลูกค้าถึงยอดรวม ถ้านับ ทั้งหน้าจะกลายเป็นภาพเดียว)."""
+    return sum(x0 <= v["x"] <= x1 and v["y0"] + tol_px < y < v["y1"] - tol_px for v in vlines) >= MIN_COLUMN_RULES
+
+
 def snap_y(y: int, x0: int, x1: int, lines: list[dict], tol_px: int, min_overlap: float = 0.5) -> tuple[int, bool]:
     """Move boundary y to the nearest line within tol_px that covers >= min_overlap of [x0, x1]."""
     best, best_d = y, tol_px + 1

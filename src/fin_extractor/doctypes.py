@@ -98,7 +98,7 @@ class Profile:
 GENERIC_PROFILE = Profile(name=GENERIC, title="ทั่วไป (ใบกำกับภาษี/ใบเสร็จ/invoice)")
 
 # ฟิลด์แกนกลางที่อ่านจากป้ายได้ตอนนี้ (ป้ายอยู่ที่ config: core_labels ค่าตั้งต้น และ document_types.<ชนิด>.core_labels)
-CORE_LABEL_KEYS = ("buyer.name",)
+CORE_LABEL_KEYS = ("buyer.name", "vendor.name")
 
 
 def _specs(items, *, core: bool = False) -> tuple[FieldSpec, ...]:

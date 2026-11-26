@@ -149,6 +149,21 @@ def test_run_page_writes_a_layout_the_section_reader_accepts(tmp_path):
     assert not any("tables/" in e["file"] for e in entries.values())  # อ่านเฉพาะ region ไม่อ่านช่องตารางซ้ำ
 
 
+def test_run_page_does_not_send_pieces_without_text_to_ocr(tmp_path):
+    """แถวตารางที่มีแต่เส้นขอบช่อง (ไม่มีข้อความ: แบบ 1320/1322) ไม่ถูกส่ง OCR และถูกบันทึกใน skipped_regions."""
+    full = _invoice_page()
+    y0, y1 = 2400, 2460  # สูง 60 px: เส้นขอบช่อง (40 px ที่ 200 dpi) สั้นกว่าเกณฑ์เส้นตั้งของหน้า (~97 px) จึงเหลือในหน้ากากระดับหน้า แบบ 1320/1322
+    for y in (y0, y1):
+        cv2.line(full, (150, y), (1950, y), (0, 0, 0), 5)
+    for x in (150, 750, 1350, 1950):  # เส้นขอบช่องสั้น: สั้นกว่าเกณฑ์เส้นของหน้า จึงไม่ถูกลบในหน้ากากระดับหน้า
+        cv2.line(full, (x, y0), (x, y1), (0, 0, 0), 5)
+    m = run_page(full, "X_0001", 300.0, RegionConfig(), tmp_path / "X_0001", debug_images=False)
+    regions = [f for f in m["stages"]["export"]["files"] if "region" in f]
+    assert regions and not any(f["box_page"][1] < y1 and f["box_page"][3] > y0 for f in regions)  # ไม่มีท่อนไหนทับแถวว่าง
+    assert any(s.get("reason") == "no text" for s in m["stages"]["export"]["skipped_regions"])
+    assert any(f["box_page"][1] < 300 for f in regions) and any(f["box_page"][1] <= 2000 <= f["box_page"][3] for f in regions)  # ข้อความยังอยู่ครบ
+
+
 def _text_page(rows, w=600, h=1000):
     """หน้ากากข้อความจำลอง: rows = [(y, สูง, x0, x1)] แต่ละแถวเป็นแท่งหมึก (ตัวอักษร)."""
     t = np.zeros((h, w), np.uint8)
@@ -187,3 +202,43 @@ def test_cut_region_uses_item_numbers_in_the_first_column():
     cut = pieces.cut_region(_text_page(rows), (0, 0, 600, 1000), vl, max_h=500, min_line_h=12, pad=6)
     assert cut["method"] == "items"
     assert [p[0] for p in cut["pieces"][1:]] and all(p[0] in range(360, 400) or p[0] in range(660, 700) for p in cut["pieces"][1:])
+
+
+def test_strips_inside_a_table_with_columns_are_merged_but_a_frame_border_alone_does_not_merge():
+    from fin_extractor.sections.regions import split
+
+    strips = [{"name": f"strip_{i:02d}", "box": (0, a, 1000, b), "mode": "generic:lines"} for i, (a, b) in enumerate([(0, 100), (100, 300), (300, 500)])]
+    frame = [{"x": 0, "y0": 0, "y1": 500}, {"x": 1000, "y0": 0, "y1": 500}]  # ขอบกรอบซ้าย/ขวาพาดทั้งหน้า: ไม่ใช่ตาราง
+    assert [r["name"] for r in split.merge_ruled(strips, frame, 12)] == ["strip_00", "strip_01", "strip_02"]
+    columns = frame + [{"x": 400, "y0": 100, "y1": 500}]  # เส้นแบ่งคอลัมน์ของตารางที่เริ่มที่ y 100 (หัวคอลัมน์) ลงไปถึงแถวข้อมูล
+    merged = split.merge_ruled(strips, columns, 12)
+    assert [r["name"] for r in merged] == ["strip_00", "strip_01-02"]  # หัวคอลัมน์อยู่ภาพเดียวกับแถว · แถบบนตาราง (ปลายเส้นที่ y 100) ไม่ถูกรวม
+    assert merged[1]["box"] == (0, 100, 1000, 500) and merged[1]["merged"] == 2
+    assert merged[1]["header"] == (0, 100, 1000, 300)  # แถบแรกของตาราง = แถวหัวคอลัมน์ ใช้แปะซ้ำเมื่อถูกตัดตามความสูง
+
+
+def test_a_tall_table_cut_into_pieces_repeats_its_column_header_on_every_piece(tmp_path):
+    """ตารางที่มีคอลัมน์ (4 เส้นตั้ง) สูงเกินเพดาน: ถูกตัดเป็นท่อน แต่ทุกท่อนหลังท่อนแรกมีแถวหัวคอลัมน์ต่อไว้บนสุด."""
+    img = np.full((3000, 2100, 3), 255, np.uint8)
+    put = lambda t, x, y: cv2.putText(img, t, (x, y), cv2.FONT_HERSHEY_SIMPLEX, 1.6, (0, 0, 0), 3)  # noqa: E731
+    put("INVOICE NO 42", 150, 200)
+    xs, top, bottom = [150, 750, 1350, 1950], 400, 2700
+    rows = [top, 520, *range(640, bottom, 140), bottom]
+    for y in rows:
+        cv2.line(img, (xs[0], y), (xs[-1], y), (0, 0, 0), 5)
+    for x in xs:
+        cv2.line(img, (x, top), (x, bottom), (0, 0, 0), 5)
+    for c, t in enumerate(("ITEM", "QTY", "AMOUNT")):
+        put(t, xs[c] + 60, top + 80)
+    for r, y in enumerate(rows[1:-1]):
+        for c, t in enumerate((f"ROW {r}", str(r + 1), f"{(r + 1) * 100}.00")):
+            put(t, xs[c] + 60, y + 90)
+    m = run_page(img, "X_0001", 300.0, RegionConfig(), tmp_path / "X_0001", debug_images=False)
+    regions = [f for f in m["stages"]["export"]["files"] if "region" in f]
+    table = [f for f in regions if f["box_page"][1] >= top - 20]
+    assert len(table) >= 2  # สูงเกินเพดาน 0.3 ของหน้า: ตัดเป็นหลายท่อน
+    assert "header_box_page" not in table[0] and all("header_box_page" in f for f in table[1:])  # ท่อนแรกมีหัวอยู่แล้ว
+    for f in table[1:]:
+        crop = cv2.imdecode(np.fromfile(str(tmp_path / "X_0001" / f["path"]), np.uint8), cv2.IMREAD_GRAYSCALE)
+        hb, pb = f["header_box_page"], f["box_page"]
+        assert crop.shape[0] > pb[3] - pb[1] and hb[3] <= pb[1]  # ภาพสูงกว่าแถวของท่อน (มีหัวต่อบน) และหัวอยู่เหนือแถวในหน้าจริง

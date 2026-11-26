@@ -1,7 +1,7 @@
 """Command line: ``python -m fin_extractor <command> ...``
 
   preprocess  ปรับภาพแล้วเก็บภาพสุดท้ายไว้ให้ทุก engine ใช้ร่วมกัน (ดูผลทีละขั้นด้วย --steps)
-  sections    flow หลัก: preprocess → แบ่ง section → ภาพรายส่วน → อ่านทีละส่วน → สกัด (ทุก engine อ่านทีละ section เท่านั้น)
+  sections    flow หลัก: preprocess → แบ่งเป็น region (ค่าตั้งต้น --layout regions) → อ่านทีละส่วน → สกัด (ทุก engine อ่านทีละส่วนเท่านั้น)
   extract     สกัดซ้ำจากข้อความรายส่วนที่เก็บไว้ (ไม่อ่านภาพ) · ocr ปิดแล้ว (ห้ามอ่านทั้งหน้า)
   regions     ขั้น 3 แบบทางเลือก: แบ่ง region (template/แถบตามเส้น) + ตาราง → ช่อง + key/value + ระบาย QR (CPU ไม่ OCR)
   compare     เทียบผลสกัดข้ามวิธี luma/flat/bin
@@ -116,9 +116,9 @@ def cmd_sections(args, cfg) -> None:
     from .sections.read import REGIONS_VARIANT, read_dataset
 
     paths, dataset = DataPaths(cfg), dataset_of(args.input)
-    if args.layout == "regions":  # ผังจากคำสั่ง regions: ภาพ region อ่านแบบ luma เท่านั้น ผลแยกโฟลเดอร์ <engine>/regions-luma/
+    if args.layout == "regions":  # ค่าตั้งต้น: ผังจาก regions/run.py ภาพ region อ่านแบบ luma เท่านั้น ผลที่โฟลเดอร์ <engine>/regions-luma/
         if args.variant != "luma":
-            sys.exit("--layout regions ใช้ได้กับ --variant luma เท่านั้น (ภาพ region สำหรับ OCR เป็นภาพเทา)")
+            sys.exit("--variant flat|bin|color ใช้ได้กับผังแบบเดิมเท่านั้น: เพิ่ม --layout sections (ภาพ region สำหรับ OCR เป็นภาพเทา luma)")
         args.variant = REGIONS_VARIANT
     if args.max_piece_frac is None:
         args.max_piece_frac = MAX_PIECE_FRAC
@@ -172,6 +172,12 @@ def cmd_sections(args, cfg) -> None:
         banner("ocr")
         summary = read_dataset(paths, cfg, dataset, stems, args.engine, args.variant, redo=args.redo)
         print(f"รันรอบนี้ {len(summary)} ไฟล์ (ที่เหลือมีผลแล้ว ข้าม)")
+        if not args.no_coverage_check:
+            from .sections.coverage import check_dataset
+
+            checked = check_dataset(paths, cfg, dataset, stems, args.engine, args.variant, redo=args.redo)
+            if checked:
+                print(f"ชั้นตรวจความครบ: {sum(bool(c['flagged']) for c in checked)}/{len(checked)} ไฟล์มีส่วนที่อ่านไม่ครบ (แนบข้อความเสริมใน .md)")
     if "extract" in todo:
         banner("extract")
         a = parser.parse_args([*common, "extract", args.input, "--engine", args.engine, "--llm", "off",
@@ -246,7 +252,8 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("extract", help="สกัด field → JSON จากข้อความที่อ่านทีละ section แล้ว (ไม่อ่านภาพ)")
     s.add_argument("input")
     s.add_argument("--engine", choices=SECTION_ENGINES, default="openthai", help="อ่านข้อความจาก 04_ocr/<dataset>/<engine>/<วิธี>/")
-    s.add_argument("--variant", choices=["luma", "flat", "bin", "color", "regions-luma"], default="luma", help="ภาพรายส่วนแบบไหนที่ใช้ตอนอ่าน (โฟลเดอร์ <วิธี>) regions-luma = อ่านจากภาพ region")
+    s.add_argument("--variant", choices=["luma", "flat", "bin", "color", "regions-luma"], default="regions-luma",
+                   help="ภาพรายส่วนแบบไหนที่ใช้ตอนอ่าน (โฟลเดอร์ <วิธี>) regions-luma = ภาพ region (ค่าตั้งต้นของ flow) · luma/flat/bin/color = ผัง section แบบเดิม")
     s.add_argument("--llm", choices=["auto", "on", "off", "hybrid"], default="off",
                    help="off = rules อย่างเดียว | on/auto = rules และ LLM สกัดแยก เลือกชุดที่ check ดีกว่า | "
                         "hybrid = rules นำ LLM เติมเฉพาะช่องที่ยังไม่เสร็จ ค่าต้องผ่านด่านก่อนรับ (ผลลง <extractor>/hybrid/)")
@@ -256,31 +263,34 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--out", help="โฟลเดอร์ปลายทางเอง (อ่านจาก <out>/04_ocr/<วิธี>/ เขียนที่ <out>/05_extract/<วิธี>/<extractor>/)")
     s.set_defaults(func=cmd_extract)
 
-    s = sub.add_parser("sections", help="flow หลักของสแกนจริง: preprocess → แบ่ง section → ภาพรายส่วน → OCR → สกัด (ข้ามขั้นที่ผลยังใช้ได้)")
+    s = sub.add_parser("sections", help="flow หลักของสแกนจริง: preprocess → แบ่งเป็น region → OCR ทีละส่วน → สกัด (ข้ามขั้นที่ผลยังใช้ได้)")
     s.add_argument("input", help="ไฟล์หรือโฟลเดอร์อินพุต (ชื่อโฟลเดอร์ = ชื่อชุดข้อมูล)")
     s.add_argument("--variant", choices=["luma", "flat", "bin", "color"], default="luma",
-                   help="ภาพรายส่วนที่ส่งเข้า OCR (ค่าตั้งต้น luma วัดแล้วดีสุดบน 18 ใบ ดู docs/03-sections.md) color = ตัดจากภาพ final สี ไม่มีขั้น images")
+                   help="ภาพรายส่วนของผังแบบเดิม (--layout sections เท่านั้น) luma วัดแล้วดีสุดบน 18 ใบ (docs/03-sections.md) color = ตัดจากภาพ final สี ไม่มีขั้น images")
     s.add_argument("--engine", choices=SECTION_ENGINES, default="openthai", help="ตัวอ่านรายส่วน (typhoon ต้องเปิด Ollama)")
     s.add_argument("--from", dest="start", choices=["preprocess", "layout", "images", "ocr", "extract"], default="preprocess",
                    help="เริ่มที่ขั้นนี้ (ขั้นก่อนหน้าไม่รัน ใช้ผลที่มี)")
     s.add_argument("--to", dest="stop", choices=["preprocess", "layout", "images", "ocr", "extract"], default="extract", help="จบที่ขั้นนี้")
     s.add_argument("--only", nargs="*", help="เลขท้ายชื่อไฟล์ เช่น 1309")
     s.add_argument("--redo", action="store_true", help="ทำใหม่ทุกขั้นที่รัน แม้ผลเดิมยังใช้ได้")
-    s.add_argument("--layout", choices=["sections", "regions"], default="sections",
-                   help="ผังที่ใช้อ่าน: sections = ผัง section (ค่าตั้งต้น) · regions = region จากคำสั่ง regions (ไม่มีขั้น images ผลที่ <engine>/regions-luma/ ดู docs/03-regions.md)")
-    s.add_argument("--table-mode", choices=["whole", "cells", "bands", "rows"], default="rows", help="วิธีแบ่งตาราง (ดู docs/03-sections.md)")
+    s.add_argument("--no-coverage-check", action="store_true",
+                   help="ไม่รันชั้นตรวจความครบ (OpenThai Text บน CPU อ่านภาพย่อยซ้ำ ภาพที่ตัวอ่านหลักอ่านไม่ครบ: แยกซ้าย/ขวาให้ตัวอ่านหลักอ่านใหม่ หรือแนบข้อความเสริม ดู config coverage_check)")
+    s.add_argument("--layout", choices=["regions", "sections"], default="regions",
+                   help="ผังที่ใช้อ่าน: regions = กรอบชิดข้อความ + ตารางตามเส้น (ค่าตั้งต้น ไม่มีขั้น images ผลที่ <engine>/regions-luma/ ดู docs/03-regions.md) · "
+                        "sections = แถบเต็มหน้าแบบเดิม (ไม่ใช้เป็นค่าตั้งต้นแล้ว เก็บไว้เทียบ ตัวเลือกด้านล่างที่ระบุ 'sections' ใช้กับแบบนี้เท่านั้น)")
+    s.add_argument("--table-mode", choices=["whole", "cells", "bands", "rows"], default="rows", help="[--layout sections] วิธีแบ่งตาราง (ดู docs/03-sections.md)")
     s.add_argument("--max-piece-frac", type=float, default=None,
-                   help="ส่วนที่สูงกว่านี้ (สัดส่วนความสูงหน้า) ถูกตัดเป็นท่อน 0 = ไม่ตัด (ไม่ใส่ = ค่าใน sections/layout.py)")
+                   help="[--layout sections] ส่วนที่สูงกว่านี้ (สัดส่วนความสูงหน้า) ถูกตัดเป็นท่อน 0 = ไม่ตัด (ไม่ใส่ = ค่าใน sections/layout.py)")
     s.add_argument("--fill-aware", action="store_true",
-                   help="ผังนับตัวอักษรบนพื้นสีเป็นหมึกและไม่ตัดผ่านแถบสี (กัน OCR เดาข้อความจากเสี้ยวแถบ เช่น 1306) ผลวัด 6 ใบที่ผังเปลี่ยน: ฟิลด์ที่ขาดรวมเท่าเดิม (ดู docs/03-sections.md) จึงไม่เปิดเป็นค่าตั้งต้น")
+                   help="[--layout sections] ผังนับตัวอักษรบนพื้นสีเป็นหมึกและไม่ตัดผ่านแถบสี (กัน OCR เดาข้อความจากเสี้ยวแถบ เช่น 1306) ผลวัด 6 ใบที่ผังเปลี่ยน: ฟิลด์ที่ขาดรวมเท่าเดิม (ดู docs/03-sections.md) จึงไม่เปิดเป็นค่าตั้งต้น")
     s.add_argument("--dotted-rules", action="store_true",
-                   help="ผังตัดตามเส้นแบ่งแถวที่เป็นเส้นประด้วย (ฟอร์มอย่าง 50 ทวิ ที่เส้นแถวเป็นเส้นประ) ยังไม่ได้วัดกับ OCR จึงไม่เปิดเป็นค่าตั้งต้น (ดู docs/03-sections.md)")
+                   help="[--layout sections] ผังตัดตามเส้นแบ่งแถวที่เป็นเส้นประด้วย (ฟอร์มอย่าง 50 ทวิ ที่เส้นแถวเป็นเส้นประ) ยังไม่ได้วัดกับ OCR จึงไม่เปิดเป็นค่าตั้งต้น (ดู docs/03-sections.md)")
     s.add_argument("--no-mask-codes", action="store_true",
-                   help="ไม่ระบาย QR/บาร์โค้ดก่อนแบ่ง (ค่าตั้งต้นระบาย: ไม่ส่งรหัสเข้า OCR ข้อความในรหัสเก็บใน masked_codes ของผัง ดู sections/graphics.py)")
+                   help="[--layout sections] ไม่ระบาย QR/บาร์โค้ดก่อนแบ่ง (ค่าตั้งต้นระบาย: ไม่ส่งรหัสเข้า OCR ข้อความในรหัสเก็บใน masked_codes ของผัง ดู sections/graphics.py)")
     s.add_argument("--trim-sections", choices=["all", "text-lr"],
-                   help="หดกรอบแต่ละส่วนให้เหลือแค่ข้อความ ตัดพื้นว่างทิ้งก่อนส่ง OCR (trim_box ของโหมด regions ดู sections/graphics.py) "
+                   help="[--layout sections] หดกรอบแต่ละส่วนให้เหลือแค่ข้อความ ตัดพื้นว่างทิ้งก่อนส่ง OCR (trim_box ของโหมด regions ดู sections/graphics.py) "
                         "all = ทุกส่วนทั้งสี่ด้าน · text-lr = เฉพาะส่วนข้อความ หดแค่ซ้าย/ขวา ไม่ใส่ = ไม่หด (ค่าตั้งต้น ผลวัดดู docs/03-sections.md)")
-    s.add_argument("--drop-empty-rows", action="store_true", help="แบบ bin เท่านั้น: ลบแถวตารางที่ช่องตัวเลขว่าง (ดู docs/03-sections.md)")
+    s.add_argument("--drop-empty-rows", action="store_true", help="[--layout sections] แบบ bin เท่านั้น: ลบแถวตารางที่ช่องตัวเลขว่าง (ดู docs/03-sections.md)")
     profile_arg(s)
     s.set_defaults(func=cmd_sections)
 

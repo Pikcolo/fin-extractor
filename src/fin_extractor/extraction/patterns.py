@@ -28,6 +28,13 @@ AMOUNT_RE = re.compile(r"(?<![\d.,])-?(?:\d{1,3}(?:,\d{3})+(?:\.\d{2})?|\d+\.\d{
 PERCENT_RE = re.compile(r"(\d+(?:\.\d+)?)\s*%")
 
 
+def fix_ocr_numbers(text: str) -> str:
+    """ตัวเลขที่ OCR พิมพ์เพี้ยนจนตัวจับยอดเงินมองไม่เห็น: ช่องว่างก่อนทศนิยม ("106,250 .00")
+    และจุดทศนิยมที่อ่านเป็น ":" ("7,500:00" 1317) — แบบหลังเฉพาะเลขที่มีจุลภาคหลักพัน ไม่ให้ไปโดนเวลา (10:30)."""
+    text = re.sub(r"(?<=\d)[ \t ]+\.(?=\d{2}(?!\d))", ".", text)
+    return re.sub(r"(?<![\d.,:])(\d{1,3}(?:,\d{3})+):(\d{2})(?![\d:])", r"\1.\2", text)
+
+
 def parse_amount(text: str | int | float | Decimal | None) -> Decimal | None:
     """แปลงเป็น Decimal — ตัวเลขจาก float ผ่าน ``str`` เสมอ ไม่ใช้ ``Decimal(float)`` ที่ได้เศษทศนิยมไบนารี."""
     if text is None:

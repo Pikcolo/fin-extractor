@@ -48,6 +48,12 @@ generic:
   cut_min_len_frac: 0.30   # only rules this long become cuts; shorter-than-page rules are checked
                            # for text beside them (310: totals box on the right, notes on the left)
   cut_search_px: 12        # move a cut up/down this far to avoid slicing text beside a short rule
+  # ตารางที่มีคอลัมน์อยู่ภาพเดียวกับหัวคอลัมน์เสมอ (= กลางตารางที่มีคอลัมน์ / กล่องที่มีเส้นขอบ) รวมแถบรายแถวที่รอยต่อมีเส้นตั้งพาดเป็น region เดียว (split.merge_ruled) ตารางที่สูงเกิน max_piece_frac ยังตัดเป็นท่อน แต่แปะแถวหัวคอลัมน์ซ้ำบนทุกท่อน (run.py) แถบรายแถวยังใช้ในขั้นตาราง
+  # เหตุผล: ตัดตารางตามแถว แถวข้อมูลแยกจากหัวคอลัมน์ OCR ไม่รู้ว่าค่าอยู่คอลัมน์ไหน (ผู้ใช้ชี้ 2026-11-24)
+  # "ตาราง" = เส้นตั้งพาดผ่านรอยต่ออย่างน้อย 3 เส้น (lines.MIN_COLUMN_RULES: ซ้าย · เส้นแบ่งคอลัมน์ · ขวา) ขอบกรอบ 2 เส้นไม่นับ
+  # ปลายเส้นห่างจากแนวตัดไม่เกิน cut_search_px ไม่นับ (ขอบบน/ล่างของตาราง) · วัดบน 18 ใบ: แบบ generic ไม่มีเส้นตั้งยาวเกิน 0.67 ของกรอบ
+  # (เส้นกรอบหน้าไม่ถูกจับเป็นเส้นตั้ง จึงไม่บล็อกทุกจุดตัด) ส่วน 50 ทวิ (template) ไม่ได้ตัดตามเส้น ไม่กระทบ
+  keep_ruled_tables: true
   min_strip_px: 30         # thinner strips (double rules) are merged into the next one
   min_strip_ink: 0.002     # drop empty strips (blank table rows)
   line_pad_px: 4
@@ -60,6 +66,10 @@ generic:
 
 export:
   min_ink_frac: 0.002      # skip regions that are (almost) blank after masking
+  # ท่อนที่ส่ง OCR ต้องมีชิ้นข้อความ (บนภาพท่อนหลังลบเส้นตาราง: พื้นที่ ≥ 8 px และหนากว่า 2 px ดู run.py has_text) อย่างน้อยเท่านี้ ไม่งั้นไม่ส่ง
+  # วัดบน 18 ใบ (2026-11-24): 150 ท่อน · ท่อนที่ไม่มีข้อความ (เส้นตาราง + ขีดลายมือ: 1306 1308 1313 1314 1320 1322) มี 0–3 ชิ้น
+  # ท่อนที่มีข้อความน้อยสุดมี 25 ชิ้น (1315 "Receipt No. 4") ค่า 4 = มากกว่าท่อนว่างที่มากสุดหนึ่งชิ้น
+  min_text_components: 4
   trim: true               # shrink every crop to its text (+ trim_pad_px); empty -> skipped
   trim_pad_px: 6
   # วิธีเตรียมภาพ crop = ชื่อเดียวกับภาพ section (sections/images.py): color | luma | flat | bin

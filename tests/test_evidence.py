@@ -110,7 +110,39 @@ def test_money_is_decimal_quantized_and_serialized_as_string():
     assert d.total_amount == Decimal("0.30") and d.subtotal == Decimal("47.50") and d.vat_rate == Decimal("0.07")
     r = ExtractionResult(source_file="x", engine="e", data=d, status="needs_review")
     j = r.model_dump_json()
-    assert '"total_amount":"0.30"' in j and '"schema_version":"3.0"' in j
+    assert '"total_amount":"0.30"' in j and '"schema_version":"4.0"' in j
+    assert all(k not in j for k in ('"raw_text"', '"ocr_confidence"', '"rejected"', '"missing_fields"', '"field_evidence"'))  # ช่องว่าง/ช่องซ้ำไม่ถูกเขียน
+
+
+def test_review_orders_fields_by_what_to_check_first_and_explains_why():
+    from fin_extractor.schema import ValidationCheck
+    from fin_extractor.validation.evidence import review_from_evidence
+
+    d = InvoiceData(vendor={"name": "บริษัท ก", "tax_id": "1234567890123"}, total_amount="107.00", amount_before_vat="100.00", vat_amount="7.00")
+    text = "บริษัท ก 1234567890123 100.00 7.00 107.00"
+    checks = run_checks(d)
+    rv = review_from_evidence(build_field_evidence(d, checks, text), checks, "total_amount")
+    levels = [r.level for r in rv.values()]
+    assert levels == sorted(levels, key=["conflict", "missing", "unverified", "verified", "not_applicable"].index)  # สิ่งที่ต้องดูก่อนอยู่บนสุด
+    assert rv["vendor.tax_id"].level == "conflict" and any("checksum" in x for x in rv["vendor.tax_id"].reasons)
+    assert rv["total_amount"].level == "verified" and any("before_vat_plus_vat" in x for x in rv["total_amount"].reasons)
+    assert rv["vendor.name"].level == "unverified" and rv["vendor.name"].source is None  # rules = ไม่มีคีย์ source
+    # ค่าที่คนแก้ ไม่อยู่ในข้อความ OCR ไม่นับเป็นขัดแย้ง
+    d2 = d.model_copy(update={"invoice_no": "INV-9"})
+    ev2 = build_field_evidence(d2, run_checks(d2), text, sources={"invoice_no": "human"})
+    r2 = review_from_evidence(ev2, run_checks(d2), sources={"invoice_no": "human"})["invoice_no"]
+    assert r2.level == "unverified" and r2.source == "human" and r2.reasons == ["แก้โดยคน"]
+    assert ValidationCheck  # import ใช้ได้
+
+
+def test_schema_3_results_still_load_and_missing_fields_is_derived():
+    old = {"schema_version": "3.0", "source_file": "x", "engine": "e", "status": "failed", "data": {},
+           "checks": [{"name": "date_range", "passed": None, "detail": "ไม่พบวันที่"}],
+           "field_evidence": {"total_amount": {"level": "missing"}, "vendor.name": {"level": "unverified", "value": "A", "source": "rules"}},
+           "missing_fields": ["total_amount"], "handwritten_fields": [], "ocr_confidence": None, "rejected": []}
+    r = ExtractionResult.model_validate(old)
+    assert r.missing_fields == ["total_amount"] and list(r.review) == ["total_amount", "vendor.name"]
+    assert '"field_evidence"' not in r.model_dump_json() and r.model_dump()["schema_version"] == "3.0"  # คงเลขรุ่นของไฟล์เดิม
 
 
 class _StubLLM:
@@ -201,3 +233,45 @@ def test_extract_traced_treats_remark_like_items():
     llm.remark = [ExtraField(label="เงื่อนไข", value="โอนเงิน")]
     data, sources, agree = _pipe(_StubLLM(llm)).extract_traced(BITKUB_LINES, TEXT)
     assert sources["remark[0]"] == "llm" and "remark[0]" not in agree
+
+
+def test_vat_inclusive_items_match_the_total_and_subtotal_stands_in_for_before_vat():
+    """1308: รายการพิมพ์ราคารวม VAT (ผลรวม = ยอดรวม ไม่ใช่ subtotal) และไม่มียอดก่อน VAT แยก: subtotal + VAT = ยอดรวม."""
+    d = InvoiceData(items=[LineItem(description="a", amount=Decimal("24760.00"))], subtotal=Decimal("23140.19"),
+                    vat_amount=Decimal("1619.81"), total_amount=Decimal("24760.00"))
+    by = {c.name: c for c in run_checks(d)}
+    assert by["items_sum"].passed is True and by["items_sum"].fields == ["items[0].amount", "total_amount"]
+    assert by["before_vat_plus_vat"].passed is True
+    assert by["before_vat_plus_vat"].fields == ["subtotal", "vat_amount", "total_amount"]
+
+
+def test_subtotal_equal_to_the_total_is_not_used_as_the_base_before_vat():
+    """ราคารวม VAT แล้ว: subtotal = ยอดรวม ไม่ใช่ฐานก่อน VAT ไม่ตรวจ (ไม่ใช่ล้ม)."""
+    d = InvoiceData(subtotal=Decimal("107.00"), vat_amount=Decimal("7.00"), total_amount=Decimal("107.00"))
+    assert next(c for c in run_checks(d) if c.name == "before_vat_plus_vat").passed is None
+
+
+def test_items_matching_no_total_fail_and_name_every_total():
+    d = InvoiceData(items=[LineItem(description="a", amount=Decimal("1.00"))], subtotal=Decimal("10.00"),
+                    total_amount=Decimal("10.70"))
+    check = next(c for c in run_checks(d) if c.name == "items_sum")
+    assert check.passed is False and check.fields == ["items[0].amount", "subtotal", "total_amount"]
+
+
+def test_failed_items_sum_blames_only_the_items_when_other_checks_confirm_the_totals():
+    """1309: รวมเงิน + VAT = ยอดรวม (ยืนยันกันเอง) แต่รายการรวมไม่ตรง → รายการผิด ยอดยัง verified."""
+    d = InvoiceData(items=[LineItem(description="a", amount=Decimal("3860.00"))], subtotal=Decimal("3714.95"),
+                    vat_amount=Decimal("260.05"), total_amount=Decimal("3975.00"))
+    check = next(c for c in run_checks(d) if c.name == "items_sum")
+    assert check.passed is False and check.fields == ["items[0].amount"]
+    ev = evidence(d, text="a 3860.00\nรวมเงิน 3714.95\nVAT 260.05\nยอดสุทธิ 3975.00")
+    assert ev["total_amount"].level == "verified" and ev["subtotal"].level == "verified"
+    assert ev["items[0].amount"].level == "conflict"
+
+
+def test_items_match_the_total_less_vat_when_no_amount_before_vat_was_read():
+    """1318: ไม่ได้ยอดก่อน VAT แต่ยอดรวม − VAT = ผลรวมรายการ."""
+    d = InvoiceData(items=[LineItem(description="a", amount=Decimal("7500.00"))], vat_amount=Decimal("525.00"),
+                    total_amount=Decimal("8025.00"))
+    check = next(c for c in run_checks(d) if c.name == "items_sum")
+    assert check.passed is True and check.fields == ["items[0].amount", "total_amount", "vat_amount"]

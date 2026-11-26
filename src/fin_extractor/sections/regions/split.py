@@ -177,3 +177,23 @@ def generic_regions(img: np.ndarray, frame: Box, cfg: dict, hlines: list[dict] |
         r["box"] = pad_box(r["box"], img.shape, pad_px)
         r["mode"] = f"generic:{layout}"
     return out
+
+
+def merge_ruled(regs: list[dict], vlines: list[dict], tol_px: int) -> list[dict]:
+    """รวมแถบที่ติดกันซึ่งรอยต่อมีเส้นตั้งพาดผ่าน (= กลางตารางที่มีคอลัมน์ / กล่องที่มีเส้นขอบ) เป็น region เดียวก่อนส่ง OCR
+    ตัดตารางตามแถวแล้ว แถวข้อมูลแยกจากหัวคอลัมน์ OCR ไม่รู้ว่าค่าอยู่คอลัมน์ไหน แถบรายแถวยังใช้ในขั้นตาราง (ช่อง/คีย์) ตามเดิม
+    รอยต่อ = กึ่งกลางระหว่างขอบล่างของแถบบนกับขอบบนของแถบล่าง ปลายเส้นห่างไม่เกิน ``tol_px`` ไม่นับ (ขอบบน/ล่างของตาราง)
+    ``header`` = กล่องของแถบแรกของกลุ่ม (แถวหัวคอลัมน์ ถึงเส้นแบ่งแถวเส้นแรก) ใช้แปะซ้ำบนท่อนถัดไปเมื่อตารางถูกตัดตามความสูง."""
+    out: list[dict] = []
+    for r in sorted(regs, key=lambda r: r["box"][1]):
+        if out:
+            prev = out[-1]
+            seam = (prev["box"][3] + r["box"][1]) // 2
+            x0, x1 = min(prev["box"][0], r["box"][0]), max(prev["box"][2], r["box"][2])
+            if lines.crosses_column_rule(seam, vlines, x0, x1, tol_px):
+                first = prev["name"].split("-")[0]
+                out[-1] = {**prev, "name": f"{first}-{r['name'].split('_')[-1]}", "header": prev.get("header", prev["box"]),
+                           "box": (x0, min(prev["box"][1], r["box"][1]), x1, max(prev["box"][3], r["box"][3])), "merged": prev.get("merged", 1) + 1}
+                continue
+        out.append(dict(r))
+    return out

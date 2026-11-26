@@ -10,10 +10,10 @@
 | — | หน้าเว็บลอง OCR ทีละขั้น (อัปโหลด 1 ไฟล์ ดูภาพ/ผลทุกขั้นจนได้ JSON) | `scripts/demo/` | [00-setup-and-usage.md](00-setup-and-usage.md) (หัวข้อ "หน้าเว็บลอง OCR ทีละขั้น") |
 | 1 | เตรียมและโหลดไฟล์ | `io/loader.py` | [01-input.md](01-input.md) |
 | 2 | Preprocess ภาพทั้งหน้า (ทิศ เอียง ขอบ) | `preprocessing/` | [02-preprocessing.md](02-preprocessing.md) |
-| 3 | แบ่งหน้าเป็น section ก่อน OCR (flow หลัก, ข้ามได้ถ้าอ่านทั้งหน้า) | `sections/` | [03-sections.md](03-sections.md) |
-| 3 | ทางเลือก: แบ่ง region / ตาราง → ช่อง → key/value + ระบาย QR (คำสั่ง `regions` · OCR ผ่าน `sections --layout regions` วัดแล้วแย่กว่าผัง section) | `sections/regions/`, `configs/regions/` | [03-regions.md](03-regions.md) |
+| 3 | **ค่าตั้งต้นของ flow หลัก:** แบ่ง region / ตาราง → ช่อง → key/value + ระบาย QR (คำสั่ง `regions` · `sections` ใช้ผังนี้ตั้งแต่ 2026-11-24 ผลวัดรอบก่อนแย่กว่าผัง section ต้องวัดซ้ำกับเฉลย) | `sections/regions/`, `configs/regions/` | [03-regions.md](03-regions.md) |
+| 3 | แบบเดิม (ไม่ใช่ค่าตั้งต้นแล้ว): แบ่งหน้าเป็น section แถบเต็มหน้า (`sections --layout sections`) | `sections/` | [03-sections.md](03-sections.md) |
 | 4 | อ่านข้อความ: ตัวอ่านทุก engine ทางเดียวกัน (OpenThai · Typhoon · Paddle · OXR) | `readers/`, `sections/read.py` | [04-ocr.md](04-ocr.md) |
-| 4 | OpenThai 2.0 OCR: ตัวอ่านของ flow หลัก (หลักการ การต่อเข้า ผลวัด 18 ใบ) + OpenThai 2.1 Markdown/Text เทียบกัน | `readers/openthai.py`, `readers/openthai_text.py` | [04-openthai-ocr.md](04-openthai-ocr.md) |
+| 4 | OpenThai 2.0 OCR: ตัวอ่านของ flow หลัก (หลักการ การต่อเข้า ผลวัด 18 ใบ) + OpenThai 2.1 Markdown/Text เทียบกัน + ชั้นตรวจความครบ (OpenThai Text ตรวจ + แนบข้อความเสริม §7) | `readers/openthai.py`, `readers/openthai_text.py`, `sections/coverage.py` | [04-openthai-ocr.md](04-openthai-ocr.md) |
 | 5 | สกัด field: 5A rules · 5B LLM · 5C เลือกผล · 5D hybrid | `extraction/`, `pipeline.py` | [05-extraction.md](05-extraction.md) |
 | 5 | 5E validation · 5F สถานะ · 5G บันทึก JSON | `validation/`, `cli.py` | [05-validation-output.md](05-validation-output.md) |
 | — | หลักการระบบ, data contract (schema), best solution และ roadmap | `schema.py` | [06-design-and-roadmap.md](06-design-and-roadmap.md) |
@@ -42,30 +42,29 @@
 flowchart TD
     A["ไฟล์ .pdf .jpg .png"]
 
-    subgraph PRE["PREPROCESS + แบ่ง section — ภาพล้วน ไม่เรียก OCR (CPU)"]
+    subgraph PRE["PREPROCESS + แบ่งเป็น region — ภาพล้วน ไม่เรียก OCR (CPU)"]
         direction TB
         B["2. preprocess<br/>ตะแคง/เอียง · คงสี → final/"]
-        C["3a. layout<br/>ผังแบ่งแถบ/ท่อน → 03_sections/…/layout/ (เก็บไว้ดู debug)"]
-        D["3b. images<br/>03_sections/…/images/<วิธี>/<ไฟล์>/sNN.png"]
-        B --> C --> D
+        C["3. layout (regions)<br/>ระบาย QR · region ชิดข้อความ · ตารางตามเส้น · ตัดท่อน<br/>ท่อนที่ไม่มีข้อความไม่ส่ง OCR → 03_sections/…/regions/<ไฟล์>/crops/"]
+        B --> C
     end
 
     subgraph OCR["OCR — อ่านข้อความ (GPU)"]
-        E["4. ocr<br/>OpenThai อ่านทีละส่วน → 04_ocr/…/luma/<ไฟล์>/<br/>.md + .sections.json + .chunks.json (ที่มาของแต่ละท่อน)"]
+        E["4. ocr<br/>OpenThai อ่านทีละท่อน → 04_ocr/…/regions-luma/<ไฟล์>/<br/>.md + .sections.json + .chunks.json (ที่มาของแต่ละท่อน)"]
     end
 
     subgraph EXT["EXTRACTION + VALIDATION (CPU)"]
         direction TB
         F["5. extract<br/>rules → validation · remark เก็บข้อมูลสำคัญที่ไม่มีช่อง (source_chunk)"]
-        G["05_extract/…/luma/rules/ JSON + manifest.json"]
+        G["05_extract/…/regions-luma/rules/ JSON + manifest.json"]
         F --> G
     end
 
     A --> B
-    D --> E --> F
+    C --> E --> F
 ```
 
-ค่าตั้งต้น `luma` (ฟิลด์ที่ขาดรวม 18 ใบ: luma 14 · flat 16 · bin 28 ไม่มีเฉลย) รายละเอียดและข้อจำกัดใน [03-sections.md](03-sections.md)
+ผังค่าตั้งต้นคือ regions ตั้งแต่ 2026-11-24 ([03-regions.md](03-regions.md)) ผลวัดเดิมของผัง section แบบเดิม (`--layout sections` ภาพ luma ขาดรวม 14 · flat 16 · bin 28 · regions 20 ไม่มีเฉลย) อยู่ใน [03-sections.md](03-sections.md) — ต้องวัดซ้ำกับเฉลย
 
 ### สองโหมดเดิม (อ่านทั้งหน้า ปิดแล้ว เก็บไว้เป็นประวัติ)
 

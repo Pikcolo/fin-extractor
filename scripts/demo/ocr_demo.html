@@ -100,6 +100,7 @@ select { padding:5px 8px; border:1px solid var(--line); border-radius:6px; backg
 .ocr-row.sel { background:color-mix(in srgb, var(--sel) 7%, transparent); }
 .ocr-row img { width:100%; max-height:200px; object-fit:contain; background:#fff; border:1px solid var(--line); border-radius:3px; }
 .ocr-row.pending { opacity:.45; }
+.ocr-row .fig.blocks img { max-height:none; object-fit:fill; }  /* กรอบซ้อนต้องตรงกับภาพ: ห้ามย่อแบบ contain */
 @media (max-width:640px) { .ocr-row { grid-template-columns:1fr; } }
 .rendered table { border:1px solid var(--line); margin:4px 0; } .rendered td, .rendered th { border:1px solid var(--line); font-size:12.5px; padding:2px 6px; }
 .bar { height:8px; background:var(--na-soft); border-radius:4px; overflow:hidden; margin:6px 0; } .bar > div { height:100%; background:var(--accent); transition:width .3s; }
@@ -115,6 +116,19 @@ tr.flash td { animation:fl 1.6s; } @keyframes fl { from { background:var(--warn-
 .flow div { display:flex; gap:10px; align-items:center; padding:6px 10px; border-radius:6px; background:var(--panel2); border:1px solid var(--line); font-size:14px; }
 .flow div.fired { border-color:var(--bad); background:var(--bad-soft); }
 .bigstatus { font-size:22px; font-weight:700; padding:4px 16px; border-radius:8px; display:inline-block; }
+/* review */
+.rv-group { margin:14px 0 4px; font-weight:700; font-size:15px; }
+.rv-row { display:grid; grid-template-columns:minmax(150px, 220px) minmax(180px, 1fr) minmax(220px, 1.3fr); gap:6px 14px; padding:8px 10px; border:1px solid var(--line); border-left:4px solid var(--na); border-radius:6px; margin:6px 0; background:var(--panel); }
+.rv-row.lv-conflict { border-left-color:var(--bad); background:color-mix(in srgb, var(--bad) 5%, var(--panel)); }
+.rv-row.lv-missing { border-left-color:var(--warn); background:color-mix(in srgb, var(--warn) 6%, var(--panel)); }
+.rv-row.lv-unverified { border-left-color:var(--na); } .rv-row.lv-verified { border-left-color:var(--ok); } .rv-row.lv-edited { border-left-color:var(--accent); }
+.rv-row input { width:100%; font:inherit; padding:5px 8px; border:1px solid var(--line); border-radius:5px; background:var(--panel); color:var(--ink); }
+.rv-row input.changed { background:var(--accent-soft); border-color:var(--accent); }
+.rv-row ul { margin:0; padding-left:18px; font-size:13px; color:var(--muted); }
+.rv-err { color:var(--bad); font-size:12.5px; margin-top:2px; }
+.rv-items td input { width:100%; font:inherit; font-size:13px; padding:3px 6px; border:1px solid var(--line); border-radius:4px; background:var(--panel); color:var(--ink); }
+.rv-sum { display:flex; flex-wrap:wrap; gap:8px 18px; align-items:center; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:var(--panel2); }
+@media (max-width:760px) { .rv-row { grid-template-columns:1fr; } }
 /* inspector */
 #insp { position:fixed; right:12px; bottom:12px; width:min(440px, calc(100vw - 24px)); max-height:min(72vh, 680px); overflow:auto; background:var(--panel); border:1px solid var(--line); border-radius:10px; box-shadow:0 6px 24px rgba(0,0,0,.25); padding:12px 14px; z-index:20; display:none; }
 #insp.on { display:block; }
@@ -140,7 +154,7 @@ tr.flash td { animation:fl 1.6s; } @keyframes fl { from { background:var(--warn-
       <button id="cancel" hidden>หยุด</button>
       <span id="msg" class="small muted"></span>
     </div>
-    <p class="small muted" style="margin:10px 0 0">ปรับภาพและแบ่งส่วนด้วยค่าตั้งต้นของ flow หลัก (<code>sections</code>) ให้อัตโนมัติ: ตรวจทิศหน้าเอง · แก้เอียง · คงสี · ระบาย QR/บาร์โค้ด · แบ่งแถบแบบ <code>rows</code></p>
+    <p class="small muted" style="margin:10px 0 0">ปรับภาพและแบ่งส่วนด้วยค่าตั้งต้นของ flow หลัก (<code>sections</code>) ให้อัตโนมัติ: ตรวจทิศหน้าเอง · แก้เอียง · คงสี · ระบาย QR/บาร์โค้ด · แบ่งเป็น region ชิดข้อความ (<code>--layout regions</code>)</p>
     <div class="note">ขั้น OCR ใช้ GPU (openthai โหลดโมเดลในเครื่อง · typhoon ต้องเปิด Ollama · paddle) รันได้ทีละงาน และอ่านทีละส่วนเหมือน flow จริง ไฟล์ 1 หน้ามักมี 10–25 ส่วน</div>
   </section>
   <div id="stages"></div>
@@ -170,9 +184,9 @@ const STEP_INFO = {
 const CHECK_INFO = {
   vendor_tax_id_checksum: "เลขผู้เสียภาษีผู้ขาย 13 หลัก ผ่านสูตร checksum ของกรมสรรพากร",
   buyer_tax_id_checksum: "เลขผู้เสียภาษีผู้ซื้อ 13 หลัก ผ่านสูตร checksum",
-  items_sum: "ผลรวมจำนวนเงินทุกรายการ = ยอดรวม (รวมเงิน / ก่อน VAT / ยอดสุทธิ อย่างใดอย่างหนึ่ง)",
+  items_sum: "ผลรวมจำนวนเงินทุกรายการ = ยอดใดยอดหนึ่ง (รวมเงิน / ก่อน VAT / ยอดสุทธิ เมื่อราคารวม VAT / ยอดสุทธิ − VAT)",
   discount: "รวมเงิน − ส่วนลด = ก่อน VAT หรือ ยอดสุทธิ",
-  before_vat_plus_vat: "มูลค่าก่อน VAT + VAT = ยอดสุทธิ",
+  before_vat_plus_vat: "มูลค่าก่อน VAT (ไม่มีใช้รวมเงิน − ส่วนลด) + VAT = ยอดสุทธิ",
   vat_rate: "VAT ≈ อัตรา × ฐาน (ค่าตั้งต้น 7%)",
   date_range: "วันที่อยู่ระหว่าง 2000-01-01 ถึงวันนี้ (ไม่นับเป็นตัวยืนยันค่า)",
   reader_complete: "ตัวอ่านตอบจบทุกส่วน (ไม่ชนเพดาน token)",
@@ -210,6 +224,7 @@ $("#run").onclick = async () => {
   const r = await fetch("/api/run?" + q, { method: "POST", headers: { "X-Filename": encodeURIComponent(file.name) }, body: file });
   const j = await r.json();
   if (!r.ok) { $("#msg").textContent = j.error; $("#run").disabled = false; return; }
+  reviewEdits = {}; reviewData = null; reviewErr = {}; reviewSaved = null;
   jobId = j.id; rev = -1; rendered = {}; selSec = null; preStep = null; layView = "sections"; $("#stages").innerHTML = ""; $("#insp").classList.remove("on");
   history.replaceState(null, "", "#job=" + jobId); $("#msg").textContent = "งาน " + jobId; $("#cancel").hidden = false; poll();
 };
@@ -217,14 +232,15 @@ $("#cancel").onclick = () => fetch(`/api/job/${jobId}/cancel`, { method: "POST" 
 
 async function poll() {
   clearTimeout(timer);
+  let j;
   try {
     const r = await fetch("/api/job/" + jobId);
     if (r.status === 404) { $("#msg").textContent = "ไม่พบงานนี้ (เซิร์ฟเวอร์รีสตาร์ตแล้ว?) อัปโหลดใหม่"; return; }
-    const j = await r.json();
-    if (j.rev !== rev) { job = j; rev = j.rev; render(); }
-    if (j.finished) { $("#run").disabled = !file; $("#cancel").hidden = true; return; }
-  } catch (e) { /* เซิร์ฟเวอร์ปิด/รีสตาร์ต: ลองใหม่ */ }
-  timer = setTimeout(poll, 600);
+    j = await r.json();
+  } catch (e) { timer = setTimeout(poll, 600); return; }  // เซิร์ฟเวอร์ปิด/รีสตาร์ต: ลองใหม่ (เฉพาะการดึงข้อมูล ข้อผิดพลาดตอนวาดหน้าต้องไม่ถูกกลืน)
+  if (!j.finished) timer = setTimeout(poll, 600);
+  else { $("#run").disabled = !file; $("#cancel").hidden = true; }
+  if (j.rev !== rev) { job = j; rev = j.rev; render(); }
 }
 
 // ------------------------------------------------------------------ render
@@ -268,6 +284,7 @@ const INTRO = {
   text: "ต่อข้อความทุกส่วนเป็นเอกสาร .md แล้วแปลงเป็นบรรทัดล้วน",
   extract: "หาค่าแต่ละฟิลด์ด้วย keyword + regex ทีละบรรทัด",
   validate: "ตรวจตัวเลข/เลขภาษีให้สอดคล้องกัน แล้วตัดสินสถานะ",
+  review: "เรียงฟิลด์ตามที่ควรตรวจก่อน บอกเหตุผล ให้แก้ค่าแล้วตรวจใหม่ทันที",
   result: "ผลตาม schema 3.0",
 };
 
@@ -340,6 +357,7 @@ RENDER.preprocess = d => {
 };
 
 RENDER.layout = d => {
+  if (d.mode === "regions") return RENDER.layoutRegions(d);
   const [W, H] = d.work_size;
   const keep = d.sections.filter(s => s.keep), blank = d.sections.filter(s => !s.keep);
   const tables = d.raw_tables.map(t => { const kept = d.tables.some(u => u.join() === t.join());
@@ -402,6 +420,30 @@ RENDER.layout = d => {
   <div class="legend"><span><i style="border-color:var(--text-sec)"></i>ข้อความ (text)</span><span><i style="border-color:var(--table-sec)"></i>ตาราง (table)</span><span><i style="border-color:var(--blank-sec);border-top-style:dashed"></i>ว่าง (ทิ้ง)</span></div>`;
 };
 
+RENDER.layoutRegions = d => {
+  const [W, H] = d.full_size;
+  const cap = { "01_normalize": "<b>01 normalize</b> — ตัดขอบสแกนให้เหลือเนื้อหา + ขอบขาว ย่อเป็น 200 dpi (ค่า px ทุกตัวของโหมดนี้วัดที่ความละเอียดนี้)",
+    "02_mask": "<b>02 mask</b> — ระบาย QR/บาร์โค้ด (ถอดรหัสเก็บไว้) และพื้นที่ ignore ของ template (ลายเซ็น ตรายาง)",
+    "04_regions": "<b>04 regions</b> — แบ่งเป็น region: ตาม template ของชนิดเอกสาร (เช่น 50 ทวิ) หรือแถบตามเส้นนอนยาว / ช่องว่าง",
+    "05_tables": "<b>05 tables</b> — เส้นตั้งแบ่งแถบเป็นช่อง แถวแรก = หัว (key) ช่องค่าถูกหดขอบตามข้อความ",
+    "06_pieces": "<b>06 pieces</b> — กรอบที่ส่งเข้า OCR จริง: หดขอบชิดข้อความ ตัด region สูงเป็นท่อนก่อนบรรทัดที่ขึ้นรายการใหม่ ท่อนที่ไม่มีข้อความถูกทิ้ง" };
+  return `<div class="explain"><b>ขั้นนี้ (โหมด regions):</b> ใช้ <code>sections/regions/run.py → run_page</code> ตัวเดียวกับคำสั่ง <code>regions</code> และ flow หลัก (<code>sections</code> ค่าตั้งต้น <code>--layout regions</code>) ภาพล้วน ไม่ใช้ OCR (${d.elapsed ?? "?"} วินาที)
+      ต่างจากโหมด sections ตรงที่ <b>กรอบชิดข้อความ</b> (ไม่ใช่แถบเต็มหน้า) ตารางแบ่งตามเส้น และใช้ template ตามชนิดเอกสาร (จำแนกจากชื่อไฟล์ตาม <code>configs/regions/doc_types.yaml</code>)
+      <br><b>ตารางที่มีเส้นคอลัมน์:</b> แถบที่เส้นตั้ง ≥3 เส้นพาดผ่านรอยต่อถูกรวมเป็นตารางเดียว (ไม่ให้แถวหลุดจากหัวคอลัมน์) ถ้าสูงเกินก็ยังตัดเป็นท่อน
+      แต่<b>ต่อภาพแถวหัวคอลัมน์ไว้บนทุกท่อนถัดไป</b> (ป้าย <span class="badge">หัวซ้ำ</span>) ให้ OCR รู้ว่าค่าอยู่คอลัมน์ไหน ใน .md ท่อนนั้นมีคำว่า <code>repeat-header</code> และขั้นสกัดตัดบรรทัดหัวที่อ่านซ้ำออก
+      <br><b>ผลวัดที่บันทึกไว้</b> (OpenThai 18 ใบ rules ล้วน ไม่มีเฉลย): ฟิลด์ที่ขาดรวม sections 14 · regions ตัดตามแถว 20 · regions ไม่ตัดตาราง 27 · <b>regions + หัวซ้ำ 19</b> (ค่าที่ใช้ failed 3 ใบ) (<code>docs/03-regions.md</code>)</div>
+    <div class="kv small"><div>ชนิดเอกสาร (regions)</div><div>${esc(d.doc_type)}</div><div>วิธีแบ่ง</div><div>${esc(d.region_mode || "—")}</div>
+      <div>region</div><div>${d.regions} · ตาราง ${d.tables} (ช่อง ${d.cells})</div><div>ส่วนที่ส่ง OCR</div><div>${d.sections.length}${d.sections.some(s => s.repeat_header) ? ` · ต่อหัวคอลัมน์ซ้ำ ${d.sections.filter(s => s.repeat_header).length} ส่วน` : ""}</div>
+      ${(d.merged || []).length ? `<div>ตารางมีเส้นคอลัมน์ (รวมแถบ)</div><div>${d.merged.map(r => `<span class="mono">${esc(r.name)}</span> (${r.merged} แถบ)`).join("<br>")}</div>` : ""}
+      ${d.codes.length ? `<div>QR/บาร์โค้ดที่ระบาย</div><div>${d.codes.map(c => `${c.kind}: <span class="mono">${esc(c.data) || "(ถอดไม่ได้)"}</span>`).join("<br>")}</div>` : ""}</div>
+    <h3>ภาพแต่ละขั้น</h3>
+    <div class="grid3">${Object.keys(cap).filter(k => d.images[k]).map(k => `<figure><img src="${img(d.images[k])}" class="zoomable" alt=""><figcaption>${cap[k]}</figcaption></figure>`).join("")}</div>
+    <h3>ส่วนที่ส่งเข้า OCR</h3>
+    <div class="grid2"><div>${fig(img(d.images.final), W, H, secRects(d.sections))}</div>
+    <div class="tablewrap" style="max-height:620px;overflow:auto"><table><tr><th>ส่วน</th><th>region</th><th>กรอบ x,y,w,h (ภาพเต็ม)</th><th>ท่อน</th></tr>
+      ${d.sections.map(s => `<tr data-sec="${s.id}" onclick="selectSec('${s.id}')" style="cursor:pointer"><td>${secChip(s.id, "text")}</td><td>${esc(s.kind)}</td><td class="mono">${s.bbox.join(",")}</td><td>${s.part ? `${s.part}/${s.parts}` : ""}${s.repeat_header ? ` <span class="badge" title="ภาพนี้มีแถวหัวคอลัมน์ต่อไว้ด้านบน">หัวซ้ำ</span>` : ""}</td></tr>`).join("")}</table></div></div>`;
+};
+
 RENDER.crops = d => `
   <div class="explain"><b>ขั้นนี้:</b> คูณพิกัดของแต่ละส่วนกลับเป็นพิกัดภาพเต็ม (<code>crop_full</code>) ตัดจากภาพ preprocess ความละเอียดเต็ม แล้วแปลงเป็น<b>ภาพเทาแบบ luma</b> (<code>0.299R + 0.587G + 0.114B</code>) — นี่คือภาพที่ส่งเข้า OCR จริง
     <br><b>ทำไม luma:</b> เทียบ 3 แบบบนสแกนจริง 18 ใบ (ไม่มีเฉลย วัดความครบของฟิลด์) luma ขาดฟิลด์รวม 14 · flat 16 · bin 28 (docs/03-sections.md) · ส่วนที่ว่าง ${d.blank.length} ส่วนไม่ถูกตัด</div>
@@ -432,14 +474,25 @@ RENDER.ocr = (d, s) => {
     ${d.sections.some(r => r.truncated) ? `<div>ชนเพดาน token</div><div><span class="badge b-bad">${d.sections.filter(r => r.truncated).length} ส่วน — ข้อความอาจขาด</span></div>` : ""}</div>
   <div class="bar"><div style="width:${total ? done / total * 100 : 0}%"></div></div>
   <div class="toolbar small"><label><input type="checkbox" id="ocrRaw" ${ocrRaw ? "checked" : ""} onchange="ocrRaw=this.checked;rendered.ocr=null;render()"> แสดงข้อความดิบ (ไม่แปลงตาราง HTML)</label></div>
-  ${crops.map(c => { const r = got[c.id], cur = d.current === c.id;
-    return `<div class="ocr-row ${r ? "" : "pending"}" data-sec="${c.id}"><div onclick="selectSec('${c.id}')" style="cursor:pointer"><img src="${img("sections/" + c.file)}" alt="">
-      <div class="small">${secChip(c.id, c.kind)} ${c.size[0]}×${c.size[1]}px</div></div>
+  ${d.sections.some(r => r.blocks) ? `<div class="explain small"><b>กรอบบนภาพ:</b> บล็อกที่ตัวอ่านบอกเองว่าอ่านจากตรงไหน (OpenThai ทายกรอบ + ชนิดของทุกบล็อกมาพร้อมข้อความ <code>readers/openthai.py → _blocks</code>)
+      ตรงที่มีข้อความแต่<b>ไม่มีกรอบ</b> = ตัวอ่านไม่ได้อ่านส่วนนั้น · ชี้ที่กรอบเพื่อดูชนิดและข้อความของบล็อก
+      <div class="legend"><span><i style="border-color:var(--text-sec)"></i>ข้อความ / หัวเรื่อง</span><span><i style="border-color:var(--table-sec)"></i>ตาราง (Table)</span><span><i style="border-color:var(--na)"></i>ภาพ (Picture)</span></div></div>
+    <div class="toolbar small"><label><input type="checkbox" id="ocrBlocks" ${ocrBlocks ? "checked" : ""} onchange="ocrBlocks=this.checked;rendered.ocr=null;render()"> แสดงกรอบบล็อก</label></div>` : ""}
+  ${crops.map(c => { const r = got[c.id], cur = d.current === c.id, blk = ocrBlocks && r && r.blocks;
+    return `<div class="ocr-row ${r ? "" : "pending"}" data-sec="${c.id}"><div onclick="selectSec('${c.id}')" style="cursor:pointer">${blk ? fig(img("sections/" + c.file), c.size[0], c.size[1], blockRects(r.blocks), "blocks") : `<img src="${img("sections/" + c.file)}" alt="">`}
+      <div class="small">${secChip(c.id, c.kind)} ${c.size[0]}×${c.size[1]}px${r && r.blocks ? ` · ${r.blocks.length} บล็อก${r.blocks.length ? "" : ' <span class="badge b-warn">ไม่มีกรอบ</span>'}` : ""}</div></div>
       <div>${r ? `<div class="small muted">${r.seconds}s · ${r.text.trim().length} ตัวอักษร${r.truncated ? ' · <span class="badge b-bad">ชนเพดาน token</span>' : ""}${r.confidence != null ? ` · ความมั่นใจเฉลี่ยที่ตัวอ่านรายงาน ${r.confidence.toFixed(3)}` : ""}</div>
         ${r.text.trim() ? (ocrRaw ? `<pre>${esc(r.text)}</pre>` : `<div class="rendered small">${renderOcrText(r.text.trim())}</div>`) : '<span class="badge b-warn">ไม่ได้ข้อความ</span>'}`
         : cur ? '<span class="small"><span class="spin"></span> กำลังอ่าน…</span>' : '<span class="small muted">รอคิว</span>'}</div></div>`; }).join("")}`;
 };
-let ocrRaw = false;
+let ocrRaw = false, ocrBlocks = true;
+// กรอบบล็อกของ OpenThai: box = [x, y, w, h] บนภาพที่ส่งเข้า (ขนาดเดียวกับภาพส่วน) สีตามชนิด
+const blockColor = cls => cls === "Table" ? "var(--table-sec)" : cls === "Picture" ? "var(--na)" : "var(--text-sec)";
+function blockRects(blocks) {
+  return blocks.map(b => { const [x, y, w, h] = b.box, col = blockColor(b.class);
+    return `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${col}" fill-opacity=".08" stroke="${col}" stroke-width="2" vector-effect="non-scaling-stroke" class="hit"><title>${esc(b.class || "?")}: ${esc((b.text || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 200))}</title></rect>
+      <text x="${x + 3}" y="${y + 13}" font-size="12" font-weight="700" fill="${col}" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(b.class || "")}</text>`; }).join("");
+}
 
 RENDER.text = d => {
   const mdLines = d.markdown.split("\n");
@@ -449,10 +502,62 @@ RENDER.text = d => {
     return `<div class="md-line" data-sec="${cur || ""}" style="border-left-color:${cur ? `var(--${secKind(cur) === "table" ? "table" : "text"}-sec)` : "transparent"}">${esc(l) || "&nbsp;"}</div>`; }).join("");
   return `<div class="explain"><b>ขั้นนี้ (ซ้าย):</b> ต่อข้อความทุกส่วนตามลำดับอ่าน คั่นด้วยบรรทัดว่าง และใส่คอมเมนต์ <code>&lt;!-- sNN ชนิด --&gt;</code> นำหน้าแต่ละท่อน เพื่อให้รู้ว่าบรรทัดไหนมาจากส่วนไหน = ไฟล์ <code>.md</code> ที่ขั้นสกัดอ่าน (<code>sections/read.py → markdown_of</code>)
     <br><b>(ขวา)</b> แปลงเป็นบรรทัดล้วนสำหรับ rules (<code>markdown_to_lines</code>): แถวตาราง HTML 1 แถว = 1 บรรทัด ช่องคั่นด้วย <code> | </code> · ตัด <code>**ตัวหนา**</code> · แก้ "ำ" ที่ OpenThai พิมพ์เป็นนิคหิต+า · ต่อ "106,250 .00" เป็น "106,250.00" · ตัดบรรทัดว่าง และจำว่าแต่ละบรรทัดอยู่ใต้คอมเมนต์ส่วนไหน</div>
+  ${coverageHtml(d.coverage)}
   <div class="grid2"><div><h3 style="margin-top:0">ข้อความรวม (.md) · ${mdLines.length} บรรทัด</h3><div class="scrollbox mono small">${md}</div></div>
   <div><h3 style="margin-top:0">บรรทัดสำหรับสกัด · ${d.lines.length} บรรทัด</h3><div class="scrollbox" style="background:var(--panel)"><table class="lines small" id="lineTable">
-    ${d.lines.map((l, i) => `<tr id="ln-${i}" data-sec="${l.section || ""}"><td>${i}</td><td>${secChip(l.section)}</td><td>${esc(l.text)}</td></tr>`).join("")}</table></div></div></div>`;
+    ${d.lines.map((l, i) => `<tr id="ln-${i}" data-sec="${l.section || ""}"><td>${i}</td><td>${secChip(l.section)}${l.supplement ? ` <span class="badge b-warn" title="ข้อความเสริมจาก ${esc(l.supplement)}">เสริม</span>` : ""}</td><td>${esc(l.text)}</td></tr>`).join("")}</table></div></div></div>`;
 };
+
+function coverageHtml(c) {
+  if (!c) return "";
+  const head = `<h3>ชั้นตรวจความครบ (ตัวอ่านเสริม${c.engine ? ` <code>${esc(c.engine)}</code>` : ""} บน CPU)</h3>`;
+  if (c.skipped) return `${head}<p class="small muted">ข้าม: ${esc(c.skipped)}</p>`;
+  const why = `<div class="explain small">ตัวอ่านหลัก (VLM) บางภาพทำทั้งกล่องหาย มักเป็นภาพกว้างที่มีสองกล่องวางข้างกันแล้วกล่องขวาหาย (<code>sections/coverage.py</code>)
+    <ol style="margin:4px 0 0 18px;padding:0"><li><b>ตรวจ (CPU):</b> ตัวอ่านเสริม (ทีละบรรทัด ไม่มีตาราง) อ่านภาพย่อยซ้ำ ภาพที่มี<b>ยอดเงิน วันที่ หรือรหัสยาว</b>ที่ตัวอ่านเสริมเห็นแต่ตัวอ่านหลักไม่เห็น = อาจอ่านไม่ครบ</li>
+    <li><b>แยกซ้าย/ขวา (GPU):</b> แยกที่แนวว่างตลอดความสูงที่ใกล้กึ่งกลาง (ไม่นับเส้นตั้ง) ให้ตัวอ่านหลักอ่านสองครึ่งใหม่ <b>ใช้ผลเมื่อค่าที่ขาดลดลงเท่านั้น</b>
+      (ภาพที่ถูกชี้เพราะตัวอ่านเสริมอ่านเพี้ยนเอง ครึ่งที่แยกก็ไม่มีค่านั้น จึงคงข้อความเดิม)</li>
+    <li><b>ข้อความเสริม:</b> ภาพที่ยังขาดยอดเงิน/วันที่ ได้ข้อความของตัวอ่านเสริมต่อท้าย .md (<code>supplement</code>) หลังข้อความหลักทุกท่อน ค่าจากตัวอ่านหลักชนะเมื่อมีทั้งคู่ ·
+      ค่าที่ได้จากข้อความเสริมเท่านั้นบอกที่มาในหน้าตรวจ และถ้าไม่มี check ยืนยัน เอกสารจะไม่ผ่านอัตโนมัติ</li></ol></div>`;
+  const splits = (c.splits || []).length
+    ? `<h3>แยกซ้าย/ขวาแล้วอ่านใหม่${c.split_seconds != null ? ` · ${c.split_seconds} วินาที (รวมโหลดโมเดล)` : ""}</h3><div class="tablewrap"><table>
+        <tr><th>ส่วน</th><th>จุดแยก x</th><th>ค่าที่ขาด ก่อน → หลัง</th><th>ผล</th><th>ภาพครึ่งซ้าย / ขวา</th></tr>${c.splits.map(p =>
+        `<tr data-sec="${p.id}" onclick="selectSec('${p.id}')" style="cursor:pointer"><td>${secChip(p.id)}</td><td class="mono">${p.split ?? "—"}</td>
+          <td class="mono">${p.missing_before}${p.missing_after != null ? ` → ${p.missing_after}` : ""}</td>
+          <td>${p.split == null ? '<span class="badge">หาจุดแยกไม่ได้</span>' : p.accepted ? '<span class="badge b-ok">ใช้ผลที่แยก</span>' : '<span class="badge">คงข้อความเดิม</span>'}</td>
+          <td>${p.left_image ? `<div class="grid2"><img src="${img(p.left_image)}" class="zoomable" alt="" style="max-height:90px"><img src="${img(p.right_image)}" class="zoomable" alt="" style="max-height:90px"></div>` : ""}</td></tr>`).join("")}</table></div>`
+    : "";
+  const rows = c.flagged.length
+    ? `<h3>ยังขาดหลังแยก → แนบข้อความเสริม</h3><div class="tablewrap"><table><tr><th>ส่วน</th><th>ยอดเงินที่ตัวอ่านหลักไม่เห็น</th><th>วันที่ที่ตัวอ่านหลักไม่เห็น</th></tr>${c.flagged.map(f =>
+        `<tr data-sec="${f.id}" onclick="selectSec('${f.id}')" style="cursor:pointer"><td>${secChip(f.id)}</td><td class="mono">${esc(f.money.join(" · ") || "—")}</td><td class="mono">${esc(f.dates.join(" · ") || "—")}</td></tr>`).join("")}</table></div>`
+    : '<p class="small"><span class="badge b-ok">ครบ</span> ไม่มีส่วนที่ยังขาดยอดเงิน/วันที่ ไม่ต้องแนบข้อความเสริม</p>';
+  const nsplit = (c.splits || []).filter(p => p.accepted).length;
+  const halvesText = (c.splits || []).filter(p => p.left != null).map(p => `<div data-sec="${p.id}"><h3>${secChip(p.id)} ข้อความที่ตัวอ่านหลักอ่านจากแต่ละครึ่ง ${p.accepted ? '<span class="badge b-ok">ใช้ผลนี้</span>' : '<span class="badge">ไม่ใช้ (ค่าที่ขาดไม่ลดลง)</span>'}</h3>
+      <div class="grid2"><div><div class="small muted">ครึ่งซ้าย</div><div class="rendered small">${renderOcrText(p.left.trim()) || "—"}</div></div>
+      <div><div class="small muted">ครึ่งขวา</div><div class="rendered small">${renderOcrText(p.right.trim()) || "—"}</div></div></div></div>`).join("");
+  return `${head}${why}<p class="small">ตรวจ ${c.checked} ส่วน · ${c.seconds} วินาที (CPU) · ถูกชี้ ${(c.splits || []).length} ส่วน · ใช้ผลที่แยก ${nsplit} · แนบข้อความเสริม ${c.flagged.length}</p>${coverageMaps(c)}${splits}${halvesText}${rows}`;
+}
+
+// ภาพ: คำที่ตัวอ่านเสริมเห็น (กรอบ) พบในข้อความของตัวอ่านหลักไหม เขียว = พบ · แดง = ไม่พบ (ส่วนที่ตัวอ่านหลักไม่ได้อ่าน) · เทา = คำตัวเดียว เทียบไม่ได้
+function wordRects(words) {
+  return words.map(w => { const [x, y, ww, hh] = w.box, col = w.found === true ? "var(--ok)" : w.found === false ? "var(--bad)" : "var(--na)";
+    return `<rect x="${x}" y="${y}" width="${ww}" height="${hh}" fill="${col}" fill-opacity="${w.found === false ? .22 : .1}" stroke="${col}" stroke-width="1.5" vector-effect="non-scaling-stroke"><title>${esc(w.text)} · ${w.found === true ? "ตัวอ่านหลักอ่านได้" : w.found === false ? "ตัวอ่านหลักไม่ได้อ่าน" : "สั้นเกินไป เทียบไม่ได้"}</title></rect>`; }).join("");
+}
+function wordStat(words) {
+  const n = words.filter(w => w.found != null), f = n.filter(w => w.found).length;
+  return n.length ? `${f}/${n.length} คำ (${Math.round(f / n.length * 100)}%)` : "—";
+}
+function coverageMaps(c) {
+  if (!(c.sections || []).length) return "";
+  const files = Object.fromEntries((data("crops") || { sections: [] }).sections.map(s => [s.id, s.file]));
+  const bad = s => s.words.some(w => w.found === false);
+  const order = [...c.sections].sort((a, b) => (bad(b) - bad(a)) || a.id.localeCompare(b.id));
+  return `<h3>ตัวอ่านหลักอ่านส่วนไหนของภาพ</h3>
+    <div class="explain small">กรอบคือคำที่ตัวอ่านเสริมเห็นบนภาพ: <b style="color:var(--ok)">เขียว</b> = ข้อความของตัวอ่านหลักมีคำนี้ · <b style="color:var(--bad)">แดง</b> = ไม่มี (ตัวอ่านหลักไม่ได้อ่านตรงนั้น หรือสองตัวอ่านอ่านคำนั้นต่างกัน) ·
+      เทา = คำตัวเดียว เทียบไม่ได้ · กลุ่มแดงก้อนใหญ่ = ตัวอ่านหลักทำทั้งกล่องหาย · ส่วนที่แยกซ้าย/ขวาแล้วใช้ผลแสดงทั้งก่อนและหลัง</div>
+    <div class="grid2">${order.map(s => { const [w, h] = s.size, src = files[s.id] ? img("sections/" + files[s.id]) : "";
+      return `<div data-sec="${s.id}"><div class="small">${secChip(s.id)} ${s.words_after ? "ก่อนแยก" : "ตัวอ่านหลัก"}: พบ ${wordStat(s.words)}</div>${fig(src, w, h, wordRects(s.words))}
+        ${s.words_after ? `<div class="small">${secChip(s.id)} หลังใช้ผลที่แยก: พบ ${wordStat(s.words_after)}</div>${fig(src, w, h, wordRects(s.words_after))}` : ""}</div>`; }).join("")}</div>`;
+}
 
 function lineChips(found) {
   const lines = data("text").lines;
@@ -466,7 +571,13 @@ RENDER.extract = d => {
     return `<tr><td>${esc(f.label || FIELD_LABEL[f.key] || f.key)}<div class="mono muted" style="font-size:11px">${esc(f.key)}</div></td><td><b>${esc(f.value)}</b></td><td>${lineChips(f.found)}</td><td>${lv ? `<span class="badge ${lv[1]}">${lv[0]}</span>` : ""}</td></tr>`; };
   const missing = Object.entries(ev).filter(([k, e]) => e.level === "missing" || e.level === "not_applicable");
   return `<div class="explain"><b>ขั้นนี้:</b> สกัดด้วย <b>rules</b> (keyword + regex ทีละบรรทัด ไม่ใช้โมเดล อธิบายได้ทุกค่า — <code>extraction/rule_extractor.py</code>) ตามลำดับ:
-    <ol style="margin:4px 0 0 18px;padding:0"><li>หาฟิลด์แกนกลาง: เลขภาษี 13 หลัก, วันที่ (แปลง พ.ศ. → ค.ศ.), เลขที่เอกสาร, ยอดเงินจากป้าย ("ก่อนภาษี" → ก่อน VAT, "รวมทั้งสิ้น" → ยอดสุทธิ, …), รายการสินค้า</li>
+    <ol style="margin:4px 0 0 18px;padding:0"><li>หาฟิลด์แกนกลาง: เลขภาษี 13 หลัก, วันที่ (แปลง พ.ศ. → ค.ศ.), เลขที่เอกสาร, ยอดเงินจากป้าย ("มูลค่าสินค้า/ก่อนคิดภาษี" → ก่อน VAT, "ภาษีมูลค่าเพิ่ม/V.A.T." → VAT, "รวม(เงิน)ทั้งสิ้น/ยอด(เงิน)สุทธิ" → ยอดสุทธิ, …), รายการสินค้า
+      <br><span class="small">ยอดเงินดู<b>ทีละช่อง</b>ของแถวตาราง (ไม่ใช่ตัวเลขท้ายบรรทัด): ค่าในช่องเดียวกับป้าย หรือค่าเดียวในช่องถัดไป ·
+      ป้ายหลายตัวในช่องเดียวจับคู่กับตัวเลขตามลำดับเมื่อจำนวนเท่ากัน · ป้ายเดียวแต่มีหลายค่าที่จับคู่ไม่ได้ = ไม่ใส่ (ไม่เดา) ·
+      ป้าย "ยกเว้นภาษี / Non-Taxable" ไม่นับเป็น VAT · ช่องบาท|สตางค์ (<code>103,062 | 50</code>) รวมเป็น 103,062.50</span>
+      <br><span class="small"><b>รายการสินค้า</b>อ่านจาก<b>ตารางตามหัวคอลัมน์</b> (<code>extraction/item_table.py</code>): จำนวน / ราคาต่อหน่วย / จำนวนเงิน ตามชื่อคอลัมน์ ·
+      แถวสรุป (ป้ายยอดรวม หรือจำนวนเงินตัวอักษร) ปิดตาราง ไม่นับเป็นรายการ · ช่องเดียวมีหลายค่าแยกเป็นหลายรายการเมื่อทุกคอลัมน์ตัวเลขนับได้เท่ากัน</span>
+      <br><span class="small"><b>เลขที่เอกสาร</b>: ป้ายเจาะจงชนะ (Invoice No. &gt; Receipt No. &gt; เลขที่) · "No." นับเฉพาะต้นช่อง (ไม่เอา Account No.) · ไม่รับที่อยู่หรือวันที่</span></li>
     <li>จำแนก<b>ชนิดเอกสาร</b>จากป้ายที่พิมพ์บนเอกสาร (<code>configs/default.yaml → document_types</code>) แล้วอ่านฟิลด์ประจำชนิด</li>
     <li>ข้อมูลที่ไม่มีช่อง เก็บใน <code>remark</code> พร้อมรหัสส่วนต้นทาง</li></ol>
     คอลัมน์ "พบในบรรทัด" = บรรทัดที่มีค่านี้ปรากฏ (ค้นหลังสกัด ไว้ชี้ให้ดูเทียบ — ค่าเดียวกันอาจอยู่หลายบรรทัด) คลิกเพื่อกระโดดไปบรรทัดและส่วนนั้น</div>
@@ -499,12 +610,12 @@ RENDER.validate = d => {
   <h3>Checks</h3>
   <div class="tablewrap"><table><tr><th>ผล</th><th>check</th><th>ตรวจอะไร</th><th>รายละเอียด</th><th>ฟิลด์ที่ใช้</th></tr>
     ${d.checks.map(c => `<tr><td>${mark(c.passed)}</td><td class="mono">${esc(c.name)}</td><td class="small">${esc(CHECK_INFO[c.name] || "")}</td><td class="small mono">${esc(c.detail)}</td><td class="small">${c.fields.map(f => `<code>${esc(f)}</code>`).join(" ")}</td></tr>`).join("")}</table></div>
-  <h3>หลักฐานรายฟิลด์</h3>
-  <p class="small">ยืนยันแล้ว ${count("verified")} · ไม่มีตัวยืนยัน ${count("unverified")} · ขัดแย้ง ${count("conflict")} · หาไม่เจอ ${count("missing")} — กฎ: รูปแบบผิด / check ไม่ผ่าน / ค่าไม่ปรากฏในข้อความ → <b>ขัดแย้ง</b> · มี check ผ่าน → <b>ยืนยันแล้ว</b> · นอกนั้น → <b>ไม่มีตัวยืนยัน</b> (ชื่อ เลขที่ วันที่ ไม่มีตัวตรวจข้าม จึงไม่มีวันเป็น "ยืนยันแล้ว")</p>
-  <div class="tablewrap"><table><tr><th>ฟิลด์</th><th>ค่า</th><th>ระดับ</th><th>อยู่ในข้อความ</th><th>รูปแบบ</th><th>check ผ่าน</th><th>check ไม่ผ่าน</th></tr>
-    ${lv.filter(([k]) => !k.startsWith("remark[")).map(([k, e]) => `<tr><td>${esc(FIELD_LABEL[k] || k)}</td><td>${esc(e.value ?? "")}</td><td><span class="badge ${LEVEL[e.level][1]}">${LEVEL[e.level][0]}</span></td>
-      <td>${e.grounded === true ? "✓" : e.grounded === false ? '<span class="badge b-bad">ไม่พบ</span>' : ""}</td><td>${e.format_valid === true ? "✓" : e.format_valid === false ? '<span class="badge b-bad">ผิด</span>' : ""}</td>
-      <td class="small">${e.checks_passed.join(", ")}</td><td class="small">${e.checks_failed.join(", ")}</td></tr>`).join("")}</table></div>
+  <h3>ระดับรายฟิลด์ (<code>review</code> ในผล)</h3>
+  <p class="small">ยืนยันแล้ว ${count("verified")} · ไม่มีตัวยืนยัน ${count("unverified")} · ขัดแย้ง ${count("conflict")} · หาไม่เจอ ${count("missing")} — กฎ: รูปแบบผิด / check ไม่ผ่าน / ค่าไม่ปรากฏในข้อความ → <b>ขัดแย้ง</b> · มี check ผ่าน → <b>ยืนยันแล้ว</b> · นอกนั้น → <b>ไม่มีตัวยืนยัน</b> (ชื่อ เลขที่ วันที่ ไม่มีตัวตรวจข้าม จึงไม่มีวันเป็น "ยืนยันแล้ว") เรียงตามที่ควรตรวจก่อน</p>
+  <div class="tablewrap"><table><tr><th>ฟิลด์</th><th>ค่า (จาก <code>data</code>)</th><th>ระดับ</th><th>เหตุผล</th></tr>
+    ${lv.filter(([k]) => !k.startsWith("remark[")).map(([k, e]) => `<tr><td>${esc(FIELD_LABEL[k] || k)}<div class="mono muted" style="font-size:11px">${esc(k)}</div></td>
+      <td>${esc((((data("extract") || {}).fields || []).find(f => f.key === k) || {}).value ?? "")}</td><td><span class="badge ${LEVEL[e.level][1]}">${LEVEL[e.level][0]}</span></td>
+      <td class="small">${e.reasons.map(esc).join("<br>")}</td></tr>`).join("")}</table></div>
   <h3>ตัดสินสถานะ</h3>
   <p class="small">ไล่กฎตามลำดับ (<code>validation/scoring.py → decide_status</code>) กฎแรกที่ไม่ผ่านเป็นตัวตัดสิน ผ่านครบทุกข้อ = อนุมัติอัตโนมัติได้</p>
   <div class="flow">${d.rules.map((r, i) => `<div class="${i === fired ? "fired" : ""}">${r.ok ? '<span class="badge b-ok">✓</span>' : '<span class="badge b-bad">✗</span>'} ${esc(r.rule)} ${!r.ok ? `<span class="small muted">→ ${STATUS[r.fail_to][0]}</span>` : ""}</div>`).join("")}</div>
@@ -512,8 +623,81 @@ RENDER.validate = d => {
   <p>สถานะ: <span class="bigstatus badge ${st[1]}">${st[0]}</span> <span class="mono small muted">${d.status}</span></p>`;
 };
 
+// ------------------------------------------------------------------ ตรวจ/แก้รายฟิลด์ (ไม่ใช้ decision engine: เรียงตามหลักฐานที่ระบบมี)
+let reviewEdits = {}, reviewData = null, reviewErr = {}, reviewSaved = null;
+const RV_LEVEL = { conflict: ["ขัดแย้ง ต้องแก้/ยืนยัน", "b-bad"], missing: ["หาไม่เจอ ต้องกรอก", "b-warn"], unverified: ["ไม่มีตัวยืนยัน ดูเทียบภาพ", ""],
+                   edited: ["แก้แล้ว", "b-acc"], verified: ["ยืนยันแล้ว", "b-ok"], empty: ["ไม่มีค่า", ""], not_applicable: ["ไม่มีในชนิดนี้", ""] };
+RENDER.review = d => { if (!reviewData) reviewData = d; return `<div id="reviewBox">${reviewHtml()}</div>`; };
+function rvRow(r) {
+  const v = r.key in reviewEdits ? reviewEdits[r.key] : r.value, lv = RV_LEVEL[r.level];
+  const changed = r.key in reviewEdits || r.edited;
+  return `<div class="rv-row lv-${r.level}" data-sec="${r.sections[0] || ""}">
+    <div><b>${esc(r.label || FIELD_LABEL[r.key] || r.key)}</b><div class="mono muted" style="font-size:11px">${esc(r.key)}</div>
+      <div style="margin-top:4px"><span class="badge ${lv[1]}">${lv[0]}</span>${changed && r.level !== "edited" ? ' <span class="badge b-acc">แก้แล้ว</span>' : ""}</div></div>
+    <div><input value="${esc(v)}" class="${changed ? "changed" : ""}" placeholder="${r.level === "missing" ? "กรอกจากภาพ" : "ว่าง"}" onchange="reviewEdit('${r.key}', this.value)">
+      ${reviewErr[r.key] ? `<div class="rv-err">${esc(reviewErr[r.key])}</div>` : ""}
+      <div class="small muted" style="margin-top:3px">${r.edited ? `ระบบอ่านได้: ${esc(r.original || "—")} <a href="#" onclick="reviewReset('${r.key}');return false">คืนค่าเดิม</a>` : ""}
+        ${r.sections.length ? ` มาจากส่วน ${r.sections.map(s => secChip(s)).join(" ")}` : ""}</div></div>
+    <ul>${r.reasons.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>`;
+}
+function rvItems(d) {
+  const items = reviewEdits.items || d.items;
+  return `<div class="rv-row lv-${d.items_edited ? "edited" : d.items_level}" style="grid-template-columns:1fr">
+    <div><b>รายการสินค้า/บริการ</b> <span class="badge ${RV_LEVEL[d.items_edited ? "edited" : d.items_level][1]}">${RV_LEVEL[d.items_edited ? "edited" : d.items_level][0]}</span>
+      <span class="small muted"> · ${esc(d.items_reason)}</span></div>
+    <div class="tablewrap"><table class="rv-items"><tr><th>รายละเอียด</th><th style="width:80px">จำนวน</th><th style="width:100px">ราคา/หน่วย</th><th style="width:110px">จำนวนเงิน</th><th style="width:30px"></th></tr>
+      ${items.map((it, i) => `<tr>${["description", "quantity", "unit_price", "amount"].map(k => `<td><input data-i="${i}" data-k="${k}" value="${esc(it[k])}" onchange="rvItemsChanged()"></td>`).join("")}
+        <td><button onclick="rvItemDel(${i})" title="ลบแถว">×</button></td></tr>`).join("")}</table></div>
+    <div><button onclick="rvItemAdd()">+ เพิ่มรายการ</button></div></div>`;
+}
+function reviewHtml() {
+  const d = reviewData, st = STATUS[d.status];
+  const n = Object.keys(reviewEdits).length;
+  const by = l => d.rows.filter(r => l.includes(r.level));
+  const count = l => by(l).length;
+  const failed = d.checks.filter(c => c.passed === false);
+  const resultNow = d.result ? JSON.stringify(d.result, null, 2) : "";
+  return `<div class="explain"><b>ขั้นนี้:</b> ตรวจและแก้ค่าทีละฟิลด์แบบที่ฝ่ายบัญชีจะทำ <b>ไม่ใช้ decision engine</b> ลำดับและเหตุผลมาจากหลักฐานที่ระบบมีอยู่แล้ว (<code>validation/evidence.py</code>):
+      <b style="color:var(--bad)">ขัดแย้ง</b> = checksum ผิด / check ที่ใช้ค่านี้ไม่ผ่าน / ค่าไม่ปรากฏในข้อความที่ OCR อ่านได้ ·
+      <b style="color:var(--warn)">หาไม่เจอ</b> = เอกสารชนิดนี้ต้องมี · <b>ไม่มีตัวยืนยัน</b> = มีค่าแต่ไม่มี check ข้าม (ชื่อ เลขที่ วันที่) ให้ดูเทียบภาพ ·
+      <b style="color:var(--ok)">ยืนยันแล้ว</b> = มี check ผ่าน
+      <br>แก้ช่องไหนแล้วกด Enter หรือคลิกออก ระบบตรวจใหม่ทันที (ไม่ OCR ใหม่) ค่าที่คนแก้ไม่ต้องปรากฏในข้อความ OCR</div>
+    <div class="rv-sum"><span>สถานะตอนนี้ <span class="bigstatus badge ${st[1]}" style="font-size:17px">${st[0]}</span></span>
+      <span class="small">ขัดแย้ง ${count(["conflict"])} · หาไม่เจอ ${count(["missing"])} · ดูเทียบภาพ ${count(["unverified"])} · ยืนยันแล้ว ${count(["verified"])} · แก้แล้ว ${n} ช่อง</span>
+      <span style="flex:1"></span>
+      <button onclick="reviewSend(true)" class="primary">บันทึกการแก้ไข</button><button onclick="reviewEdits={};reviewSend()">ล้างการแก้ไข</button></div>
+    ${reviewSaved ? `<p class="small">บันทึกแล้ว ${reviewSaved.count} ช่อง: <a href="${img(reviewSaved.corrected)}" target="_blank">corrected.json</a> (ผลหลังแก้ ตรวจใหม่ทั้งหมด) · <a href="${img(reviewSaved.edits)}" target="_blank">edits.json</a> (ค่าเดิม → ค่าที่แก้ ใช้เป็นเฉลยได้)</p>` : ""}
+    ${reviewErr._ ? `<div class="rv-err">${esc(reviewErr._)}</div>` : ""}
+    ${failed.length ? `<p class="small">check ที่ไม่ผ่าน: ${failed.map(c => `<code>${esc(c.name)}</code> ${esc(c.detail)}`).join(" · ")}</p>` : ""}
+    <div class="rv-group" style="color:var(--bad)">ต้องแก้หรือยืนยันก่อน (${count(["conflict", "missing"])})</div>
+    ${by(["conflict", "missing"]).map(rvRow).join("") || '<p class="small muted">ไม่มี</p>'}
+    ${rvItems(d)}
+    <div class="rv-group">ดูเทียบกับภาพ (${count(["unverified"])})</div>
+    ${by(["unverified"]).map(rvRow).join("") || '<p class="small muted">ไม่มี</p>'}
+    <div class="rv-group" style="color:var(--ok)">ผ่านแล้ว / แก้แล้ว (${count(["verified", "edited"])})</div>
+    ${by(["verified", "edited"]).map(rvRow).join("") || '<p class="small muted">ไม่มี</p>'}
+    <details style="margin-top:10px"><summary class="small">ไม่มีค่า / ไม่มีในเอกสารชนิดนี้ (${count(["empty", "not_applicable"])}) — เปิดเพื่อกรอกถ้าเอกสารมี</summary>${by(["empty", "not_applicable"]).map(rvRow).join("")}</details>
+    ${resultNow ? `<details style="margin-top:10px"><summary class="small">ผลหลังแก้ตาม schema 4.0 (${resultNow.split("\n").length} บรรทัด) — สิ่งที่ "บันทึกการแก้ไข" เขียนเป็น corrected.json</summary>
+      <p class="small muted">ค่าอยู่ใน <code>data</code> ที่เดียว · <code>review</code> ต่อฟิลด์มีแค่ระดับ + เหตุผล (+ <code>source: human</code> ถ้าคนแก้) เรียงตามที่ควรตรวจก่อน</p>
+      <pre class="mono">${esc(resultNow)}</pre></details>` : ""}`;
+}
+async function reviewSend(save = false) {
+  const r = await fetch(`/api/job/${jobId}/review${save ? "/save" : ""}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ edits: reviewEdits }) });
+  const j = await r.json();
+  if (!r.ok) reviewErr = { _: j.error || "ตรวจใหม่ไม่สำเร็จ" };
+  else if (j.errors) reviewErr = j.errors;
+  else { reviewErr = {}; reviewData = j; if (save) reviewSaved = j.saved; }
+  $("#reviewBox").innerHTML = reviewHtml(); applySel();
+}
+function reviewEdit(key, value) { reviewEdits[key] = value; reviewSend(); }
+function reviewReset(key) { delete reviewEdits[key]; reviewSend(); }
+function rvItemsRead() { const rows = []; document.querySelectorAll(".rv-items input").forEach(i => { (rows[i.dataset.i] ||= {})[i.dataset.k] = i.value; }); return rows; }
+function rvItemsChanged() { reviewEdits.items = rvItemsRead(); reviewSend(); }
+function rvItemDel(i) { const rows = rvItemsRead(); rows.splice(i, 1); reviewEdits.items = rows; reviewSend(); }
+function rvItemAdd() { const rows = rvItemsRead(); rows.push({ description: "", quantity: "", unit_price: "", amount: "" }); reviewEdits.items = rows; $("#reviewBox").innerHTML = reviewHtml(); }
+
 RENDER.result = d => `
-  <div class="explain"><b>ผลสุดท้าย</b> ตาม <code>schemas/invoice.schema.json</code> (schema ${esc(d.json.schema_version)}) ยอดเงินเป็นสตริงทศนิยม · บันทึกไว้ที่ <code>${esc(d.path)}</code></div>
+  <div class="explain"><b>ผลสุดท้าย</b> ตาม <code>schemas/invoice.schema.json</code> (schema ${esc(d.json.schema_version)}: ค่าใน <code>data</code> · ระดับ + เหตุผลรายฟิลด์ใน <code>review</code> · check ใน <code>checks</code>) ยอดเงินเป็นสตริงทศนิยม · บันทึกไว้ที่ <code>${esc(d.path)}</code></div>
   <div class="toolbar"><button onclick="navigator.clipboard.writeText(JSON.stringify(data('result').json,null,2));this.textContent='คัดลอกแล้ว'">คัดลอก JSON</button>
     <button onclick="dl()">ดาวน์โหลด .json</button></div>
   <pre class="mono">${esc(JSON.stringify(d.json, (k, v) => k === "raw_text" ? undefined : v, 2))}</pre>`;

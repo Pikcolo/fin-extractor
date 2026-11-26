@@ -14,9 +14,9 @@ from datetime import date as Date
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serializer, model_validator
 
-SCHEMA_VERSION = "3.0"
+SCHEMA_VERSION = "4.0"  # 4.0: field_evidence → review (ระดับ + เหตุผล) · ตัด missing_fields/handwritten_fields ออกจาก JSON (ดู docs/05-validation-output.md)
 _CENT = Decimal("0.01")
 
 
@@ -120,7 +120,8 @@ EvidenceLevel = Literal["missing", "not_applicable", "conflict", "verified", "un
 
 
 class FieldEvidence(BaseModel):
-    """หลักฐานของ field หนึ่งช่อง ไว้ไฮไลต์ใน Review UI (ไม่ใช่ความน่าจะเป็น ไม่มีน้ำหนักหรือ threshold)."""
+    """หลักฐานละเอียดของ field หนึ่งช่อง **ใช้ภายใน** (validation/evidence.py) แล้วสรุปเป็น ``FieldReview`` ที่บันทึกในผล
+    (schema 3.0 บันทึกตัวนี้ตรง ๆ ใน ``field_evidence`` ช่องส่วนใหญ่ว่างเสมอ) ไม่ใช่ความน่าจะเป็น ไม่มีน้ำหนักหรือ threshold."""
 
     level: EvidenceLevel = Field(
         description="missing=เอกสารชนิดนี้ควรมีแต่หาไม่เจอ · not_applicable=เอกสารชนิดนี้ไม่มีฟิลด์นี้ · conflict=ขัดแย้ง ต้องแก้หรือยืนยัน · "
@@ -137,6 +138,25 @@ class FieldEvidence(BaseModel):
     source: str | None = Field(None, description="ตัวสกัดที่ให้ค่านี้: rules หรือ llm")
 
 
+class FieldReview(BaseModel):
+    """ฟิลด์หนึ่งช่องในมุมของคนตรวจ: ต้องดูไหม และทำไม (ค่าอยู่ใน ``data`` ที่เดียว)."""
+
+    level: EvidenceLevel = Field(
+        description="conflict=ขัดแย้ง ต้องแก้หรือยืนยัน · missing=เอกสารชนิดนี้ต้องมีแต่หาไม่เจอ · unverified=ไม่มีตัวยืนยัน ให้ดูเทียบภาพ · "
+        "verified=มี check ผ่านและไม่มีอะไรขัด · not_applicable=เอกสารชนิดนี้ไม่มีฟิลด์นี้"
+    )
+    reasons: list[str] = Field(default_factory=list, description="เหตุผลเป็นคำพูด เช่น check ที่ไม่ผ่าน, ค่าไม่ปรากฏในข้อความ, check ที่ยืนยันค่านี้")
+    source: str | None = Field(None, description="ผู้ให้ค่าเมื่อไม่ใช่ rules: llm | human | ชื่อตัวอ่านเสริม เช่น openthai-text "
+                               "(ค่าที่พบเฉพาะในข้อความเสริมของชั้นตรวจความครบ) (ไม่มีคีย์ = rules)")
+
+    @model_serializer(mode="wrap")
+    def _drop_empty_source(self, handler):
+        d = handler(self)
+        if d.get("source") is None:
+            d.pop("source", None)
+        return d
+
+
 class ExtractionResult(BaseModel):
     schema_version: str = SCHEMA_VERSION
     source_file: str
@@ -144,15 +164,43 @@ class ExtractionResult(BaseModel):
     engine: str = Field(..., description="<engine>[:<โมเดล>]+<ผู้สกัด> เช่น paddle+rules, openthai:OpenThai2.0-OCR-Markdown+rules, typhoon:scb10x/typhoon-ocr1.5-3b+llm")
     data: InvoiceData
     checks: list[ValidationCheck] = Field(default_factory=list)
-    field_evidence: dict[str, FieldEvidence] = Field(
+    review: dict[str, FieldReview] = Field(
         default_factory=dict,
-        description="หลักฐานรายฟิลด์ คีย์แบบ vendor.tax_id, total_amount, items[0].amount",
-    )
-    ocr_confidence: float | None = Field(None, ge=0, le=1, description="ค่าเฉลี่ยที่ OCR engine รายงานเอง (มีเฉพาะ Paddle ตัวอื่นไม่มีค่านี้)")
-    missing_fields: list[str] = Field(default_factory=list, description="field สำคัญที่หาไม่เจอ")
-    handwritten_fields: list[str] = Field(
-        default_factory=list, description="field ที่อ่านมาจากลายมือ (เช่น vendor.name, total_amount) — ต้องมีหลักฐานยืนยันจึงอนุมัติอัตโนมัติ"
+        description="ระดับ + เหตุผลรายฟิลด์ เรียงตามที่ควรตรวจก่อน (conflict → missing → unverified → verified → not_applicable) "
+        "คีย์แบบ vendor.tax_id, total_amount, items[0].amount, document_fields.<key> · ฟิลด์ที่ไม่มีค่าและไม่บังคับไม่อยู่ที่นี่",
     )
     status: Literal["auto_approved", "needs_review", "failed"]
-    raw_text: str | None = Field(None, description="ข้อความดิบจากตัวอ่าน ไว้ debug")
-    rejected: list[RejectedValue] = Field(default_factory=list, description="ค่าที่ LLM เสนอแต่ไม่ถูกรับ (โหมด hybrid) พร้อมเหตุผล")
+    ocr_confidence: float | None = Field(None, ge=0, le=1, description="ค่าเฉลี่ยที่ OCR engine รายงานเอง (มีเฉพาะ Paddle / OpenThai Text) ไม่มี = ไม่มีคีย์")
+    raw_text: str | None = Field(None, description="ข้อความดิบจากตัวอ่าน (เฉพาะเมื่อสั่ง --keep-raw) ไว้ debug")
+    rejected: list[RejectedValue] = Field(default_factory=list, description="ค่าที่ LLM เสนอแต่ไม่ถูกรับ (โหมด hybrid) พร้อมเหตุผล ไม่มี = ไม่มีคีย์")
+
+    @property
+    def missing_fields(self) -> list[str]:
+        """ฟิลด์ที่เอกสารชนิดนี้ต้องมีแต่หาไม่เจอ (= ``review`` ระดับ missing) ไม่บันทึกแยกใน JSON แล้ว (ซ้ำกับ review)."""
+        return [k for k, r in self.review.items() if r.level == "missing"]
+
+    @model_validator(mode="before")
+    @classmethod
+    def _legacy_field_evidence(cls, data):
+        """อ่านผล schema 3.x ได้: ``field_evidence`` → ``review`` (เหตุผลสร้างจากหลักฐานเดิม) ตัด ``missing_fields`` ``handwritten_fields``."""
+        if isinstance(data, dict) and "field_evidence" in data and "review" not in data:
+            from .validation.evidence import review_from_evidence
+
+            data = dict(data)
+            ev = {k: FieldEvidence.model_validate(v) for k, v in (data.pop("field_evidence") or {}).items()}
+            checks = [ValidationCheck.model_validate(c) for c in data.get("checks") or []]
+            data["review"] = review_from_evidence(ev, checks)
+        if isinstance(data, dict):
+            data = {k: v for k, v in data.items() if k not in ("missing_fields", "handwritten_fields")}
+        return data
+
+    @model_serializer(mode="wrap")
+    def _drop_empty_extras(self, handler):
+        """ช่องเสริมที่ว่างไม่ถูกเขียนลง JSON (ค่าใน ``data`` ยังเขียน null ตามเดิม: ไม่มีค่า ≠ ไม่มีช่อง)."""
+        d = handler(self)
+        for k in ("ocr_confidence", "raw_text"):
+            if d.get(k) is None:
+                d.pop(k, None)
+        if not d.get("rejected"):
+            d.pop("rejected", None)
+        return d

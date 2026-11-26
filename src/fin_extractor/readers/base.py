@@ -11,6 +11,8 @@ class ReadResult:
     text: str  # Markdown (ตารางเป็น HTML) หรือบรรทัดข้อความล้วน แล้วแต่ engine — ขั้นสกัดแปลงเป็นบรรทัดด้วยวิธีเดียวกัน
     finish_reason: str | None = None  # "length" = ชนเพดาน token (ข้อความอาจขาด) · None = engine ไม่มีเพดาน (Paddle)
     confidence: float | None = None  # ค่าเฉลี่ยที่ engine รายงานเอง (Paddle) ตัวอื่นไม่มี
+    # กรอบบล็อกที่ engine บอกว่าอ่านจากตรงไหน [{"class", "box": [x, y, w, h] px บนภาพที่ส่งเข้า, "text"}] (OpenThai) ตัวอื่น None
+    blocks: list[dict] | None = None
 
     @property
     def truncated(self) -> bool:

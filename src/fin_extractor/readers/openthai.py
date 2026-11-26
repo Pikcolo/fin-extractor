@@ -76,10 +76,23 @@ class OpenThaiOCR:
         page = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
         try:
             doc = parser.parse(page, mode=self.cfg.get("parse_mode", "single"))
-            return ReadResult(self.name, doc["markdown"], "stop")
+            return ReadResult(self.name, doc["markdown"], "stop", blocks=_blocks(doc))
         except GenerationError as e:  # ตอบไม่จบ (ชน max_tokens) — เก็บเท่าที่อ่านได้ แล้วติดธง truncated
             from nemotron_parse.postprocessing import clean_raw_output, postprocess_document
 
             raw = clean_raw_output(e.response.get("raw_out") or "")
-            md = postprocess_document(raw, image_size=page.size, options=parser.options)["markdown"] if raw.strip() else ""
-            return ReadResult(self.name, md, "length")
+            if not raw.strip():
+                return ReadResult(self.name, "", "length", blocks=[])
+            doc = postprocess_document(raw, image_size=page.size, options=parser.options)
+            return ReadResult(self.name, doc["markdown"], "length", blocks=_blocks(doc))
+
+
+def _blocks(doc: dict) -> list[dict]:
+    """กรอบ+ชนิดของทุกบล็อกที่โมเดลทาย (prompt ขอ ``<predict_bbox><predict_classes>`` อยู่แล้ว) ``bbox_pixels`` = (x0, y0, x1, y1) บนภาพที่ส่งเข้า."""
+    out = []
+    for b in doc.get("blocks") or []:
+        if not b.get("bbox_pixels"):
+            continue
+        x0, y0, x1, y1 = (round(v) for v in b["bbox_pixels"])
+        out.append({"class": b.get("class"), "box": [x0, y0, x1 - x0, y1 - y0], "text": b.get("content") or b.get("text") or ""})
+    return out

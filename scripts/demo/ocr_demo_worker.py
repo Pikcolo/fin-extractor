@@ -2,6 +2,7 @@
 
     python -X utf8 scripts/demo/ocr_demo_worker.py preprocess <job_dir> [--orientation 0|90|180|270]
     python -X utf8 scripts/demo/ocr_demo_worker.py ocr <job_dir> --engine openthai|typhoon|paddle
+    python -X utf8 scripts/demo/ocr_demo_worker.py split <job_dir> --engine openthai   (ชั้นตรวจความครบ: อ่านภาพครึ่งซ้าย/ขวา)
 
 แยก process เพราะตัวตรวจทิศ (Paddle) กับ OpenThai (torch) ใช้ cuDNN คนละรุ่น อยู่ process เดียวกันไม่ได้ (ดู preprocessing/orient.py)
 และถ้าโมเดลล้ม/VRAM เต็ม เซิร์ฟเวอร์ของหน้าเว็บไม่ล้มตาม
@@ -80,7 +81,30 @@ def cmd_ocr(job: Path, engine: str) -> None:
         if torch is not None:
             torch.cuda.empty_cache()  # เหมือน sections/read.py: ไม่ให้หน่วยความจำสะสมจนภาพถัดไปขอเพิ่มไม่ได้
         emit(event="section", id=s["id"], text=res.text, truncated=res.truncated, confidence=res.confidence,
-             seconds=round(time.perf_counter() - t, 2))
+             blocks=res.blocks, seconds=round(time.perf_counter() - t, 2))
+    emit(event="done", reader=reader.name)
+
+
+def cmd_split(job: Path, engine: str) -> None:
+    """ชั้นตรวจความครบ: ตัวอ่านหลักอ่านภาพครึ่งซ้าย/ขวาของส่วนที่ถูกชี้ (รายการที่ ``split/index.json`` เตรียมไว้)."""
+    from fin_extractor.readers import TORCH_ENGINES, make_reader
+
+    index = json.loads((job / "split" / "index.json").read_text(encoding="utf-8"))
+    reader = make_reader(engine, load_config())
+    t = time.perf_counter()
+    if hasattr(reader, "_load"):
+        reader._load()
+    emit(event="loaded", reader=reader.name, seconds=round(time.perf_counter() - t, 2))
+    torch = None
+    if engine in TORCH_ENGINES:
+        import torch
+    for e in index:
+        img = cv2.imdecode(np.fromfile(str(job / "split" / e["file"]), dtype=np.uint8), cv2.IMREAD_COLOR)
+        t = time.perf_counter()
+        res = reader.recognize(img)
+        if torch is not None:
+            torch.cuda.empty_cache()
+        emit(event="half", id=e["id"], side=e["side"], text=res.text, seconds=round(time.perf_counter() - t, 2))
     emit(event="done", reader=reader.name)
 
 
@@ -88,7 +112,7 @@ def main() -> None:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser()
-    ap.add_argument("stage", choices=["preprocess", "ocr"])
+    ap.add_argument("stage", choices=["preprocess", "ocr", "split"])
     ap.add_argument("job", type=Path)
     ap.add_argument("--orientation", type=int, choices=[0, 90, 180, 270])
     ap.add_argument("--engine", default="openthai")
@@ -96,6 +120,8 @@ def main() -> None:
     try:
         if args.stage == "preprocess":
             cmd_preprocess(args.job, args.orientation)
+        elif args.stage == "split":
+            cmd_split(args.job, args.engine)
         else:
             cmd_ocr(args.job, args.engine)
     except Exception as e:  # noqa: BLE001 — ส่งข้อความกลับไปแสดงบนหน้าเว็บ

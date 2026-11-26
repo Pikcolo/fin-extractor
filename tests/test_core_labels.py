@@ -13,7 +13,7 @@ from fin_extractor.config import load_config
 from fin_extractor.doctypes import (
     CORE_LABEL_KEYS, GENERIC_PROFILE, FieldSpec, core_labels_for, load_core_labels, load_profiles)
 from fin_extractor.extraction import extract_fields
-from fin_extractor.extraction.core_labels import extract_buyer_name, split_branch
+from fin_extractor.extraction.core_labels import extract_buyer_name, extract_party_name, split_branch
 from fin_extractor.extraction.llm_extractor import normalize_llm_output
 from fin_extractor.schema import InvoiceData
 
@@ -109,14 +109,23 @@ def test_customs_and_voucher_labels():
 def test_profile_labels_override_defaults_at_the_same_key_only():
     pv = PROFILES["payment_voucher"]
     keys = [(f.key, f.aliases) for f in core_labels_for(pv, DEFAULTS)]
-    assert keys == [("buyer.name", ("ได้รับเงินจาก",))]  # ของโปรไฟล์ทับค่าตั้งต้น (ไม่รวมกัน)
+    assert keys == [("buyer.name", ("ได้รับเงินจาก",)), ("vendor.name", ("ข้าพเจ้า",))]  # ของโปรไฟล์ทับค่าตั้งต้น (ไม่รวมกัน)
     assert core_labels_for(GENERIC_PROFILE, DEFAULTS) == DEFAULTS
 
 
+def test_payment_voucher_vendor_is_the_name_after_kha_pha_chao_001322():
+    """ใบสำคัญรับเงิน: ผู้ขายเขียนชื่อหลัง "ข้าพเจ้า" คำกำกับ (ผู้ขายสินค้า/ให้บริการ) ไม่ใช่ส่วนของชื่อ."""
+    lines = ["ใบสำคัญรับเงิน", "ข้าพเจ้า อห์นดา ศิลปโชติ (ผู้ขายสินค้า/ให้บริการ)",
+             "ได้รับเงินจาก บริษัท ฮิมพอร์ต รถทร์ จำกัด (ผู้ซื้อ/ผู้รับบริการ) คังรายการต่อไปนี้"]
+    specs = core_labels_for(PROFILES["payment_voucher"], DEFAULTS)
+    assert extract_party_name(lines, specs, "vendor.name") == ("อห์นดา ศิลปโชติ", None)
+    assert extract_party_name(lines, specs, "buyer.name")[0] == "บริษัท ฮิมพอร์ต รถทร์ จำกัด"
+
+
 def test_unsupported_core_label_key_is_rejected_at_load():
-    assert CORE_LABEL_KEYS == ("buyer.name",)
+    assert CORE_LABEL_KEYS == ("buyer.name", "vendor.name")
     with pytest.raises(ValueError, match="ยังไม่รองรับ"):
-        load_core_labels([{"key": "vendor.name", "aliases": ["ผู้ขาย"]}])
+        load_core_labels([{"key": "invoice_no", "aliases": ["เลขที่"]}])
 
 
 # ---------- branch และการรวมกับ LLM ----------
@@ -163,7 +172,7 @@ def test_buyer_name_never_changes_required_fields_or_status():
     r2 = p.build_result("x", 1, [*base, "ชื่อลูกค้า บริษัท ตัวอย่าง จำกัด"], "", None, [])
     assert r2.data.buyer.name == "บริษัท ตัวอย่าง จำกัด" and r1.data.buyer.name is None
     assert (r1.status, r1.missing_fields, r1.checks) == (r2.status, r2.missing_fields, r2.checks)
-    assert "buyer.name" in r2.field_evidence and r2.field_evidence["buyer.name"].grounded is True
+    assert "buyer.name" in r2.review and r2.review["buyer.name"].level != "conflict"  # ค่าอยู่ในข้อความที่อ่านได้ (ไม่ขัดแย้ง)
 
 
 def test_field_spec_next_line_flag_round_trips():

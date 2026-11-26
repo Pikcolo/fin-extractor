@@ -40,3 +40,16 @@ def test_find_amounts_ignores_percent_and_index():
 ])
 def test_parse_date(text, expected):
     assert parse_date(text, today=TODAY) == expected
+
+
+def test_repeated_column_header_is_dropped_only_at_the_start_of_a_marked_piece():
+    from fin_extractor.extraction import lines_with_chunks
+
+    md = ("<!-- s02 strip_02-03 1/2 -->\nItem ลำดับ\nArticle รายการ\n1 ปากกา 19.00\n\n"
+          "<!-- s03 strip_02-03 2/2 repeat-header -->\nItem ลำดับ\nArticle รายการ\n5 แฟ้ม 82.00\nItem ลำดับ\n\n"
+          "<!-- s04 strip_04 -->\nItem ลำดับ\n")
+    pairs = lines_with_chunks(md)
+    assert [ln for ln, c in pairs if c == "s03"] == ["5 แฟ้ม 82.00", "Item ลำดับ"]  # ตัดแค่หัวที่ซ้ำต้นท่อน หลังจากนั้นไม่แตะ
+    assert [ln for ln, c in pairs if c == "s04"] == ["Item ลำดับ"]  # ท่อนที่ไม่มีธง: ไม่ตัด
+    from fin_extractor.pipeline import FinanceOCRPipeline
+    assert FinanceOCRPipeline.lines_from_raw(md) == [ln for ln, _c in pairs]  # บรรทัดของขั้นสกัดชุดเดียวกัน (ที่มาของบรรทัดยังตรง)

@@ -144,6 +144,7 @@ def run_page(full: np.ndarray, stem: str, src_dpi: float, rc: RegionConfig, page
     # regions: เส้นนอนใช้ทั้งดูดขอบ template และตัดแถบ generic
     lc = cfg["lines"]
     hlines = lines.detect_hlines(img, lc["min_len_frac"]) if opts.get("use_lines", True) else []
+    vlines = lines.detect_vlines(img, lc["v_min_len_frac"]) if opts.get("use_lines", True) else []  # ใช้ทั้งกันตัดกลางตาราง และแบ่งช่อง
     if tpl is not None and opts.get("mode", "template") == "template":
         regs = split.template_regions(img.shape, frame, tpl, cfg["regions"]["pad_frac"], hlines, lc["snap_tol_frac"], lc["snap_min_len_frac"])
     else:
@@ -160,7 +161,6 @@ def run_page(full: np.ndarray, stem: str, src_dpi: float, rc: RegionConfig, page
     def trim(box):
         return geometry.trim_box(text, box, ex["trim_pad_px"]) if ex["trim"] else box
 
-    vlines = lines.detect_vlines(img, lc["v_min_len_frac"]) if opts.get("use_lines", True) else []
     tbls = tables.build_tables(img, text, regs, vlines, cfg["tables"], trim) if regs and regs[0]["mode"] == "generic:lines" and opts.get("tables", True) else []
     if tbls or vlines:
         snap("05_tables", draw.draw_tables(overlay, tbls, vlines))
@@ -170,12 +170,26 @@ def run_page(full: np.ndarray, stem: str, src_dpi: float, rc: RegionConfig, page
     crops_dir = page_dir / "crops"
     files, skipped = [], []
 
-    def write(name: str, box, meta: dict, variants: list[str]) -> str:
+    def write(name: str, box, meta: dict, variants: list[str], header=None) -> str:
+        """เขียนภาพท่อน ``header`` = กล่องแถวหัวคอลัมน์ (พิกัดสำเนา) ต่อไว้บนสุดของภาพ (ท่อนที่ถูกตัดออกจากตารางเดียวกัน)
+        ``box``/``box_page`` ยังเป็นกล่องของแถวในท่อนนี้ (ที่มาของข้อความ) กล่องหัวอยู่ที่ ``header_box_page``."""
         pb = to_page(box)
-        sub = page[pb[1]:pb[3], pb[0]:pb[2]]
+        hb = to_page(header) if header is not None else None
+
+        def stacked(src):
+            body = src[pb[1]:pb[3], pb[0]:pb[2]]
+            if hb is None:
+                return body
+            head = src[hb[1]:hb[3], pb[0]:pb[2]]  # ความกว้างเดียวกับท่อน (คอลัมน์ตรงกัน)
+            gap = np.full((2 * ex["trim_pad_px"],) + body.shape[1:], 255, body.dtype)
+            return np.vstack([head, gap, body])
+
+        sub = stacked(page)
         out = {v: VARIANT_FUNCS[v](sub) for v in variants}
         if cleaned_page is not None:
-            out["clean"] = cleaned_page[pb[1]:pb[3], pb[0]:pb[2]]
+            out["clean"] = stacked(cleaned_page)
+        if hb is not None:
+            meta = {**meta, "header_box_page": hb}
         first = ""
         for v, vimg in out.items():
             p = crops_dir / f"{name}__{v}.png"
@@ -190,7 +204,11 @@ def run_page(full: np.ndarray, stem: str, src_dpi: float, rc: RegionConfig, page
     # Otsu อย่างเดียวมองไม่เห็นตัวพิมพ์สีอ่อน (1317–1319: รายการสินค้าทั้งแถวถูกหดทิ้ง) หดขอบด้วยหมึกที่มองไม่เห็นข้อความ = ข้อมูลหาย
     colour = I.binarize_inverted(img)
     cut_ink = cv2.bitwise_or(text, cv2.subtract(colour, cv2.bitwise_or(*line_masks(colour, min_frac=0.1))))
-    for i, r in enumerate(regs):
+    ocr_regs = regs
+    if regs and regs[0]["mode"] == "generic:lines" and cfg["generic"].get("keep_ruled_tables"):
+        ocr_regs = split.merge_ruled(regs, vlines, cfg["generic"]["cut_search_px"])  # ตารางที่มีคอลัมน์ = ภาพเดียวกับหัวคอลัมน์
+    m["stages"]["regions"]["ocr_regions"] = [{"name": r["name"], "box": list(r["box"]), "merged": r.get("merged", 1)} for r in ocr_regs]
+    for i, r in enumerate(ocr_regs):
         box = trim(r["box"]) if r.get("trim", True) else r["box"]
         if box is None or float((ink_mask(geometry.crop(img, box)) > 0).mean()) < ex["min_ink_frac"]:
             skipped.append({"region": r["name"]})  # ไม่เหลืออะไร (เช่น แถบที่มีแต่ QR ที่ระบายแล้ว)
@@ -199,9 +217,35 @@ def run_page(full: np.ndarray, stem: str, src_dpi: float, rc: RegionConfig, page
         cut = {"pieces": [(box[1], box[3])], "method": "off"}
         if r.get("tile", True):  # หดขอบตามบรรทัดจริง + ตัดท่อนไม่ผ่ากลางรายการ (pieces.py)
             cut = pieces.cut_region(cut_ink, box, vlines, max_h * img.shape[0], cfg["tables"]["min_row_h"], ex["trim_pad_px"])
-        for j, (a, b) in enumerate(cut["pieces"]):
-            name = f"{i:02d}_{r['name']}" + (f"_t{j:02d}" if len(cut["pieces"]) > 1 else "")
-            write(name, (x0, a, x1, b), {"region": r["name"], "tile": j, "cut": cut["method"]}, ex["variants"])
+        min_text = ex.get("min_text_components", 0)
+
+        def has_text(a: int, b: int) -> bool:
+            """นับชิ้นข้อความบนภาพท่อนความละเอียดเต็ม (ภาพเดียวกับที่ส่ง OCR) เส้นตารางหาเทียบกับท่อนเอง: เส้นขอบช่องสั้น ๆ จึงถูกลบด้วย
+            (บนหน้ากากระดับหน้า เส้นขอบช่องยาวไม่ถึงเกณฑ์เส้นของหน้า จะถูกนับเป็นข้อความ) ชิ้นข้อความ = พื้นที่ ≥ 8 px และหนากว่า 2 px
+            (เศษเส้นที่ลบไม่หมดหนา 1 px ยาว 9–14 px บน 1313/1314) เกณฑ์เดียวกับที่วัดใน configs/regions/pipeline.yaml ``min_text_components``."""
+            pb = to_page((x0, a, x1, b))
+            sub = page[pb[1]:pb[3], pb[0]:pb[2]]
+            if sub.size == 0:
+                return False
+            _n, _lab, st, _c = cv2.connectedComponentsWithStats(text_mask(ink_mask(sub)), connectivity=8)
+            st = st[1:]
+            return int(((st[:, cv2.CC_STAT_AREA] >= 8) & (np.minimum(st[:, cv2.CC_STAT_WIDTH], st[:, cv2.CC_STAT_HEIGHT]) > 2)).sum()) >= min_text
+
+        kept = [(a, b) for a, b in cut["pieces"] if has_text(a, b)]
+        for a, b in cut["pieces"]:
+            if (a, b) not in kept:  # มีแต่เส้นตาราง/ขีด ไม่มีข้อความ: ไม่ส่ง OCR (ตัวอ่านตอบตารางว่างหรือแต่งข้อความเอง)
+                skipped.append({"region": r["name"], "box": [int(x0), int(a), int(x1), int(b)], "reason": "no text"})
+        header = None
+        if r.get("header") and len(kept) > 1:  # ตารางที่มีคอลัมน์ถูกตัดตามความสูง: แปะแถวหัวคอลัมน์ (หดขอบตามหมึก) บนท่อนที่ไม่มีหัว
+            hx0, hy0, hx1, hy1 = r["header"]
+            lp = cfg["generic"]["line_pad_px"]  # แถบถูกขยายเลยเส้นตารางออกไปเท่านี้ (generic_regions) หดกลับให้หัวจบที่เส้นพอดี ไม่ติดเสี้ยวแถวข้างเคียง
+            (ha, hb_), = pieces.cut_region(cut_ink, (x0, hy0 + lp, x1, hy1 - lp), vlines, 0, cfg["tables"]["min_row_h"], ex["trim_pad_px"])["pieces"]
+            header = (x0, ha, x1, hb_)
+        for j, (a, b) in enumerate(kept):
+            name = f"{i:02d}_{r['name']}" + (f"_t{j:02d}" if len(kept) > 1 else "")
+            with_header = header is not None and a >= header[3]  # ท่อนที่มีหัวอยู่แล้ว (ท่อนแรก) ไม่แปะซ้ำ
+            write(name, (x0, a, x1, b), {"region": r["name"], "tile": j, "cut": cut["method"]}, ex["variants"],
+                  header=header if with_header else None)
 
     # ช่องตาราง + คู่ key/value (เก็บพาธ ข้อความมาหลัง OCR)
     kv = []
@@ -251,7 +295,8 @@ def write_ocr_index(page_dir: Path, files: list[dict]) -> None:
     for k, f in enumerate(regions):
         x0, y0, x1, y1 = f["box_page"]
         s = {"id": f"s{k:02d}", "kind": f["region"], "bbox": [x0, y0, x1 - x0, y1 - y0], "table": None, "keep": True,
-             **({"part": f["tile"] + 1, "parts": parts[f["region"]]} if parts[f["region"]] > 1 else {})}
+             **({"part": f["tile"] + 1, "parts": parts[f["region"]]} if parts[f["region"]] > 1 else {}),
+             **({"repeat_header": True} if f.get("header_box_page") else {})}  # ภาพมีแถวหัวคอลัมน์ต่อไว้ด้านบน (ดู write)
         secs.append(s)
         index.append({**{k2: v for k2, v in s.items() if k2 != "keep"}, "file": Path(f["path"]).name})
     (page_dir / "sections.json").write_text(json.dumps({"source": "regions", "layout_sections": secs}, ensure_ascii=False, indent=1), encoding="utf-8")

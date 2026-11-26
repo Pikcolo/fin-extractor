@@ -13,6 +13,8 @@
   ของตัวอ่านชุดเดียวกัน จึงยืนยันการสกัดได้ ไม่ได้ยืนยันว่าตัวอ่านอ่านภาพถูก
 - ``handwritten`` เป็น None เว้นแต่ field อยู่ใน ``handwritten_fields`` (ยังไม่มีตัวตรวจลายมือใน pipeline)
 - ``model_conf`` เป็น None เสมอ (confidence ระดับคำของ OCR ยังไม่ถูกส่งต่อมาถึงขั้นสกัด)
+
+ผลที่บันทึก (schema 4.0) คือ ``review_from_evidence``: ระดับ + เหตุผลเป็นคำพูด เรียงตามที่ควรตรวจก่อน หลักฐานละเอียดใช้ภายในเท่านั้น
 """
 
 from __future__ import annotations
@@ -24,7 +26,7 @@ from typing import Any
 
 from ..doctypes import DOC_PREFIX, KEY_FIELDS, Profile
 from ..extraction.patterns import find_dates, find_numbers, find_percents, find_tax_ids
-from ..schema import FieldEvidence, InvoiceData, ValidationCheck
+from ..schema import FieldEvidence, FieldReview, InvoiceData, ValidationCheck
 from .tax_id import is_valid_thai_tax_id
 
 # check ที่ผ่านแล้วไม่ได้ยืนยันว่าอ่านค่าถูก (ตรวจแค่ความสมเหตุสมผล) แต่ถ้าไม่ผ่านยังนับว่าขัดแย้ง
@@ -167,3 +169,62 @@ def build_field_evidence(
         if key not in flat:
             out[key] = FieldEvidence(level="not_applicable" if key in not_applicable else "missing")
     return out
+
+
+# check → ฟิลด์ที่ check นั้นอ่าน (ตาม checks.py) ใช้บอกว่า check ไหนยังตรวจไม่ได้เพราะขาดช่องไหน
+CHECK_FIELDS = {
+    "vendor_tax_id_checksum": ["vendor.tax_id"], "buyer_tax_id_checksum": ["buyer.tax_id"],
+    "items_sum": ["subtotal", "amount_before_vat", "total_amount"], "discount": ["subtotal", "discount", "amount_before_vat", "total_amount"],
+    "before_vat_plus_vat": ["amount_before_vat", "vat_amount", "total_amount"],
+    "vat_rate": ["vat_amount", "amount_before_vat", "total_amount", "vat_rate"], "date_range": ["date"],
+}
+REVIEW_ORDER = {"conflict": 0, "missing": 1, "unverified": 2, "verified": 3, "not_applicable": 4}
+
+
+def _reasons(key: str, ev: FieldEvidence, checks: list[ValidationCheck], primary_amount: str | None,
+             by_human: bool, source: str | None = None) -> tuple[str, list[str]]:
+    """(ระดับ, เหตุผลเป็นคำพูด) ของฟิลด์หนึ่ง ระดับตามหลักฐานเดิม ยกเว้นค่าที่คนแก้: ไม่ต้องปรากฏในข้อความ OCR (คนแก้เพราะ OCR อ่านผิด)."""
+    from .checks import NOT_APPLICABLE_DETAIL
+
+    level, out = ev.level, []
+    if level == "not_applicable":
+        return level, ["เอกสารชนิดนี้ไม่มีฟิลด์นี้"]
+    if level == "missing":
+        out.append("เอกสารชนิดนี้ต้องมี แต่ระบบหาไม่เจอ ให้กรอกจากภาพ")
+        if key == primary_amount:
+            out.append("เป็นยอดหลักของเอกสาร: ไม่มีค่านี้สถานะจะเป็น failed")
+    if ev.format_valid is False:
+        out.append("เลขผู้เสียภาษีไม่ผ่าน checksum: ผิดอย่างน้อยหนึ่งหลัก")
+    by_name = {c.name: c for c in checks}
+    for name in ev.checks_failed:
+        out.append(f"check {name} ไม่ผ่าน ({by_name[name].detail})" if name in by_name else f"check {name} ไม่ผ่าน")
+    if ev.grounded is False and not by_human:
+        out.append("ค่านี้ไม่ปรากฏในข้อความที่ OCR อ่านได้: ระบบอาจหยิบผิดบรรทัดหรือแปลงผิด")
+    if ev.sources_agree is False:
+        out.append("rules กับ LLM ได้ค่าไม่ตรงกัน")
+    if source not in (None, "rules", "llm", "human") and ev.value not in (None, ""):
+        out.append(f"ค่านี้มาจากตัวอ่านเสริม {source} (ตัวอ่านหลักอ่านส่วนนี้ไม่ครบ) ตัวอ่านเสริมอ่านตัวอักษรเพี้ยนได้ ให้ดูเทียบกับภาพ")
+    if by_human and level == "conflict" and ev.format_valid is not False and not ev.checks_failed and ev.sources_agree is not False:
+        level = "unverified"  # ขัดแย้งแค่เพราะไม่อยู่ในข้อความ OCR ซึ่งไม่ใช่เหตุสำหรับค่าที่คนแก้
+    if level == "verified":
+        out.append("ยืนยันแล้วด้วย " + ", ".join(ev.checks_passed))
+    elif level == "unverified" and ev.value not in (None, ""):
+        out.append("แก้โดยคน" if by_human else "ไม่มี check ที่ยืนยันค่านี้ได้ ให้ดูเทียบกับภาพ")
+    for c in checks:  # check ที่ใช้ฟิลด์นี้แต่ตรวจไม่ได้เพราะขาดช่องอื่น: บอกว่าเติมช่องไหนแล้วจะตรวจได้
+        if c.passed is None and key in CHECK_FIELDS.get(c.name, []) and c.detail != NOT_APPLICABLE_DETAIL and level != "verified":
+            out.append(f"check {c.name} ยังตรวจไม่ได้ ({c.detail})")
+    return level, out
+
+
+def review_from_evidence(evidence: dict[str, FieldEvidence], checks: list[ValidationCheck], primary_amount: str | None = None,
+                         sources: dict[str, str] | None = None) -> dict[str, FieldReview]:
+    """หลักฐานละเอียดรายฟิลด์ → ``review`` ที่บันทึกในผล (ระดับ + เหตุผล + ผู้ให้ค่าถ้าไม่ใช่ rules) เรียงตามที่ควรตรวจก่อน
+    ``sources`` = {คีย์: rules | llm | human} ไม่ส่ง = ใช้ ``source`` ในหลักฐาน."""
+    sources = sources or {}
+    out: dict[str, FieldReview] = {}
+    for i, (key, ev) in enumerate(evidence.items()):
+        src = sources.get(key, ev.source)
+        level, reasons = _reasons(key, ev, checks, primary_amount, src == "human", src)
+        out[key] = FieldReview(level=level, reasons=reasons, source=None if src in (None, "rules") else src)
+    order = list(out)
+    return dict(sorted(out.items(), key=lambda kv: (REVIEW_ORDER[kv[1].level], order.index(kv[0]))))

@@ -4,7 +4,7 @@
     .venv/Scripts/python scripts/eval/groundtruth_app.py data/01_input/finance_doc_scan --prefill typhoon/luma/rules --port 8765
 
 เปิด http://127.0.0.1:8765 ในเบราว์เซอร์ (ผูกกับ 127.0.0.1 เท่านั้น เครื่องอื่นในเครือข่ายเข้าไม่ได้ ไม่มีอะไรส่งออกนอกเครื่อง)
-- ภาพ = ภาพ final ของขั้น 2 (``02_preprocess/<dataset>/<profile>/final/``) ฟอร์ม = ผลสกัดของ ``--prefill`` (ค่าตั้งต้น openthai/luma/rules)
+- ภาพ = ภาพ final ของขั้น 2 (``02_preprocess/<dataset>/<profile>/final/``) ฟอร์ม = ผลสกัดของ ``--prefill`` (ค่าตั้งต้น openthai/regions-luma/rules = flow หลัก)
 - ช่องว่าง + ติ๊ก "ไม่มี" = เอกสารไม่มีช่องนี้ (null) · บันทึก = ยืนยันทุกช่องในฟอร์ม
 - "บันทึกร่าง" (draft) ยังไม่นับคะแนน "ตรวจเสร็จ" (done) นับ ดูคะแนนด้วย scripts/eval/score_groundtruth.py
 ผลที่ ``data/etc/groundtruth/<dataset>/<ไฟล์>.json`` (รูปแบบดู src/fin_extractor/groundtruth.py)
@@ -229,7 +229,7 @@ init();
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("input", help="โฟลเดอร์อินพุต (ใช้เอาชื่อชุดข้อมูล)")
-    ap.add_argument("--prefill", default="openthai/luma/rules", help="ผลสกัดที่ใช้เติมฟอร์ม <engine>/<วิธี>/<extractor>")
+    ap.add_argument("--prefill", default="openthai/regions-luma/rules", help="ผลสกัดที่ใช้เติมฟอร์ม <engine>/<วิธี>/<extractor>")
     ap.add_argument("--profile", default=DEFAULT_PROFILE)
     ap.add_argument("--port", type=int, default=8765)
     args = ap.parse_args()
