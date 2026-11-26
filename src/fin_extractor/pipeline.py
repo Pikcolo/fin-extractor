@@ -268,6 +268,37 @@ class FinanceOCRPipeline:
             rejected=[RejectedValue(key=k, reason=why) for k, why in (self.last_rejected if self.strategy == "hybrid" else [])],
         )
 
+    def confirm_hints(self, result: ExtractionResult, decisions: list, codes: list[str] | tuple = ()) -> None:
+        """missing_hint (shadow): ลองใส่ค่าที่โมเดลเสนอลงสำเนาของ data แล้วตรวจซ้ำด้วย check ชุดเดิม
+        เติม ``Decision.confirmed_by`` = check ที่ผ่านหลังใส่แต่ไม่ผ่านก่อนใส่ (เช่น 50 ทวิ: ผลรวมแถวรายการ = ยอดที่เสนอ)
+        ไม่ตั้งเกณฑ์ใหม่: ใช้ check และค่าคลาดเคลื่อนเดียวกับผลจริง · ไม่เปลี่ยน ``result``."""
+        from .decision.questions import NOT_FOUND
+
+        lines = self.lines_from_raw(result.raw_text or "")
+        before = {c.name for c in result.checks if c.passed is True}
+        hints = [d for d in decisions if d.task == "missing_hint" and d.answer != NOT_FOUND]
+
+        def passed_with(ds) -> list[ValidationCheck]:
+            raw = result.data.model_dump(mode="json")
+            for d in ds:
+                *path, last = d.key.split(".")
+                node = raw
+                for part in path:
+                    node = node.setdefault(part, {})
+                node[last] = d.answer
+            try:
+                data = InvoiceData.model_validate(raw)
+            except Exception:  # noqa: BLE001 — ค่าที่เสนอแปลงเป็นชนิดของช่องไม่ได้: ไม่มี check ยืนยัน
+                return []
+            return [c for c in self.assess(data, lines, codes=codes)[0] if c.passed is True and c.name not in before]
+
+        # ใส่ทีละค่า และใส่ทุกค่าพร้อมกัน (check บางตัวต้องมีครบสองช่อง เช่น 50 ทวิ: ยอดจ่ายกับภาษีที่หัก) ค่าพร้อมกันนับเฉพาะ check ที่อ้างถึงช่องนั้น
+        together = passed_with(hints) if len(hints) > 1 else []
+        for d in hints:
+            names = [c.name for c in passed_with([d])]
+            names += [c.name for c in together if d.key in (c.fields or []) and c.name not in names]
+            d.confirmed_by = names
+
     def process_raw(self, source_file: str, page_no: int, raw_text: str, meta: dict | None = None,
                     codes: list[str] | tuple = ()) -> ExtractionResult:
         """สกัดซ้ำจากข้อความดิบที่เก็บไว้ (ไม่เรียก OCR) ``meta`` = ไฟล์ .meta.json ของข้อความนั้น · ``codes`` = ข้อความใน QR/บาร์โค้ด."""

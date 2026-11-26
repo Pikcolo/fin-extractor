@@ -487,6 +487,7 @@ def decision_stage(job: dict, mode: str, cfg: dict) -> dict:
         qs = build(res.data, ctx["markdown"], pipe.profiles, cfg["decision"], res.missing_fields)
         t = time.perf_counter()
         decs = _decider.ask(qs)
+        pipe.confirm_hints(res, decs, ctx.get("codes", []))
         ctx["decisions"][mode] = {"decisions": [x.model_dump() for x in decs], "seconds": round(time.perf_counter() - t, 1),
                                   "asked": len(qs)}
     out = ctx["decisions"][mode]

@@ -74,6 +74,14 @@
           "description": "ข้อมูลที่ป้อนเข้าโมเดลจริง (ไว้ตรวจย้อนหลัง)",
           "title": "State",
           "type": "object"
+        },
+        "confirmed_by": {
+          "description": "missing_hint: check ที่ผ่านเมื่อลองใส่ค่าที่เสนอ (และไม่ผ่าน/ตรวจไม่ได้ก่อนใส่) ว่าง = ไม่มี check ยืนยัน ไม่ได้แปลว่าผิด",
+          "items": {
+            "type": "string"
+          },
+          "title": "Confirmed By",
+          "type": "array"
         }
       },
       "required": [

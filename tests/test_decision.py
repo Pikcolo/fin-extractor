@@ -111,3 +111,21 @@ def test_decisions_do_not_change_the_rest_of_the_result():
     r2.decisions = Decider(_cfg(), FakeBackend()).ask(build(r2.data, MD, PROFILES, _cfg()))
     after = json.loads(r2.model_dump_json())
     assert len(after.pop("decisions")) >= 3 and after == json.loads(before)
+
+
+def test_missing_hint_is_confirmed_only_by_checks_that_pass_with_the_suggested_value():
+    from fin_extractor.pipeline import FinanceOCRPipeline
+    from fin_extractor.schema import Decision
+
+    pipe = FinanceOCRPipeline(CFG, engine="openthai")
+    raw = ("<!-- s00 -->\nใบกำกับภาษี\nเลขที่ INV-1 วันที่ 01/10/2026\n"
+           "มูลค่าก่อนภาษี 100.00\nภาษีมูลค่าเพิ่ม 7.00\n")
+    r = pipe.process_raw("x.pdf", 1, raw)
+    assert r.data.total_amount is None
+    hint = lambda v: Decision(task="missing_hint", key="total_amount", type="choice", answer=v, probabilities={v: 1.0}, model="fake")
+    right, wrong, none = hint("107.00"), hint("100.00"), hint(NOT_FOUND)
+    pipe.confirm_hints(r, [right])
+    pipe.confirm_hints(r, [wrong, none])
+    assert "before_vat_plus_vat" in right.confirmed_by
+    assert wrong.confirmed_by == [] and none.confirmed_by == []
+    assert r.data.total_amount is None  # shadow: ผลจริงไม่เปลี่ยน

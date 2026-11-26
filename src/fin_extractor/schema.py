@@ -160,6 +160,8 @@ class Decision(BaseModel):
     model: str
     instructions: str = Field("", description="คำถามที่ถามโมเดล")
     state: dict = Field(default_factory=dict, description="ข้อมูลที่ป้อนเข้าโมเดลจริง (ไว้ตรวจย้อนหลัง)")
+    confirmed_by: list[str] = Field(default_factory=list, description=(
+        "missing_hint: check ที่ผ่านเมื่อลองใส่ค่าที่เสนอ (และไม่ผ่าน/ตรวจไม่ได้ก่อนใส่) ว่าง = ไม่มี check ยืนยัน ไม่ได้แปลว่าผิด"))
 
 
 class ExtractionResult(BaseModel):

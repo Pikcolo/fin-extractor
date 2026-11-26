@@ -34,6 +34,9 @@ class FakePipe:
         FakePipe.log.append(("raw", page, raw, dict(meta or {})))
         return self._result(source, page, raw)
 
+    def confirm_hints(self, result, decisions, codes=()):
+        pass
+
 
 @pytest.fixture
 def env(tmp_path, monkeypatch):
