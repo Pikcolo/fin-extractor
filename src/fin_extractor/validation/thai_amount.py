@@ -49,6 +49,9 @@ def _integer(s: str) -> int | None:
     return None if last is None else value + last
 
 
+_SATANG_WORD = re.compile(r"ส[ตด]างค์$")
+
+
 def words_to_amount(text: str | None) -> Decimal | None:
     """"(สามพันหนึ่งร้อยแปดสิบเจ็ดบาทห้าสิบสตางค์)" → Decimal('3187.50') อ่านไม่ได้ = None."""
     if not text:
@@ -57,7 +60,7 @@ def words_to_amount(text: str | None) -> Decimal | None:
     if "บาท" not in s:
         return None
     baht, _, rest = s.partition("บาท")
-    satang = rest.removesuffix("สตางค์") if rest else ""
+    satang = _SATANG_WORD.sub("", rest) if rest else ""  # "สตางค์" ที่ OCR อ่านเป็น "สดางค์" ได้
     b = _integer(baht)
     st = _below_million(satang) if satang else 0
     if b is None or st is None or st >= 100 or not (baht or satang):

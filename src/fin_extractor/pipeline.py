@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any, Literal
 
@@ -23,7 +24,7 @@ from .extraction import extract_fields, lines_with_chunks, markdown_to_lines
 from .extraction.rule_extractor import SUPPLEMENT, chunk_lines
 from .extraction.core_labels import extract_party_name
 from .extraction.party_blocks import fill_party_blocks
-from .extraction.rule_extractor import assign_addresses
+from .extraction.rule_extractor import assign_addresses, derive_total, fill_vendor_address, unmix_parties
 from .extraction.hybrid import known_context, merge_llm, top_level, unresolved_keys
 from .extraction.llm_extractor import profile_schema
 from .extraction.profile_extractor import (
@@ -174,7 +175,11 @@ class FinanceOCRPipeline:
             if name and not party.name:
                 party.name = name
                 party.branch = party.branch or branch
+        unmix_parties(rules)  # ชื่อจากป้ายฝั่งซื้อซ้ำกับผู้ขายตามตำแหน่ง = ฝั่งซื้อ (ก่อนผูกที่อยู่ ซึ่งผูกตามชื่อ)
         assign_addresses(lines, rules)
+        if not profile.party_blocks:
+            fill_vendor_address(lines, rules)
+        derive_total(rules, Decimal(str(self.cfg["validation"]["amount_tolerance"])))
         chunks = self._chunks_of(lines, raw_text)
         rules.remark = [*extract_remark(lines, profile, rules, chunks), *extract_unmapped(lines, rules, chunks)]
         if not self.llm:

@@ -216,8 +216,24 @@
             }
           ],
           "default": null,
-          "description": "มูลค่าก่อนภาษีมูลค่าเพิ่ม",
+          "description": "มูลค่าก่อนภาษีมูลค่าเพิ่ม (เฉพาะส่วนที่เสียภาษี)",
           "title": "Amount Before Vat"
+        },
+        "non_taxable_amount": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "มูลค่าที่ไม่ต้องเสียภาษีมูลค่าเพิ่ม (ยกเว้นภาษี) ที่รวมอยู่ในยอดรวม: ยอดรวม = มูลค่าก่อนภาษี + VAT + ค่านี้",
+          "title": "Non Taxable Amount"
         },
         "vat_rate": {
           "anyOf": [

@@ -75,7 +75,8 @@ class InvoiceData(BaseModel):
     items: list[LineItem] = Field(default_factory=list)
     subtotal: Decimal | None = Field(None, description="รวมเงินก่อนส่วนลด")
     discount: Decimal | None = None
-    amount_before_vat: Decimal | None = Field(None, description="มูลค่าก่อนภาษีมูลค่าเพิ่ม")
+    amount_before_vat: Decimal | None = Field(None, description="มูลค่าก่อนภาษีมูลค่าเพิ่ม (เฉพาะส่วนที่เสียภาษี)")
+    non_taxable_amount: Decimal | None = Field(None, description="มูลค่าที่ไม่ต้องเสียภาษีมูลค่าเพิ่ม (ยกเว้นภาษี) ที่รวมอยู่ในยอดรวม: ยอดรวม = มูลค่าก่อนภาษี + VAT + ค่านี้")
     vat_rate: Decimal | None = Field(None, description="เช่น 0.07")
     vat_amount: Decimal | None = None
     total_amount: Decimal | None = Field(None, description="ยอดสุทธิรวม VAT")
@@ -89,7 +90,7 @@ class InvoiceData(BaseModel):
         description="หมายเหตุ: ข้อมูลอื่นที่เอกสารพิมพ์ไว้แต่ไม่มีช่องข้างบนหรือใน document_fields (ป้าย + ค่า) ห้ามใส่ข้อมูลที่มีช่องอยู่แล้ว",
     )
 
-    @field_validator("subtotal", "discount", "amount_before_vat", "vat_amount", "total_amount")
+    @field_validator("subtotal", "discount", "amount_before_vat", "non_taxable_amount", "vat_amount", "total_amount")
     @classmethod
     def _money_cents(cls, v):
         return _to_cents(v)

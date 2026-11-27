@@ -132,7 +132,7 @@ def _filled_values(data: InvoiceData) -> set[str]:
             vals.add(squash(v.isoformat() if hasattr(v, "isoformat") else f"{v:f}" if isinstance(v, Decimal) else str(v)))
 
     for name in ("document_type", "book_no", "invoice_no", "date", "subtotal", "discount",
-                 "amount_before_vat", "vat_amount", "total_amount"):
+                 "amount_before_vat", "non_taxable_amount", "vat_amount", "total_amount"):
         add(getattr(data, name))
     for party in (data.vendor, data.buyer):
         for sub in type(party).model_fields:

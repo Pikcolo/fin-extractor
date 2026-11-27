@@ -14,7 +14,7 @@ from functools import lru_cache
 from ..config import load_config
 from ..doctypes import kind_of, load_kinds
 from ..readers.lines import normalize_thai
-from ..schema import InvoiceData, LineItem
+from ..schema import InvoiceData, LineItem, Party
 from ..validation.tax_id import is_valid_thai_tax_id
 from .item_table import table_items
 from .patterns import AMOUNT_RE, PERCENT_RE, find_amounts, find_tax_ids, fix_ocr_numbers, parse_date
@@ -27,6 +27,10 @@ def default_kinds() -> list[tuple[str, re.Pattern]]:
     return load_kinds(load_config().get("document_kinds"))
 
 
+# "สำนักงานใหญ่" รวมรูปที่ OCR อ่านเพี้ยน (ส/ล · ใ/โ)
+HEAD_OFFICE_RE = re.compile(r"[สล][ำา]นักงาน[ใโ]หญ่|head\s*office", re.I)
+# "สาขาที่ออกใบกำกับภาษี : สาขาที่ 00054" / "...คือ : สำนักงานใหญ่ (00000)" → เลขสาขา 5 หลัก หรือสำนักงานใหญ่
+ISSUING_BRANCH_RE = re.compile(r"สาขาที่ออกใบกำกับภาษี(?:คือ)?\s*[:：]?\s*(?:สาขาที่\s*(\d{5})|[สล][ำา]นักงาน[ใโ]หญ่)")
 COMPANY_RE = re.compile(r"บริษัท|ห้างหุ้นส่วน|หจก\.?|co\.?,?\s*ltd|company|limited|corporation|จำกัด", re.I)
 BUYER_RE = re.compile(r"ลูกค้า|ผู้ซื้อ|customer|buyer|bill\s*to|sold\s*to", re.I)
 # ป้ายระบุสำเนา "สำหรับลูกค้า / For Customer" พิมพ์ต่อท้ายชื่อผู้ขายบรรทัดแรก ไม่ใช่การเริ่มส่วนผู้ซื้อ
@@ -50,7 +54,7 @@ ITEM_END_RE = re.compile(r"หมายเหตุ|remark|note", re.I)
 # รวมเงินทั้งสิ้น · ยอดเงินสุทธิ · V.A.T.
 AMOUNT_FIELDS: list[tuple[str, re.Pattern]] = [
     ("amount_before_vat", re.compile(
-        r"ก่อน(?:รวม|คิด)?ภาษี|ไม่รวมภาษี|มูลค่าสินค้า|before\s*vat|vat\s*excl|excl(?:uding|\.)?\s*vat|pre[-\s]?vat", re.I)),
+        r"ก่อน(?:รวม|คิด)?ภาษี|ไม่รวมภาษี|มูลค่าสินค้า|before\s*vat|vat\s*excl|excl(?:uding|\.)?\s*vat|pre[-\s]?vat|(?<![-\w])taxable\s*(?:charges?|amount|value)", re.I)),
     ("total_amount", re.compile(
         r"รวมภาษี|รวม(?:เงิน)?ทั้งสิ้น|ยอด(?:เงิน)?สุทธิ|ยอดชำระ|จำนวนเงินรวม|vat\s*incl|incl(?:uding|\.)?\s*vat|"
         r"grand\s*total|net\s*total|total\s*amount|amount\s*due", re.I)),
@@ -60,10 +64,15 @@ AMOUNT_FIELDS: list[tuple[str, re.Pattern]] = [
 ]
 
 
+# \ นำหน้าเครื่องหมายวรรคตอนของ markdown (ไม่รวม | ที่เป็นตัวคั่นช่องของตาราง)
+_MD_ESCAPE_RE = re.compile(r"\\([!-/:-@\[\]^_`{}~])")
+
+
 def markdown_to_lines(markdown: str) -> list[str]:
     """แปลงข้อความจากตัวอ่าน (Markdown/HTML table หรือบรรทัดล้วน) ให้เป็นบรรทัดข้อความ (1 แถวตาราง = 1 บรรทัด)."""
     # บางตัวอ่าน (OpenThai) พิมพ์ "ำ" เป็น นิคหิต+า (U+0E4D U+0E32) ทำให้ป้ายอย่าง "นำส่ง" จับไม่เจอ
     text = fix_ocr_numbers(normalize_thai(markdown))
+    text = _MD_ESCAPE_RE.sub(r"\1", text)  # "7\% VAT" "(13หลัก)\*" ตัวอ่านใส่ \ นำหน้าเครื่องหมาย ทำให้จับ "7%" ไม่ได้
     text = re.sub(r"</t[dh]>", " | ", text, flags=re.I)
     text = re.sub(r"</tr>|<br\s*/?>", "\n", text, flags=re.I)
     text = html.unescape(re.sub(r"<[^>]+>", " ", text))
@@ -117,7 +126,8 @@ MAX_SUBTOTAL_LABEL = 30  # "Total" เป็นคำทั่วไป เช�
 EXPLICIT_SUBTOTAL_RE = re.compile(r"รวมเงิน|sub\s*-?\s*total", re.I)
 
 
-# ยอดที่ไม่ใช่ฐานภาษี: "มูลค่าสินค้าที่ยกเว้นภาษีมูลค่าเพิ่ม" ไม่ใช่ VAT · "Non-Taxable Charges" — ไม่จัดเป็นช่องใด
+# ยอดที่ไม่ใช่ฐานภาษี: "มูลค่าสินค้าที่ยกเว้นภาษีมูลค่าเพิ่ม" · "Non-Taxable Charges" ไม่ใช่ VAT และไม่อยู่ในฐาน VAT
+# บรรทัดสรุปเก็บเป็นช่อง non_taxable_amount (ยอดรวม = ฐาน + VAT + ค่านี้) ส่วนหัวตารางรายการยังไม่ถือเป็นป้ายยอด (``_cell_label``)
 EXEMPT_RE = re.compile(r"ยกเว้นภาษี|non[-\s]?taxable|tax\s*exempt|vat\s*exempt", re.I)
 SATANG_RE = re.compile(r"^\.?\d{2}$")  # ช่องสตางค์ของตารางบาท|สตางค์ ("1,234 | 50" · "1,234 | .50")
 
@@ -144,6 +154,10 @@ def _cell_label(cell: str, seen_subtotal_or_vat: bool) -> str | None:
     return None
 
 
+def _summary_label(cell: str, seen_subtotal_or_vat: bool) -> str | None:
+    return "non_taxable_amount" if EXEMPT_RE.search(cell) else _cell_label(cell, seen_subtotal_or_vat)
+
+
 def _cell_amounts(cell: str) -> list[Decimal]:
     return find_amounts(PERCENT_RE.sub(" ", cell))  # "7.00 %" ไม่ใช่ยอดเงิน
 
@@ -154,16 +168,16 @@ def _line_amounts(lines: list[str], i: int, seen_subtotal_or_vat: bool) -> list[
     ช่องเดียวมีหลายป้ายเรียงกัน + ช่องถัดไปช่องเดียวมีตัวเลขเท่าจำนวนป้าย → จับคู่ตามลำดับ."""
     cells = [c.strip() for c in lines[i].split(" | ")]
     out: list[tuple[str, Decimal, str]] = []
-    labels = [_cell_label(c, seen_subtotal_or_vat) for c in cells]
+    labels = [_summary_label(c, seen_subtotal_or_vat) for c in cells]
     labelled = [j for j, f in enumerate(labels) if f]
     for j in labelled:
-        field, cell = _cell_label(cells[j], seen_subtotal_or_vat), cells[j]  # จัดใหม่: "Total" หลัง VAT ในบรรทัดเดียวกันเป็นยอดรวม
+        field, cell = _summary_label(cells[j], seen_subtotal_or_vat), cells[j]  # จัดใหม่: "Total" หลัง VAT ในบรรทัดเดียวกันเป็นยอดรวม
         stop = next((k for k in labelled if k > j), len(cells))
         own = _cell_amounts(cell)
         nxt = [(k, a) for k in range(j + 1, stop) for a in _cell_amounts(cells[k])]
         if not own and not nxt and stop == len(cells) and i + 1 < len(lines) and AMOUNTS_ONLY_RE.match(lines[i + 1]):
             nxt = [(len(cells), a) for a in find_amounts(lines[i + 1])]  # ค่าอยู่บรรทัดถัดไป (OCR แยกช่องเป็นคนละบรรทัด)
-        words = [w for w in (_cell_label(w, False) for w in cell.split()) if w]
+        words = [w for w in (_summary_label(w, False) for w in cell.split()) if w]
         if not own and len(nxt) > 1 and len({k for k, _a in nxt}) == 1 and len(words) == len(nxt) == len(set(words)):
             out += [(w, a, cell) for w, (_k, a) in zip(words, nxt)]
         elif own:
@@ -247,6 +261,74 @@ def assign_addresses(lines: list[str], data: InvoiceData) -> None:
             if party.name and not party.address and _squash(party.name) in near:
                 party.address = addr
                 break
+
+
+POSTCODE_RE = re.compile(r"(?<!\d)\d{5}(?!\d)")
+_THAI_RE = re.compile(r"[฀-๿]")
+# ถ้าเจอบรรทัดพวกนี้ก่อนเริ่มที่อยู่ = ไม่มีที่อยู่ที่ไม่มีป้ายใต้ชื่อ (ป้ายที่อยู่จริงมีตัวอ่านอีกทางแล้ว)
+_ADDRESS_ABORT_RE = re.compile(r"เลขประจำตัว|tax\s*id|ใบเสร็จ|ใบกำกับ|invoice|receipt|ที่อยู่|address|^\s*(?:tel|fax|โทร)", re.I)
+_LEADING_HEAD_OFFICE_RE = re.compile(r"^\s*(?:[สล][ำา]นักงาน[ใโ]หญ่|head\s*office)\s*", re.I)
+
+
+def strip_contact(value: str) -> str:
+    """ตัดเบอร์โทร/Tel ที่ติดท้ายที่อยู่ (ทั้งค่าจาก rules และจาก LLM)."""
+    cut = ADDRESS_STOP_RE.search(value)
+    return (value[:cut.start()] if cut else value).strip(" :：.…\n")
+
+
+def _address_below(lines: list[str], i: int) -> str | None:
+    """ที่อยู่ที่พิมพ์ต่อใต้บรรทัดชื่อบริษัท (``lines[i]``) โดยไม่มีป้าย "ที่อยู่": ข้ามบรรทัดชื่อซ้ำ (ชื่ออังกฤษ ป้ายสำเนา) แล้วเก็บบรรทัดที่หน้าตาเป็นที่อยู่
+    (มีคำที่อยู่หรือรหัสไปรษณีย์) ต่อกัน หยุดที่บรรทัดอื่น / บรรทัดที่ไม่ใช่ภาษาเดียวกับบรรทัดแรก (คำแปลอังกฤษของที่อยู่ไทย) / เบอร์โทร."""
+    block: list[str] = []
+    for line in lines[i + 1:]:
+        text = line.strip()
+        looks = bool(ADDRESS_RE.search(text) or POSTCODE_RE.search(text))
+        if not block:
+            if COMPANY_RE.search(text) or COPY_MARK_RE.search(text) or text.startswith("("):
+                continue
+            if _ADDRESS_ABORT_RE.search(text) or not looks:
+                return None
+        elif not looks or (_THAI_RE.search(block[0]) and not _THAI_RE.search(text)):
+            break
+        block.append(text)
+        if ADDRESS_STOP_RE.search(text):
+            break
+    if not block:
+        return None
+    block[0] = _LEADING_HEAD_OFFICE_RE.sub("", block[0])
+    return strip_contact("\n".join(block)) or None
+
+
+def fill_vendor_address(lines: list[str], data: InvoiceData) -> None:
+    """ที่อยู่ผู้ขายจากบรรทัดใต้ชื่อบริษัทที่ไม่มีป้าย (ใช้เมื่อยังไม่ได้ที่อยู่จากป้าย "ที่อยู่" เท่านั้น)."""
+    name = data.vendor.name
+    if data.vendor.address or not name:
+        return
+    key = _squash(name)
+    i = next((k for k, ln in enumerate(lines) if key and key in _squash(ln)), None)
+    if i is not None and (addr := _address_below(lines, i)):
+        data.vendor.address = addr
+
+
+def unmix_parties(data: InvoiceData) -> None:
+    """ชื่อที่ได้จากป้ายของฝ่ายซื้อ (``buyer.name``) ซ้ำกับชื่อที่ rules ตามตำแหน่งใส่ให้ผู้ขาย = บริษัทเดียวกัน ผู้ขายที่ได้ตามตำแหน่งเป็นของฝ่ายซื้อ
+    ย้ายเลขภาษี/สาขา/ที่อยู่ที่ติดมากับมันไปฝั่งซื้อด้วย แล้วล้างฝั่งขาย (ไม่เดาว่าผู้ขายคือใคร)."""
+    v, b = data.vendor, data.buyer
+    if not (v.name and b.name):
+        return
+    vk, bk = _squash(v.name).casefold(), _squash(b.name).casefold()
+    if len(bk) >= 4 and (bk in vk or vk in bk):
+        for attr in ("tax_id", "branch", "address"):
+            if not getattr(b, attr):
+                setattr(b, attr, getattr(v, attr))
+        data.vendor = Party()
+
+
+def derive_total(data: InvoiceData, tol: Decimal) -> None:
+    """ไม่พบยอดรวม แต่ "รวมเงิน" = ก่อน VAT + VAT (+ ไม่เสียภาษี) ตามตัวเลขในเอกสารเอง: ยอดนั้นคือยอดรวม (เอกสารที่ใช้ป้าย "รวมเป็นเงิน" เป็นยอดสุทธิ)."""
+    if data.total_amount is None and None not in (data.subtotal, data.amount_before_vat, data.vat_amount):
+        if abs(data.subtotal - (data.amount_before_vat + data.vat_amount + (data.non_taxable_amount or 0))) <= tol:
+            data.total_amount = data.subtotal
 
 
 def _find_invoice_no(lines: list[str]) -> str | None:
@@ -361,8 +443,10 @@ def extract_fields(lines: list[str], raw: str | None = None, kinds: list[tuple[s
         for tid in find_tax_ids(line):
             if not party.tax_id and is_valid_thai_tax_id(tid):
                 party.tax_id = tid
-        if "สำนักงานใหญ่" in line or re.search(r"head\s*office", line, re.I):
+        if HEAD_OFFICE_RE.search(line):
             party.branch = party.branch or "สำนักงานใหญ่"
+        if (m := ISSUING_BRANCH_RE.search(line)) and not in_buyer:  # ป้ายสาขาที่ออกใบกำกับ ชนะคำว่าสำนักงานใหญ่ที่หัวกระดาษ
+            data.vendor.branch = m.group(1) or "สำนักงานใหญ่"
 
         if not data.date and DATE_LABEL_RE.search(line):
             data.date = parse_date(line)

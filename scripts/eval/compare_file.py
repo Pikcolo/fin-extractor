@@ -34,7 +34,7 @@ FIELDS = [
     "document_type", "document_profile", "vendor.name", "vendor.branch", "vendor.tax_id", "vendor.address",
     "buyer.name", "buyer.branch", "buyer.tax_id", "buyer.address", "invoice_no", "book_no", "date",
     "items.count", "items[0].description", "items[0].quantity", "items[0].unit_price", "items[0].amount",
-    "subtotal", "discount", "amount_before_vat", "vat_rate", "vat_amount", "total_amount",
+    "subtotal", "discount", "amount_before_vat", "non_taxable_amount", "vat_rate", "vat_amount", "total_amount",
 ]
 SUMMARY = ["status", "missing_fields", "checks_failed"]
 

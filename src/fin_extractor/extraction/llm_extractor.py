@@ -20,8 +20,9 @@ from .prompts import EXTRACTION_SYSTEM_PROMPT, extraction_user_prompt
 from .patterns import normalize_tax_id, parse_amount, parse_date
 from .core_labels import split_branch
 from .profile_extractor import normalize_value
+from .rule_extractor import strip_contact
 
-_AMOUNT_KEYS = ("subtotal", "discount", "amount_before_vat", "vat_rate", "vat_amount", "total_amount")
+_AMOUNT_KEYS = ("subtotal", "discount", "amount_before_vat", "non_taxable_amount", "vat_rate", "vat_amount", "total_amount")
 
 
 def _parse_json(text: str) -> dict[str, Any]:
@@ -70,6 +71,8 @@ def normalize_llm_output(raw: dict[str, Any], profile: Profile | None = None) ->
         p = out.get(party)
         if isinstance(p, dict):
             p["tax_id"] = normalize_tax_id(str(p.get("tax_id") or ""))
+            if p.get("address"):  # เบอร์โทรที่ติดมากับที่อยู่ ตัดแบบเดียวกับฝั่ง rules
+                p["address"] = strip_contact(str(p["address"])) or None
         elif p in (None, ""):
             out.pop(party, None)
         else:

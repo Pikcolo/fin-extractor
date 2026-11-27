@@ -33,7 +33,7 @@ LABELS = {
     "vendor.name": "ผู้ขาย/ผู้ออกเอกสาร: ชื่อ", "vendor.tax_id": "ผู้ขาย: เลขผู้เสียภาษี", "vendor.branch": "ผู้ขาย: สาขา", "vendor.address": "ผู้ขาย: ที่อยู่",
     "buyer.name": "ผู้ซื้อ/ลูกค้า: ชื่อ", "buyer.tax_id": "ผู้ซื้อ: เลขผู้เสียภาษี", "buyer.branch": "ผู้ซื้อ: สาขา", "buyer.address": "ผู้ซื้อ: ที่อยู่",
     "book_no": "เล่มที่", "invoice_no": "เลขที่เอกสาร", "date": "วันที่ (YYYY-MM-DD ค.ศ.)",
-    "subtotal": "รวมเงินก่อนส่วนลด", "discount": "ส่วนลด", "amount_before_vat": "มูลค่าก่อน VAT", "vat_rate": "อัตรา VAT (เช่น 0.07)",
+    "subtotal": "รวมเงินก่อนส่วนลด", "discount": "ส่วนลด", "amount_before_vat": "มูลค่าก่อน VAT (เฉพาะส่วนที่เสียภาษี)", "non_taxable_amount": "มูลค่าที่ไม่เสียภาษี (ยกเว้นภาษี)", "vat_rate": "อัตรา VAT (เช่น 0.07)",
     "vat_amount": "VAT", "total_amount": "ยอดสุทธิรวม VAT",
 }
 

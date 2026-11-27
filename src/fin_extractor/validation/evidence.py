@@ -35,10 +35,10 @@ from .tax_id import is_valid_thai_tax_id
 NOT_CORROBORATING = {"date_range", "vendor_tax_id_checksum", "buyer_tax_id_checksum"}
 
 _SCALARS = ("document_type", "book_no", "invoice_no", "date",
-            "subtotal", "discount", "amount_before_vat", "vat_rate", "vat_amount", "total_amount")
+            "subtotal", "discount", "amount_before_vat", "non_taxable_amount", "vat_rate", "vat_amount", "total_amount")
 _PARTY = ("name", "tax_id", "branch", "address")
 _ITEM = ("description", "quantity", "unit_price", "amount")
-_AMOUNT_KEYS = {"subtotal", "discount", "amount_before_vat", "vat_amount", "total_amount"}
+_AMOUNT_KEYS = {"subtotal", "discount", "amount_before_vat", "non_taxable_amount", "vat_amount", "total_amount"}
 _TEXT_KEYS = {"vendor.name", "vendor.address", "buyer.name", "buyer.address", "invoice_no", "book_no"}
 
 
@@ -178,7 +178,7 @@ def build_field_evidence(
 CHECK_FIELDS = {
     "vendor_tax_id_checksum": ["vendor.tax_id"], "buyer_tax_id_checksum": ["buyer.tax_id"],
     "items_sum": ["subtotal", "amount_before_vat", "total_amount"], "discount": ["subtotal", "discount", "amount_before_vat", "total_amount"],
-    "before_vat_plus_vat": ["amount_before_vat", "vat_amount", "total_amount"],
+    "before_vat_plus_vat": ["amount_before_vat", "non_taxable_amount", "vat_amount", "total_amount"],
     "vat_rate": ["vat_amount", "amount_before_vat", "total_amount", "vat_rate"], "date_range": ["date"],
 }
 REVIEW_ORDER = {"conflict": 0, "missing": 1, "unverified": 2, "verified": 3, "not_applicable": 4}

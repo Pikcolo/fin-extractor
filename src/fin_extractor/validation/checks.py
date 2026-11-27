@@ -68,6 +68,9 @@ def _run_all_checks(
                                         ("total_amount", d.total_amount)) if v is not None]
     if d.amount_before_vat is None and None not in (d.vat_amount, d.total_amount):
         targets.append((["total_amount", "vat_amount"], "total_amount − vat_amount", d.total_amount - d.vat_amount))
+    if d.amount_before_vat is not None and d.non_taxable_amount:  # รายการรวมส่วนที่ไม่เสียภาษีด้วย: ฐาน VAT + ยอดที่ไม่เสียภาษี
+        targets.append((["amount_before_vat", "non_taxable_amount"], "amount_before_vat + non_taxable_amount",
+                        d.amount_before_vat + d.non_taxable_amount))
     if item_amounts and targets:
         s = sum(item_amounts)
         matched = [f for fs, _n, v in targets if _close(s, v, tol) for f in fs]
@@ -94,10 +97,11 @@ def _run_all_checks(
         if d.total_amount is None or not _close(net, d.total_amount, tol):
             base_name, base = "subtotal", net
     if None not in (base, d.vat_amount, d.total_amount):
-        s = base + d.vat_amount
-        used = [base_name, *(["discount"] if base_name == "subtotal" and d.discount else [])]
+        exempt = d.non_taxable_amount or 0  # ยอดที่ไม่เสียภาษีอยู่ในยอดรวมแต่ไม่อยู่ในฐาน VAT
+        s = base + d.vat_amount + exempt
+        used = [base_name, *(["discount"] if base_name == "subtotal" and d.discount else []), *(["non_taxable_amount"] if exempt else [])]
         add("before_vat_plus_vat", _close(s, d.total_amount, tol),
-            f"{base} + {d.vat_amount} = {s} vs {d.total_amount}", [*used, "vat_amount", "total_amount"])
+            f"{base} + {d.vat_amount}{f' + {exempt}' if exempt else ''} = {s} vs {d.total_amount}", [*used, "vat_amount", "total_amount"])
     else:
         add("before_vat_plus_vat", None, "ข้อมูลไม่ครบ")
 

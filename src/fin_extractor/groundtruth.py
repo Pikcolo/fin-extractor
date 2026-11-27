@@ -27,9 +27,9 @@ PARTY = ("name", "tax_id", "branch", "address")
 FIELDS = (  # ช่องแกนกลางที่กรอก/ให้คะแนน (ลำดับ = ลำดับในฟอร์ม) document_type/profile/remark ไม่อยู่ที่นี่: เป็นการตัดสินของระบบ ไม่ใช่ค่าบนเอกสาร
     *(f"vendor.{k}" for k in PARTY), *(f"buyer.{k}" for k in PARTY),
     "book_no", "invoice_no", "date",
-    "subtotal", "discount", "amount_before_vat", "vat_rate", "vat_amount", "total_amount",
+    "subtotal", "discount", "amount_before_vat", "non_taxable_amount", "vat_rate", "vat_amount", "total_amount",
 )
-MONEY = {"subtotal", "discount", "amount_before_vat", "vat_amount", "total_amount", "quantity", "unit_price", "amount", "vat_rate"}
+MONEY = {"subtotal", "discount", "amount_before_vat", "non_taxable_amount", "vat_amount", "total_amount", "quantity", "unit_price", "amount", "vat_rate"}
 ITEM_KEYS = ("description", "quantity", "unit_price", "amount")
 OUTCOMES = ("correct", "wrong", "missed", "spurious", "both_empty")
 

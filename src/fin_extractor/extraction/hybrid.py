@@ -20,7 +20,7 @@ from ..validation.evidence import comparable, field_grounding, flatten
 from ..validation.scoring import _get, missing_fields
 from ..validation.tax_id import is_valid_thai_tax_id
 
-AMOUNT_KEYS = {"subtotal", "discount", "amount_before_vat", "vat_rate", "vat_amount", "total_amount"}
+AMOUNT_KEYS = {"subtotal", "discount", "amount_before_vat", "non_taxable_amount", "vat_rate", "vat_amount", "total_amount"}
 SKIP_PREFIXES = ("remark[",)
 
 
