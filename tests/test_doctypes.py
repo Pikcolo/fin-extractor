@@ -228,8 +228,10 @@ def test_generic_llm_output_moves_any_document_fields_to_remark():
 
 def _pipe():
     from fin_extractor.pipeline import FinanceOCRPipeline
+    from fin_extractor.extraction.rule_extractor import default_kinds
 
     p = object.__new__(FinanceOCRPipeline)  # ไม่โหลดตัวอ่าน — ทดสอบเฉพาะตรรกะสกัด
+    p.kinds = default_kinds()
     p.cfg = {"validation": {"amount_tolerance": 0.02, "default_vat_rate": 0.07}}
     p.llm, p.profiles, p.core_labels = None, PROFILES, ()
     return p
@@ -268,6 +270,7 @@ def test_remark_from_llm_survives_when_rules_wins_and_has_its_own_remark():
 
 def test_extract_traced_attributes_each_remark_to_its_source():
     from fin_extractor.pipeline import FinanceOCRPipeline
+    from fin_extractor.extraction.rule_extractor import default_kinds
 
     class Stub:
         def __init__(self, data):
@@ -277,6 +280,7 @@ def test_extract_traced_attributes_each_remark_to_its_source():
             return self.data
 
     p = object.__new__(FinanceOCRPipeline)
+    p.kinds = default_kinds()
     p.cfg = {"validation": {"amount_tolerance": 0.02, "default_vat_rate": 0.07}}
     p.profiles, p.core_labels = PROFILES, ()
     lines = [*BITKUB_LINES, "เลขที่ใบสั่งซื้อ: PO-9"]
@@ -340,8 +344,10 @@ def test_build_result_applies_the_profiles_checks():
     from types import SimpleNamespace
 
     from fin_extractor.pipeline import FinanceOCRPipeline
+    from fin_extractor.extraction.rule_extractor import default_kinds
 
     p = object.__new__(FinanceOCRPipeline)
+    p.kinds = default_kinds()
     p.cfg = {"validation": {"amount_tolerance": 0.02, "default_vat_rate": 0.07}}
     p.llm, p.profiles, p.core_labels = None, PROFILES, ()
     p.reader = SimpleNamespace(name="t")

@@ -195,3 +195,19 @@ def test_book_no_not_guessed():
     assert extract_fields(["เล่มที่ 01/02/2566"]).book_no is None  # วันที่ ไม่ใช่เล่มที่
     assert extract_fields(BITKUB_LINES).book_no is None
 
+
+def test_document_kinds_come_from_config_in_priority_order():
+    from fin_extractor.doctypes import load_kinds
+
+    kinds = load_kinds({"a": {"aliases": ["ใบส่งของ"]}, "b": {"aliases": ["ใบเสร็จ", "receipt"]}})
+    assert extract_fields(["ใบส่งของ / ใบเสร็จรับเงิน"], kinds=kinds).document_type == "a"  # ตัวที่อยู่ก่อนในลิสต์ชนะ
+    assert extract_fields(["R e c e i p t"], kinds=kinds).document_type == "b"  # OCR แทรกช่องว่าง
+    assert extract_fields(["เอกสารอื่น"], kinds=kinds).document_type is None
+    assert extract_fields(["ใบส่งของ"], kinds=[]).document_type is None
+
+
+def test_default_document_kinds_keep_specific_before_general():
+    assert extract_fields(["Tax Invoice"]).document_type == "tax_invoice"  # มีคำว่า invoice แต่ tax_invoice อยู่ก่อน
+    assert extract_fields(["ใบแจ้งหนี้"]).document_type == "invoice"
+    assert extract_fields(["ใบส่งสินค้า"]).document_type == "delivery_note"
+    assert extract_fields(["ใบส่งของ/ใบเสร็จรับเงิน/ใบกำกับภาษี"]).document_type == "tax_invoice"  # ชนิดเดียวต่อใบ ตามลำดับ

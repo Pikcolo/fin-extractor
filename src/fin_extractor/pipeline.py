@@ -15,6 +15,7 @@ from .doctypes import (
     classify,
     core_labels_for,
     load_core_labels,
+    load_kinds,
     load_profiles,
     squash,
 )
@@ -86,6 +87,7 @@ class FinanceOCRPipeline:
 
         self.reader = SimpleNamespace(name=reader_label(engine, cfg))  # ชื่อเดียวกับตัวอ่านจริง ให้ engine_name ตรงกับตอนอ่าน
         self.profiles = load_profiles(cfg.get("document_types") or {})
+        self.kinds = load_kinds(cfg.get("document_kinds"))
         self.core_labels = load_core_labels(cfg.get("core_labels"))
 
         self.llm = None
@@ -159,7 +161,7 @@ class FinanceOCRPipeline:
         ผลเทียบเป็น True/False เมื่อทั้งสองแหล่งมีค่า ไม่มีคีย์ = มีแหล่งเดียว (รายการสินค้าไม่เทียบรายตัว
         เพราะสองแหล่งแบ่งรายการไม่ตรงกัน ใช้ check items_sum ยืนยันแทน)
         """
-        rules = extract_fields(lines, raw_text)
+        rules = extract_fields(lines, raw_text, self.kinds)
         profile = classify(self.profiles, "\n".join(lines), rules.document_type)
         rules.document_profile = profile.name
         rules.document_fields = extract_document_fields(lines, profile)

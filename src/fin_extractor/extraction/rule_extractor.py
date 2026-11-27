@@ -9,19 +9,24 @@ from __future__ import annotations
 import html
 import re
 from decimal import Decimal
+from functools import lru_cache
 
+from ..config import load_config
+from ..doctypes import kind_of, load_kinds
 from ..readers.lines import normalize_thai
 from ..schema import InvoiceData, LineItem
 from ..validation.tax_id import is_valid_thai_tax_id
 from .item_table import table_items
 from .patterns import AMOUNT_RE, PERCENT_RE, find_amounts, find_tax_ids, fix_ocr_numbers, parse_date
 
-DOC_TYPES = [
-    (r"ใบกำกับภาษี|tax\s*invoice", "tax_invoice"),
-    (r"ใบเสร็จ|receipt", "receipt"),
-    (r"ใบแจ้งหนี้|invoice", "invoice"),
-    (r"ใบเสนอราคา|quotation", "quotation"),
-]
+
+
+@lru_cache(maxsize=1)
+def default_kinds() -> list[tuple[str, re.Pattern]]:
+    """ชนิดเอกสารจาก ``document_kinds`` ใน configs/default.yaml (ที่เดียวกับที่ pipeline ใช้ ไม่มีสำเนาในโค้ด) ใช้เมื่อเรียก ``extract_fields`` โดยไม่ส่ง ``kinds``."""
+    return load_kinds(load_config().get("document_kinds"))
+
+
 COMPANY_RE = re.compile(r"บริษัท|ห้างหุ้นส่วน|หจก\.?|co\.?,?\s*ltd|company|limited|corporation|จำกัด", re.I)
 BUYER_RE = re.compile(r"ลูกค้า|ผู้ซื้อ|customer|buyer|bill\s*to|sold\s*to", re.I)
 # ป้ายระบุสำเนา "สำหรับลูกค้า / For Customer" พิมพ์ต่อท้ายชื่อผู้ขายบรรทัดแรก (001308, 001309) ไม่ใช่การเริ่มส่วนผู้ซื้อ
@@ -335,15 +340,13 @@ def _extract_items(lines: list[str], start: int, end: int) -> list[LineItem]:
     return items
 
 
-def extract_fields(lines: list[str], raw: str | None = None) -> InvoiceData:
-    """``raw`` = ข้อความดิบจากตัวอ่าน ถ้ามีตาราง HTML รายการสินค้าอ่านจากตารางตามหัวคอลัมน์ (``item_table``) แทนทีละบรรทัด."""
+def extract_fields(lines: list[str], raw: str | None = None, kinds: list[tuple[str, re.Pattern]] | None = None) -> InvoiceData:
+    """``raw`` = ข้อความดิบจากตัวอ่าน ถ้ามีตาราง HTML รายการสินค้าอ่านจากตารางตามหัวคอลัมน์ (``item_table``) แทนทีละบรรทัด
+    ``kinds`` = ชนิดเอกสารจาก ``load_kinds`` (ไม่ส่ง = ใช้ค่าจาก config)."""
     data = InvoiceData()
     full_text = "\n".join(lines)
 
-    for pattern, doc_type in DOC_TYPES:
-        if re.search(pattern, full_text, re.I):
-            data.document_type = doc_type
-            break
+    data.document_type = kind_of(default_kinds() if kinds is None else kinds, full_text)
 
     in_buyer = False
     item_start = summary_start = None

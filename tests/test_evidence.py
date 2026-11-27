@@ -149,8 +149,10 @@ class _StubLLM:
 
 def _pipe(llm):
     from fin_extractor.pipeline import FinanceOCRPipeline
+    from fin_extractor.extraction.rule_extractor import default_kinds
 
     p = object.__new__(FinanceOCRPipeline)  # ไม่โหลดตัวอ่าน — ทดสอบเฉพาะตรรกะรวมผล
+    p.kinds = default_kinds()
     p.cfg = {"validation": {"amount_tolerance": 0.02, "default_vat_rate": 0.07}}
     p.llm = llm
     p.profiles, p.core_labels = [], ()

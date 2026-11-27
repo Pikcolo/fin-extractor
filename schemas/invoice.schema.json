@@ -99,7 +99,7 @@
             }
           ],
           "default": null,
-          "description": "ชนิดเอกสารตามที่ระบบสกัดได้ (rules ได้ tax_invoice/receipt/..., LLM ตอบข้อความอิสระ)",
+          "description": "ชนิดเอกสารตามที่ระบบสกัดได้ (rules ได้ชื่อชนิดจาก document_kinds ใน configs/default.yaml เช่น tax_invoice/receipt/delivery_note, LLM ตอบข้อความอิสระ)",
           "title": "Document Type"
         },
         "document_profile": {

@@ -165,7 +165,7 @@ ExtractionResult                     ผลของ 1 หน้า
 
 | Field | ชนิด | หมายเหตุ |
 |---|---|---|
-| `document_type` | string | ชนิดที่สกัดได้ rules ได้ `tax_invoice`, `receipt`, `invoice`, `quotation` (LLM ตอบข้อความอิสระ) |
+| `document_type` | string | ชนิดที่สกัดได้ rules ได้ชื่อชนิดจาก `document_kinds` ใน config: `tax_invoice`, `receipt`, `invoice`, `delivery_note`, `quotation` (LLM ตอบข้อความอิสระ) |
 | `document_profile` | string | โปรไฟล์ที่ใช้กำหนดฟิลด์ (`withholding_certificate`, `customs_receipt`, `payment_voucher`, `generic`) ดู [06 หัวข้อ 3.6](06-design-and-roadmap.md) |
 | `document_fields{}` | object | ฟิลด์เฉพาะชนิดเอกสารตามโปรไฟล์ เช่น 50 ทวิ: `total_paid`, `total_tax_withheld` ค่าเป็นสตริง money=ทศนิยม, date=ISO ค.ศ. คีย์ที่หาไม่เจอไม่มีในผล |
 | `vendor`, `buyer` | object | `name`, `tax_id` (13 หลัก), `branch`, `address` |

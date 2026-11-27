@@ -63,7 +63,7 @@ class RejectedValue(BaseModel):
 class InvoiceData(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
-    document_type: str | None = Field(None, description="ชนิดเอกสารตามที่ระบบสกัดได้ (rules ได้ tax_invoice/receipt/..., LLM ตอบข้อความอิสระ)")
+    document_type: str | None = Field(None, description="ชนิดเอกสารตามที่ระบบสกัดได้ (rules ได้ชื่อชนิดจาก document_kinds ใน configs/default.yaml เช่น tax_invoice/receipt/delivery_note, LLM ตอบข้อความอิสระ)")
     document_profile: str | None = Field(
         None, description="โปรไฟล์ที่ใช้กำหนดฟิลด์ (ชื่อใน configs/default.yaml → document_types; generic = ไม่ตรงชนิดใดเลย)")
     vendor: Party = Field(default_factory=Party)

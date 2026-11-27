@@ -147,8 +147,10 @@ def test_llm_buyer_branch_is_split_like_rules_so_sources_agree():
 
 def _pipe():
     from fin_extractor.pipeline import FinanceOCRPipeline
+    from fin_extractor.extraction.rule_extractor import default_kinds
 
     p = object.__new__(FinanceOCRPipeline)
+    p.kinds = default_kinds()
     p.cfg = {"validation": {"amount_tolerance": 0.02, "default_vat_rate": 0.07}}
     p.llm, p.profiles, p.core_labels = None, list(PROFILES.values()), DEFAULTS
     p.reader = SimpleNamespace(name="test")  # engine_name ใช้ตอนสร้างผล

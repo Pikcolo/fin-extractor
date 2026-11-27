@@ -41,7 +41,7 @@
 
 | Field | วิธีหา |
 |---|---|
-| `document_type` | keyword: ใบกำกับภาษี → `tax_invoice`, ใบเสร็จ → `receipt`, ใบแจ้งหนี้ → `invoice`, ใบเสนอราคา → `quotation` |
+| `document_type` | keyword จาก `document_kinds` ใน config (ลำดับในไฟล์ = ลำดับความสำคัญ ใบหนึ่งได้ชนิดเดียว): ใบกำกับภาษี → `tax_invoice`, ใบเสร็จ → `receipt`, ใบแจ้งหนี้ → `invoice`, ใบส่งของ/ใบส่งสินค้า → `delivery_note`, ใบเสนอราคา → `quotation` เพิ่ม/ปรับชนิดที่ yaml ได้ ไม่ต้องแก้โค้ด |
 | ผู้ขาย / ผู้ซื้อ | ทุกอย่าง **ก่อน** เจอ "ลูกค้า / Customer / ผู้ซื้อ / Bill to" เป็นของผู้ขาย หลังจากนั้นเป็นของผู้ซื้อ |
 | `vendor.name` | บรรทัดแรกที่มี บริษัท, หจก., จำกัด, Co., Ltd, Company · ใบสำคัญรับเงินอ่านจากป้าย `ข้าพเจ้า` ใน config (`document_types.payment_voucher.core_labels`) |
 | `tax_id` | เลข 13 หลัก (รองรับ `0-1055-59117-12-8`) และต้องผ่าน checksum |

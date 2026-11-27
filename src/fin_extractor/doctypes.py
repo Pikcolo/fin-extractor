@@ -150,6 +150,22 @@ def load_profiles(table: dict[str, Any] | None) -> list[Profile]:
     return [_profile(name, spec) for name, spec in (table or {}).items()]
 
 
+def load_kinds(table: dict[str, Any] | None) -> list[tuple[str, re.Pattern]]:
+    """แปลงตาราง ``document_kinds`` เป็น [(ชื่อชนิด, regex)] คงลำดับตามไฟล์ (ป้ายยอมให้มีช่องว่างแทรกระหว่างตัวอักษร: OCR แทรกได้)."""
+    out = []
+    for name, spec in (table or {}).items():
+        aliases = (spec or {}).get("aliases") or ()
+        if not aliases:
+            raise ValueError(f"document_kinds.{name}: ต้องมี aliases อย่างน้อยหนึ่งคำ")
+        out.append((name, re.compile("|".join(alias_regex(a).pattern for a in aliases), re.I)))
+    return out
+
+
+def kind_of(kinds: list[tuple[str, re.Pattern]], text: str) -> str | None:
+    """ชนิดเอกสารแรกในลิสต์ที่มีป้ายอยู่ในข้อความ ไม่ตรงเลย = None."""
+    return next((name for name, rx in kinds if rx.search(text)), None)
+
+
 def classify(profiles: list[Profile], text: str, document_type: str | None = None) -> Profile:
     """จำแนกโปรไฟล์จากข้อความทั้งหน้า (ป้ายที่ตรงก่อนชนะ) ถ้าไม่ตรงเลย ดูชื่อ ``document_type`` ที่สกัดได้ ไม่งั้นเป็น generic."""
     sq = squash(text)
