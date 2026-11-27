@@ -63,7 +63,8 @@ class App:
         specs = [(f.key, f.label) for f in profile.fields] if profile else []
         keys = [k for k, _ in specs] + [k for k in gt.get("document_fields", {}) if k not in dict(specs)]
         system = G.result_values(result)[0] if result else {}
-        return {"stem": stem, "gt": gt, "fields": [{"key": k, "label": LABELS.get(k, k)} for k in G.FIELDS],
+        labels = {**LABELS, **(profile.party_labels() if profile else {})}  # ป้ายฝ่ายตามชื่อในฟอร์มของชนิดนี้ (ถ้ามี)
+        return {"stem": stem, "gt": gt, "fields": [{"key": k, "label": labels.get(k, k)} for k in G.FIELDS],
                 "document_fields": [{"key": k, "label": dict(specs).get(k, k)} for k in keys],
                 "profile": profile.name if profile else None, "prefill_run": self.run if result else None, "system": system}
 

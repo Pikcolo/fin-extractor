@@ -104,3 +104,10 @@ def test_blocks_reject_unknown_party_or_empty_aliases(bad):
     with pytest.raises(ValueError):
         PartyBlocks(parties=bad)
 
+
+def test_display_labels_follow_the_form_role_only_for_profiles_that_set_one():
+    labels = WH.party_labels()
+    assert labels["vendor.name"] == "ผู้ถูกหักภาษี ณ ที่จ่าย (ผู้รับเงิน = ผู้ขาย): ชื่อ"
+    assert labels["buyer.tax_id"].startswith("ผู้มีหน้าที่หักภาษี ณ ที่จ่าย (ผู้จ่ายเงิน = ผู้ซื้อ): ")
+    assert set(labels) == {f"{p}.{a}" for p in ("vendor", "buyer") for a in ("name", "tax_id", "branch", "address")}
+    assert all(not p.party_labels() for n, p in PROFILES.items() if n != "withholding_certificate")

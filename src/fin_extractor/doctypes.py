@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 GENERIC = "generic"
+PARTY_ATTR_LABELS = {"name": "ชื่อ", "tax_id": "เลขผู้เสียภาษี", "branch": "สาขา", "address": "ที่อยู่"}
 FIELD_TYPES = ("text", "code", "money", "date", "tax_id", "percent")
 KEY_FIELDS = ("vendor.name", "vendor.tax_id", "invoice_no", "date", "total_amount")
 # ชื่อ check ทั้งหมดของ validation/checks.py (โปรไฟล์ประกาศ ``checks`` จากรายการนี้เท่านั้น)
@@ -109,6 +110,11 @@ class Profile:
 
     def spec(self, key: str) -> FieldSpec | None:
         return next((f for f in self.fields if f.key == key), None)
+
+    def party_labels(self) -> dict[str, str]:
+        """ป้ายแสดงผลของ ``vendor.*`` / ``buyer.*`` ตามชื่อที่ฟอร์มของชนิดนี้เรียกฝ่าย (``party_blocks.<ฝ่าย>.role``) ไม่มี = ใช้ป้ายทั่วไป ผู้ขาย/ผู้ซื้อ."""
+        roles = self.party_blocks.roles if self.party_blocks else {}
+        return {f"{p}.{a}": f"{role}: {label}" for p, role in roles.items() for a, label in PARTY_ATTR_LABELS.items()}
 
 
 

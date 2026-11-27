@@ -80,7 +80,7 @@ def build(pipe: FinanceOCRPipeline, data: InvoiceData, lines: list[str], extra: 
     profile = pipe.profile_for(data)
     flat = {k: v for k, v in flatten(data).items()}
     keys = [*FIELDS, *(DOC_PREFIX + f.key for f in profile.fields)]
-    labels = {DOC_PREFIX + f.key: f.label for f in profile.fields}
+    labels = {**profile.party_labels(), **{DOC_PREFIX + f.key: f.label for f in profile.fields}}
     rows = []
     for k in keys:
         rv = res.review.get(k)

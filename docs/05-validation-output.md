@@ -168,7 +168,7 @@ ExtractionResult                     ผลของ 1 หน้า
 | `document_type` | string | ชนิดที่สกัดได้ rules ได้ชื่อชนิดจาก `document_kinds` ใน config: `tax_invoice`, `receipt`, `invoice`, `delivery_note`, `quotation` (LLM ตอบข้อความอิสระ) |
 | `document_profile` | string | โปรไฟล์ที่ใช้กำหนดฟิลด์ (`withholding_certificate`, `customs_receipt`, `payment_voucher`, `generic`) ดู [06 หัวข้อ 3.6](06-design-and-roadmap.md) |
 | `document_fields{}` | object | ฟิลด์เฉพาะชนิดเอกสารตามโปรไฟล์ เช่น 50 ทวิ: `total_paid`, `total_tax_withheld` ค่าเป็นสตริง money=ทศนิยม, date=ISO ค.ศ. คีย์ที่หาไม่เจอไม่มีในผล |
-| `vendor`, `buyer` | object | `name`, `tax_id` (13 หลัก), `branch`, `address` |
+| `vendor`, `buyer` | object | `name`, `tax_id` (13 หลัก), `branch`, `address` · ความหมายเหมือนกันทุกชนิดเอกสาร: **vendor = ผู้รับเงิน, buyer = ผู้จ่ายเงิน** (หนังสือรับรองการหักภาษี: ผู้ถูกหัก = vendor, ผู้หัก = buyer) ชนิดที่ฟอร์มเรียกฝ่ายด้วยชื่ออื่นตั้ง `party_blocks.<ฝ่าย>.role` ใน config เพื่อให้หน้าตรวจแสดงป้ายตามฟอร์ม ไม่ตั้งชื่อฟิลด์ใหม่ต่อชนิด |
 | `remark[]` | array | `label`, `value`, `kind` (`pair` หรือ `unmapped`), `source_chunk` หมายเหตุ: ข้อมูลที่เอกสารพิมพ์ไว้แต่ไม่มีช่องข้างบนหรือใน `document_fields` ดู [05-extraction](05-extraction.md) หัวข้อ remark ชื่อเดิม `extra_fields` ของ schema 2.x |
 | `book_no` | string | เล่มที่ (rules จับจากป้าย `เล่มที่` / `Book No.` ได้แล้ว) |
 | `invoice_no` | string | |

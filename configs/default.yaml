@@ -144,6 +144,10 @@ document_kinds:
 #                  ชื่อที่ใช้ได้: vendor_tax_id_checksum, buyer_tax_id_checksum, items_sum, discount, before_vat_plus_vat, vat_rate, date_range
 #   fields         key / label / type (text|code|money|date|tax_id|percent) / aliases (ป้ายที่พิมพ์) / source (ป้ายนี้เห็นจากที่ไหน)
 #
+# ความหมายของ vendor/buyer เหมือนกันทุกชนิดเอกสาร: vendor = ผู้รับเงิน, buyer = ผู้จ่ายเงิน (ไม่ตั้งชื่อฟิลด์คู่สัญญาใหม่ต่อชนิด เพราะ check เลขภาษี
+# required การตรวจเอกสารซ้ำ และระดับหลักฐานผูกกับ vendor/buyer) ชนิดที่ฟอร์มเรียกฝ่ายด้วยชื่ออื่นให้ตั้ง party_blocks.<vendor|buyer>.role
+# หน้าตรวจและแบบฟอร์มเฉลยจะแสดงป้ายตามชื่อในฟอร์ม แทน "ผู้ขาย/ผู้ซื้อ" (ฟอร์มที่ไม่ตั้ง role ใช้ป้ายทั่วไป)
+#
 # รายการฟิลด์และ required ด้านล่างมาจากป้ายที่พิมพ์บนสแกนชุดทดสอบ (ระบุใน source)
 document_types:
   withholding_certificate:

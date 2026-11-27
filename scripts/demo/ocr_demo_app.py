@@ -469,7 +469,7 @@ def use_result(job: dict, mode: str) -> None:
     profile = pipe.profile_for(data)
     sq = squash("\n".join(lines))
     kinds = {DOC_PREFIX + f.key: f.type for f in profile.fields}
-    labels = {DOC_PREFIX + f.key: f.label for f in profile.fields}
+    labels = {**profile.party_labels(), **{DOC_PREFIX + f.key: f.label for f in profile.fields}}
     flat = flatten(data)
     fields = [{"key": k, "label": labels.get(k), "value": str(v), "found": found_in(k, v, kinds.get(k), lines),
                "source": (res.review[k].source if k in res.review else None) or "rules"} for k, v in flat.items()]
