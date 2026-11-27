@@ -478,7 +478,7 @@ def use_result(job: dict, mode: str) -> None:
 
     with state_lock:  # ขั้น 7–9 ปรากฏพร้อมกัน หน้าเว็บจะไม่เห็นผลสกัดที่ยังไม่มีระดับหลักฐาน
         set_stage(job, "extract", "done", {
-            "profile": {"name": profile.name, "title": profile.title, "status": profile.status,
+            "profile": {"name": profile.name, "title": profile.title,
                         "matched": [a for a in profile.aliases if squash(a) and squash(a) in sq],
                         "required": list(profile.required), "primary_amount": profile.primary_amount,
                         "not_applicable": sorted(profile.not_applicable), "checks": list(profile.checks) if profile.checks else None,

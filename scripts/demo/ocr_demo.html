@@ -647,7 +647,7 @@ RENDER.extract = d => {
     <li>ข้อมูลที่ไม่มีช่อง เก็บใน <code>remark</code> พร้อมรหัสส่วนต้นทาง</li></ol>
     คอลัมน์ "พบในบรรทัด" = บรรทัดที่มีค่านี้ปรากฏ (ค้นหลังสกัด ไว้ชี้ให้ดูเทียบ — ค่าเดียวกันอาจอยู่หลายบรรทัด) คลิกเพื่อกระโดดไปบรรทัดและส่วนนั้น</div>
   <h3>ชนิดเอกสาร</h3>
-  <div class="kv small"><div>โปรไฟล์</div><div><b>${esc(p.name)}</b> — ${esc(p.title)} ${p.status ? `<span class="badge b-warn">${esc(p.status)}</span>` : ""}</div>
+  <div class="kv small"><div>โปรไฟล์</div><div><b>${esc(p.name)}</b> — ${esc(p.title)}</div>
     <div>เหตุผล</div><div>${p.matched.length ? `พบป้าย ${p.matched.map(a => `<code>${esc(a)}</code>`).join(", ")} ในข้อความ` : p.name === "generic" ? "ไม่ตรงป้ายของชนิดใดเลย → ใช้ generic (ใบกำกับภาษี/ใบเสร็จ/invoice)" : "ตรงกับชนิดที่ rules สกัดได้"}</div>
     <div>ชนิดที่ rules อ่านได้</div><div>${esc(d.document_type || "—")}</div>
     <div>ฟิลด์ที่ต้องมี</div><div>${p.required.map(r => `<code>${esc(r)}</code>`).join(" ")}</div>
@@ -682,7 +682,7 @@ RENDER.validate = d => {
       <td>${esc((((data("extract") || {}).fields || []).find(f => f.key === k) || {}).value ?? "")}</td><td><span class="badge ${LEVEL[e.level][1]}">${LEVEL[e.level][0]}</span></td>
       <td class="small">${e.reasons.map(esc).join("<br>")}</td></tr>`).join("")}</table></div>
   <h3>ตัดสินสถานะ</h3>
-  <p class="small">ไล่กฎตามลำดับ (<code>validation/scoring.py → decide_status</code>) กฎแรกที่ไม่ผ่านเป็นตัวตัดสิน ผ่านครบทุกข้อ = อนุมัติอัตโนมัติได้</p>
+  <p class="small">ไล่กฎตามลำดับ (<code>validation/scoring.py → decide_status</code>) กฎแรกที่ไม่ผ่านเป็นตัวตัดสิน ผ่านครบทุกข้อ = <code>ready</code> (ดูเทียบภาพผ่าน ๆ ยังต้องให้คนตรวจ)</p>
   <div class="flow">${d.rules.map((r, i) => `<div class="${i === fired ? "fired" : ""}">${r.ok ? '<span class="badge b-ok">✓</span>' : '<span class="badge b-bad">✗</span>'} ${esc(r.rule)} ${!r.ok ? `<span class="small muted">→ ${STATUS[r.fail_to][0]}</span>` : ""}</div>`).join("")}</div>
   ${d.missing.length ? `<p class="small">ฟิลด์ที่ต้องมีแต่หาไม่เจอ: ${d.missing.map(m => `<code>${esc(m)}</code>`).join(" ")}</p>` : ""}
   <p>สถานะ: <span class="bigstatus badge ${st[1]}">${st[0]}</span> <span class="mono small muted">${d.status}</span></p>`;
