@@ -140,13 +140,42 @@ tr.flash td { animation:fl 1.6s; } @keyframes fl { from { background:var(--warn-
 .kv { display:grid; grid-template-columns:max-content 1fr; gap:3px 14px; font-size:14px; align-content:start; } .kv div:nth-child(odd) { color:var(--muted); }
 .note { font-size:13px; color:var(--warn); background:var(--warn-soft); padding:6px 10px; border-radius:6px; margin-top:10px; }
 .toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:6px 0; }
+/* โหมดภาพไว้ซ้าย: ภาพเอกสารค้างอยู่ฝั่งซ้าย ผลทุกขั้นอยู่ฝั่งขวา */
+#steps { display:contents; }
+#splitBtn { flex:none; margin-left:auto; font-size:13px; padding:3px 12px; border-radius:14px; border:1px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; white-space:nowrap; }
+#splitBtn.on { background:var(--accent); color:var(--panel); border-color:var(--accent); }
+#docpane { display:none; }
+body.split header, body.split main, body.split #stepper .in { max-width:1800px; }
+body.split #split { display:grid; grid-template-columns:minmax(300px, 44%) minmax(0, 1fr); gap:16px; align-items:start; }
+body.split #docpane { display:block; position:sticky; top:52px; max-height:calc(100vh - 62px); overflow:auto; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin:14px 0; box-shadow:var(--shadow); }
+body.split #content > .card:first-child, body.split #stages > .card:first-child { margin-top:14px; }
+#docimg .fig { width:calc(var(--zoom, 100) * 1%); }
+#doctools { position:sticky; top:-10px; z-index:2; background:var(--panel); padding:4px 0 6px; margin:-4px 0 6px; }
+#doctools button { padding:2px 10px; }
+body.split #insp { right:auto; left:12px; width:min(calc(44vw - 24px), 560px); max-height:min(46vh, 480px); }
+@media (max-width:1000px) {
+  body.split #split { display:block; }
+  body.split #docpane { position:static; max-height:60vh; }
+  body.split #insp { left:12px; right:12px; width:auto; }
+}
 </style></head><body>
 <header>
   <h1>OCR ทีละขั้น <span class="small muted" id="codever" style="font-weight:400"></span></h1>
   <p>อัปโหลดเอกสาร 1 ไฟล์ แล้วดูว่าแต่ละขั้นของ fin_extractor ทำอะไรกับมัน ตั้งแต่ภาพดิบจนได้ JSON สุดท้าย · คลิกกรอบ/รหัสส่วน (เช่น <span class="sec">s03</span>) ที่ไหนก็ได้เพื่อตามส่วนนั้นข้ามทุกขั้น</p>
 </header>
-<div id="stepper"><div class="in" id="steps"></div></div>
+<div id="stepper"><div class="in"><div id="steps"></div><button id="splitBtn" title="วางภาพเอกสารไว้ซ้าย ผลไว้ขวา จะได้ตรวจเทียบกันได้โดยไม่ต้องเลื่อนหน้า"></button></div></div>
 <main>
+<div id="split">
+  <aside id="docpane">
+    <div class="toolbar small" id="doctools">
+      <label>ภาพ <select id="docSrc"><option value="final">หลังปรับ (มีกรอบส่วน)</option><option value="input">ต้นฉบับ</option></select></label>
+      <label><input type="checkbox" id="docBoxes" checked> กรอบส่วน</label>
+      <button id="zOut" title="ย่อ">−</button><button id="zFit" title="พอดีความกว้าง">พอดี</button><button id="zIn" title="ขยาย">+</button>
+      <span class="muted" id="zVal"></span>
+    </div>
+    <div id="docimg"></div>
+  </aside>
+  <div id="content">
   <section class="card" id="upload">
     <h2>เริ่ม: เลือกเอกสาร</h2>
     <div id="drop"><b>ลากไฟล์มาวาง</b> หรือคลิกเพื่อเลือก · jpg / png / tif / pdf (PDF ใช้หน้าแรก)<input type="file" id="file" hidden></div>
@@ -162,6 +191,8 @@ tr.flash td { animation:fl 1.6s; } @keyframes fl { from { background:var(--warn-
     <div class="note">ขั้น OCR ใช้ GPU (openthai โหลดโมเดลในเครื่อง · typhoon ต้องเปิด Ollama · paddle) รันได้ทีละงาน และอ่านทีละส่วนเหมือน flow จริง ไฟล์ 1 หน้ามักมี 10–25 ส่วน</div>
   </section>
   <div id="stages"></div>
+  </div>
+</div>
 </main>
 <aside id="insp"></aside>
 <div id="lightbox"><img alt=""></div>
@@ -169,6 +200,7 @@ tr.flash td { animation:fl 1.6s; } @keyframes fl { from { background:var(--warn-
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let splitOn = false, quietSel = false, docSrc = "final", docBoxes = true, docZoom = 100, docSig = "";
 let job = null, jobId = null, rev = -1, file = null, selSec = null, preStep = null, layView = "sections", rendered = {}, timer = null;
 const img = name => `/job/${jobId}/${name}`;
 const stage = key => job && job.stages.find(s => s.key === key);
@@ -275,6 +307,7 @@ function render() {
     (AFTER[s.key] || (() => {}))(el, s.data);
   });
   applySel();
+  renderDoc();
 }
 const OCR_HELP = `<div class="explain">openthai / openthai21: ต้องมีโมเดลที่ <code>models/OpenThai2.0-OCR-Markdown</code> / <code>models/OpenThai2.1-OCR-Markdown-20261118</code> + torch/CUDA · openthai-text: <code>models/OpenThai2.1-OCR-Text-20261118</code> + onnxruntime · typhoon: เปิด Ollama และ <code>ollama pull scb10x/typhoon-ocr1.5-3b</code> · paddle: ลง paddleocr ไว้ รายละเอียดเต็มอยู่ในไฟล์ <code>worker_ocr.log</code> ของโฟลเดอร์งาน</div>`;
 const ENGINE_INFO = {
@@ -777,14 +810,14 @@ RENDER.result = d => `
 function dl() { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(data("result").json, null, 2)], { type: "application/json" })); a.download = (job.file.replace(/\.[^.]+$/, "") || "result") + ".json"; a.click(); }
 
 // ------------------------------------------------------------------ เลือกส่วน → ไฮไลต์ทุกขั้น + กล่องสรุป
-function selectSec(id) { selSec = selSec === id ? null : id; applySel(); }
+function selectSec(id) { selSec = selSec === id ? null : id; quietSel = false; applySel(); scrollDoc(); }
 function applySel() {
   document.querySelectorAll("[data-sec]").forEach(el => el.classList.toggle("sel", !!selSec && el.dataset.sec === selSec));
   document.querySelectorAll("g.secbox").forEach(g => { const r = g.querySelector("rect"); const on = g.dataset.sec === selSec;
     r.setAttribute("stroke-width", on ? 6 : (r.getAttribute("stroke-dasharray") ? 3 : 2.5)); r.setAttribute("fill-opacity", on ? .25 : .07);
     r.style.stroke = on ? "var(--sel)" : ""; });
   const box = $("#insp");
-  if (!selSec || !job) { box.classList.remove("on"); return; }
+  if (!selSec || !job || (splitOn && quietSel)) { box.classList.remove("on"); return; }  // โหมดซ้าย/ขวา: แตะช่องในหน้าตรวจแค่ไฮไลต์บนภาพ ไม่เด้งกล่องสรุปบังฟอร์ม
   const lay = data("layout"), s = lay && lay.sections.find(x => x.id === selSec);
   if (!s) { box.classList.remove("on"); return; }
   const crop = data("crops") && data("crops").sections.find(c => c.id === selSec);
@@ -806,6 +839,58 @@ function gotoLine(i) {
   const sec = data("text").lines[i].section; if (sec && selSec !== sec) { selSec = sec; applySel(); }
   tr.scrollIntoView({ block: "center", behavior: "smooth" }); tr.classList.remove("flash"); void tr.offsetWidth; tr.classList.add("flash");
 }
+
+// ------------------------------------------------------------------ โหมดภาพไว้ซ้าย
+// ภาพที่มีกรอบส่วน = ภาพของขั้น 3 (regions: ภาพเต็ม · sections: สำเนาทำงาน) พิกัดกรอบตรงกับภาพนี้เท่านั้น ต้นฉบับจึงไม่มีกรอบ
+function docView() {
+  const inp = data("input"), lay = data("layout");
+  if (!jobId || !inp) return null;
+  const fin = !lay ? null : lay.mode === "regions" ? { src: lay.images && lay.images.final, size: lay.full_size, secs: lay.sections }
+                                                    : { src: lay.images && lay.images.work, size: lay.work_size, secs: lay.sections };
+  return { orig: inp.image, fin: fin && fin.src ? fin : null };
+}
+function renderDoc() {
+  if (!splitOn) return;
+  const v = docView(), box = $("#docimg");
+  const useFin = !!(v && v.fin && docSrc === "final");
+  const sig = JSON.stringify([jobId, v && v.orig, v && v.fin && v.fin.src, useFin, docBoxes]);
+  if (sig === docSig) return;
+  docSig = sig;
+  if (!v) { box.innerHTML = '<div class="muted small">เลือกไฟล์แล้วกดรัน ภาพเอกสารจะอยู่ตรงนี้ ส่วนผลของแต่ละขั้นอยู่ทางขวา</div>'; return; }
+  box.innerHTML = useFin ? fig(img(v.fin.src), v.fin.size[0], v.fin.size[1], docBoxes ? secRects(v.fin.secs) : "")
+                         : `<div class="fig"><img src="${img(v.orig)}" class="zoomable" alt=""></div>`;
+  applySel();
+}
+function setZoom(z) { docZoom = Math.max(50, Math.min(300, z)); $("#docimg").style.setProperty("--zoom", docZoom); $("#zVal").textContent = docZoom + "%"; }
+function scrollDoc() {  // เลื่อนภาพให้เห็นกรอบของส่วนที่เลือก (เรียกเฉพาะตอนผู้ใช้เลือกเอง ไม่เรียกตอน poll กันแย่งการเลื่อน)
+  if (!splitOn || !selSec) return;
+  const g = document.querySelector("#docimg g.secbox.sel"), pane = $("#docpane");
+  if (!g) return;
+  const gr = g.getBoundingClientRect(), pr = pane.getBoundingClientRect();
+  if (gr.top < pr.top + 50 || gr.bottom > pr.bottom - 20) pane.scrollTop += gr.top - pr.top - pr.height / 3;
+}
+function setSplit(on) {
+  splitOn = on; document.body.classList.toggle("split", on);
+  const b = $("#splitBtn"); b.classList.toggle("on", on); b.textContent = on ? "ภาพไว้ซ้าย: เปิด" : "ภาพไว้ซ้าย: ปิด";
+  try { localStorage.setItem("demo.split", on ? "1" : "0"); } catch (e) { /* ไม่มี storage: ใช้ค่าตั้งต้นทุกครั้ง */ }
+  docSig = ""; renderDoc();
+}
+$("#splitBtn").onclick = () => setSplit(!splitOn);
+$("#docSrc").onchange = e => { docSrc = e.target.value; docSig = ""; renderDoc(); };
+$("#docBoxes").onchange = e => { docBoxes = e.target.checked; docSig = ""; renderDoc(); };
+$("#zIn").onclick = () => setZoom(docZoom + 25); $("#zOut").onclick = () => setZoom(docZoom - 25); $("#zFit").onclick = () => setZoom(100);
+document.addEventListener("focusin", e => {  // แตะ/โฟกัสช่องในหน้าตรวจ → ไฮไลต์กรอบส่วนที่ค่านั้นมาบนภาพซ้าย
+  const row = splitOn && e.target.closest && e.target.closest(".rv-row[data-sec]");
+  if (!row || !row.dataset.sec) return;
+  quietSel = true;
+  if (selSec !== row.dataset.sec) { selSec = row.dataset.sec; applySel(); }
+  scrollDoc();
+});
+(function () {
+  let pref = null;
+  try { pref = localStorage.getItem("demo.split"); } catch (e) { /* ไม่มี storage */ }
+  setZoom(100); setSplit(pref !== null ? pref === "1" : window.innerWidth >= 1100);
+})();
 
 // ------------------------------------------------------------------ ขยายภาพ
 document.addEventListener("click", e => {
