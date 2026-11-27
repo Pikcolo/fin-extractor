@@ -21,6 +21,7 @@ from ..schema import InvoiceData, Party
 from ..validation.tax_id import is_valid_thai_tax_id
 from .core_labels import _read, split_branch
 from .patterns import find_tax_ids
+from .rule_extractor import COMPANY_RE
 
 # ป้ายชื่อในบล็อก: "ชื่อ" · OCR สะกดเพี้ยน "ซื่อ" "ชือซี"
 _NAME_SPEC = FieldSpec(key="buyer.name", label="ชื่อ", aliases=("ชื่อ", "ซื่อ", "ชือซี"), next_line=True)
@@ -28,16 +29,26 @@ _TRAILING_LEADERS = re.compile(r"\s*(?:\.{2,}|…)[\s.…]*$")  # "นายส�
 _HEAD_OFFICE = re.compile(r"สำนักงานใหญ่|head\s*office", re.I)
 
 
+def _label_rx(aliases: tuple[str, ...]) -> re.Pattern:
+    return re.compile(r"^\s*(?:" + "|".join(alias_regex(a).pattern for a in aliases) + ")", re.I)
+
+
 def _starts(lines: list[str], blocks: PartyBlocks) -> dict[str, int]:
     """ดัชนีบรรทัดเริ่มบล็อกของแต่ละฝ่าย (ป้ายอยู่ต้นบรรทัด ใช้อันแรก)."""
     out: dict[str, int] = {}
     for party, aliases in blocks.parties.items():
-        rx = re.compile(r"^\s*(?:" + "|".join(alias_regex(a).pattern for a in aliases) + ")", re.I)
+        rx = _label_rx(aliases)
         for i, line in enumerate(lines):
             if rx.match(line):
                 out[party] = i
                 break
     return out
+
+
+def _later_label_lines(lines: list[str], blocks: PartyBlocks) -> dict[str, list[str]]:
+    """บรรทัดป้ายของฝ่ายที่ปรากฏซ้ำหลังบล็อกแรก (OCR อ่านบล็อกเดิมซ้ำอีกรอบหลังหัวตาราง): ใช้อ่านเฉพาะเลขภาษีที่พิมพ์ในบรรทัดป้ายนั้นเอง
+    ไม่อ่านชื่อ/ที่อยู่ เพราะบล็อกซ้ำไม่มีคำสิ้นสุดก่อนตารางเงินได้."""
+    return {party: [ln for ln in lines if _label_rx(aliases).match(ln)][1:] for party, aliases in blocks.parties.items()}
 
 
 def split_blocks(lines: list[str], blocks: PartyBlocks) -> dict[str, list[str]]:
@@ -72,5 +83,40 @@ def fill_party_blocks(lines: list[str], data: InvoiceData, blocks: PartyBlocks) 
     """ตั้ง ``data.vendor`` / ``data.buyer`` จากบล็อกของฝ่ายนั้นใหม่ทั้งก้อน (ไม่ใช่เติมช่องว่าง: ค่าที่ rules ตามตำแหน่งใส่ไว้อาจเป็นของอีกฝ่าย
     เช่น กรณีที่เลขภาษีของผู้ถูกหักไปอยู่ในช่องผู้หัก) ฝ่ายที่ไม่เจอป้ายก็ว่าง ไม่คงค่าตามตำแหน่งไว้."""
     found = split_blocks(lines, blocks)
+    later = _later_label_lines(lines, blocks)
     for party in blocks.parties:
-        setattr(data, party, _read_party(found[party]) if party in found else Party())
+        p = _read_party(found[party]) if party in found else Party()
+        if p.tax_id is None:  # เลขในบล็อกแรกอ่านไม่ครบ แต่บล็อกซ้ำอ่านได้ครบ
+            p.tax_id = next((t for ln in later[party] for t in find_tax_ids(ln) if is_valid_thai_tax_id(t)), None)
+        setattr(data, party, p)
+
+
+# เลข 11-13 หลักติดกัน (คั่นด้วยช่องว่างหรือขีดได้): เลขภาษีที่ OCR ทำหลักหายหรืออ่านเพี้ยนจน checksum ไม่ผ่าน
+_DIGIT_RUN_RE = re.compile(r"(?<!\d)(?:\d[ \-]?){11,13}(?!\d)")
+
+
+def _tax_id_hint(digits: str, name: str | None) -> str:
+    msg = f"OCR อ่านเลขภาษีของฝ่ายนี้ได้ {digits} ({len(digits)} หลัก) ไม่ผ่าน checksum: ตรวจกับภาพแล้วแก้เอง (ระบบไม่เติมเลขเอง)"
+    # เลขของนิติบุคคลขึ้นต้นด้วย 0 (รูปแบบเลขประจำตัวผู้เสียภาษีของกรมสรรพากร) เติมเฉพาะ 0 นำหน้าเมื่อผ่าน checksum จึงเสนอค่าเดียว
+    # ดูจากชื่อของฝ่ายนั้น ไม่ใช่บรรทัดในบล็อก: ฟอร์มพิมพ์คำแนะนำ "(ให้ระบุว่าเป็น บุคคล นิติบุคคล บริษัท ...)" ไว้ในทุกบล็อก
+    if len(digits) == 12 and is_valid_thai_tax_id("0" + digits) and name and COMPANY_RE.search(name):
+        msg += f" · เลขนิติบุคคลขึ้นต้นด้วย 0: เติม 0 นำหน้าได้ 0{digits} ซึ่งผ่าน checksum"
+    return msg
+
+
+def tax_id_hints(lines: list[str], data: InvoiceData, blocks: PartyBlocks) -> dict[str, str]:
+    """{``vendor.tax_id``/``buyer.tax_id``: คำใบ้} ของฝ่ายที่ไม่มีเลขภาษีที่ผ่าน checksum แต่บล็อกของฝ่ายนั้นมีเลข 11-13 หลักที่อ่านได้ไม่ครบ
+    คำใบ้ไปอยู่ในเหตุผลของฟิลด์ในหน้าตรวจ ไม่ใส่ค่าลงฟิลด์ (เลขหลุดกลางตัวมีหลายค่าที่ผ่าน checksum จึงเดาไม่ได้)."""
+    out: dict[str, str] = {}
+    for party, block in split_blocks(lines, blocks).items():
+        if getattr(data, party).tax_id:
+            continue
+        for line in block:
+            for m in _DIGIT_RUN_RE.finditer(line):
+                digits = re.sub(r"\D", "", m.group())
+                if 11 <= len(digits) <= 13 and not is_valid_thai_tax_id(digits):
+                    out[f"{party}.tax_id"] = _tax_id_hint(digits, getattr(data, party).name)
+                    break
+            if f"{party}.tax_id" in out:
+                break
+    return out

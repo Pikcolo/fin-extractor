@@ -23,7 +23,7 @@ from .doctypes import (
 from .extraction import extract_fields, lines_with_chunks, markdown_to_lines
 from .extraction.rule_extractor import SUPPLEMENT, chunk_lines
 from .extraction.core_labels import extract_party_name
-from .extraction.party_blocks import fill_party_blocks
+from .extraction.party_blocks import fill_party_blocks, tax_id_hints
 from .extraction.rule_extractor import assign_addresses, derive_total, fill_vendor_address, unmix_parties
 from .extraction.hybrid import known_context, merge_llm, top_level, unresolved_keys
 from .extraction.llm_extractor import profile_schema
@@ -264,8 +264,9 @@ class FinanceOCRPipeline:
         na = set(profile.not_applicable)
         missing, status = decide_status(data, checks, not_applicable=na, required=profile.required,
                                         primary_amount=profile.primary_amount)
+        hints = tax_id_hints(lines, data, profile.party_blocks) if profile.party_blocks else {}  # ทำใหม่ทุกครั้ง: แก้เลขแล้วคำใบ้หาย
         evidence = build_field_evidence(data, checks, "\n".join(lines), sources, agree, not_applicable=na,
-                                        required=profile.required, profile=profile)
+                                        required=profile.required, profile=profile, hints=hints)
         return checks, missing, status, evidence
 
     def build_result(self, source_file: str, page: int, lines: list[str], raw_text: str,

@@ -134,8 +134,10 @@ def build_field_evidence(
     not_applicable: Collection[str] = (),
     required: Collection[str] = KEY_FIELDS,
     profile: Profile | None = None,
+    hints: dict[str, str] | None = None,
 ) -> dict[str, FieldEvidence]:
-    """``required`` และ ``profile`` มาจากโปรไฟล์ชนิดเอกสาร (ไม่ส่ง = กฎเดิมของใบกำกับภาษี)."""
+    """``required`` และ ``profile`` มาจากโปรไฟล์ชนิดเอกสาร (ไม่ส่ง = กฎเดิมของใบกำกับภาษี) ``hints`` = {คีย์: คำใบ้ให้คนตรวจ} ฟิลด์ที่ไม่มีค่า
+    และไม่บังคับได้ระดับ unverified พร้อมคำใบ้ (ไม่ใช่ missing: ไม่ได้บังคับ ไม่เปลี่ยนสถานะ)."""
     sources, agree, handwritten = sources or {}, agree or {}, handwritten or []
     kinds = {DOC_PREFIX + f.key: f.type for f in profile.fields} if profile else {}
     passed: dict[str, list[str]] = {}
@@ -170,6 +172,8 @@ def build_field_evidence(
     for key in required:
         if key not in flat:
             out[key] = FieldEvidence(level="not_applicable" if key in not_applicable else "missing")
+    for key, hint in (hints or {}).items():
+        out.setdefault(key, FieldEvidence(level="unverified")).hint = hint
     return out
 
 
@@ -195,6 +199,8 @@ def _reasons(key: str, ev: FieldEvidence, checks: list[ValidationCheck], primary
         out.append("เอกสารชนิดนี้ต้องมี แต่ระบบหาไม่เจอ ให้กรอกจากภาพ")
         if key == primary_amount:
             out.append("เป็นยอดหลักของเอกสาร: ไม่มีค่านี้สถานะจะเป็น failed")
+    if ev.hint:
+        out.append(ev.hint)
     if ev.format_valid is False:
         out.append("เลขผู้เสียภาษีไม่ผ่าน checksum: ผิดอย่างน้อยหนึ่งหลัก")
     by_name = {c.name: c for c in checks}

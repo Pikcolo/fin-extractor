@@ -134,6 +134,7 @@ class FieldEvidence(BaseModel):
     handwritten: bool | None = Field(None, description="True = อ่านจากลายมือ; None = ยังไม่มีตัวตรวจลายมือ")
     model_conf: float | None = Field(None, description="ยังไม่ได้เก็บ (ต้นทางระดับคำของ OCR ยังไม่ถูกส่งต่อ) จึงเป็น null เสมอ")
     source: str | None = Field(None, description="ตัวสกัดที่ให้ค่านี้: rules หรือ llm")
+    hint: str | None = Field(None, description="คำใบ้ให้คนตรวจ เช่น เลขที่ OCR อ่านได้ไม่ครบ (ไม่ใช่ค่าของฟิลด์ ไม่เปลี่ยนสถานะ)")
 
 
 class FieldReview(BaseModel):
