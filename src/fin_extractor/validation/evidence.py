@@ -26,7 +26,7 @@ from typing import Any
 
 from ..doctypes import DOC_PREFIX, KEY_FIELDS, Profile
 from ..extraction.patterns import find_dates, find_numbers, find_percents, find_tax_ids
-from ..schema import FieldEvidence, FieldReview, InvoiceData, ValidationCheck
+from ..schema import CORE_AMOUNT_KEYS, ITEM_KEYS, MONEY_KEYS, PARTY_KEYS, FieldEvidence, FieldReview, InvoiceData, ValidationCheck
 from .tax_id import is_valid_thai_tax_id
 
 # check ที่ผ่านแล้วไม่ได้ยืนยันว่าอ่านค่าถูก (ตรวจแค่ความสมเหตุสมผล/รูปแบบ) แต่ถ้าไม่ผ่านยังนับว่าขัดแย้ง
@@ -34,11 +34,10 @@ from .tax_id import is_valid_thai_tax_id
 # และผู้ซื้อ/ผู้ขายสลับกันเกิดจริงในชุดสแกนทดสอบ) จึงไม่ยกเป็น verified เลขภาษีจึงไม่มีวันเป็น verified
 NOT_CORROBORATING = {"date_range", "vendor_tax_id_checksum", "buyer_tax_id_checksum"}
 
-_SCALARS = ("document_type", "book_no", "invoice_no", "date",
-            "subtotal", "discount", "amount_before_vat", "non_taxable_amount", "vat_rate", "vat_amount", "total_amount")
-_PARTY = ("name", "tax_id", "branch", "address")
-_ITEM = ("description", "quantity", "unit_price", "amount")
-_AMOUNT_KEYS = {"subtotal", "discount", "amount_before_vat", "non_taxable_amount", "vat_amount", "total_amount"}
+_SCALARS = ("document_type", "book_no", "invoice_no", "date", *CORE_AMOUNT_KEYS)
+_PARTY = PARTY_KEYS
+_ITEM = ITEM_KEYS
+_AMOUNT_KEYS = set(MONEY_KEYS)
 _TEXT_KEYS = {"vendor.name", "vendor.address", "buyer.name", "buyer.address", "invoice_no", "book_no"}
 
 

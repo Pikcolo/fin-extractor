@@ -15,12 +15,12 @@ from collections.abc import Callable, Collection
 from datetime import date
 
 from ..doctypes import DOC_PREFIX, Profile
-from ..schema import InvoiceData, ValidationCheck
+from ..schema import CORE_AMOUNT_KEYS, InvoiceData, ValidationCheck
 from ..validation.evidence import comparable, field_grounding, flatten
 from ..validation.scoring import _get, missing_fields
 from ..validation.tax_id import is_valid_thai_tax_id
 
-AMOUNT_KEYS = {"subtotal", "discount", "amount_before_vat", "non_taxable_amount", "vat_rate", "vat_amount", "total_amount"}
+AMOUNT_KEYS = set(CORE_AMOUNT_KEYS)
 SKIP_PREFIXES = ("remark[",)
 
 

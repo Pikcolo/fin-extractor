@@ -23,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
 from fin_extractor.paths import DataPaths, iter_results  # noqa: E402
+from fin_extractor.schema import CORE_AMOUNT_KEYS  # noqa: E402
 
 P = DataPaths()
 DEFAULT_RUNS = {  # ชื่อคอลัมน์ → (engine, extractor)
@@ -34,7 +35,7 @@ FIELDS = [
     "document_type", "document_profile", "vendor.name", "vendor.branch", "vendor.tax_id", "vendor.address",
     "buyer.name", "buyer.branch", "buyer.tax_id", "buyer.address", "invoice_no", "book_no", "date",
     "items.count", "items[0].description", "items[0].quantity", "items[0].unit_price", "items[0].amount",
-    "subtotal", "discount", "amount_before_vat", "non_taxable_amount", "vat_rate", "vat_amount", "total_amount",
+    *CORE_AMOUNT_KEYS,
 ]
 SUMMARY = ["status", "missing_fields", "checks_failed"]
 

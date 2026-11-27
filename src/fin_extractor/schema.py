@@ -43,6 +43,14 @@ class Party(BaseModel):
     address: str | None = None
 
 
+# รายชื่อฟิลด์แกนกลางที่ที่อื่นต้องรู้ อยู่ที่นี่ที่เดียว (เพิ่มฟิลด์ใหม่: แก้ที่นี่ + โมเดล แล้วเทสต์ tests/test_field_registry.py บอกว่าที่ไหนต้องตามอีก)
+PARTY_KEYS = tuple(Party.model_fields)  # name, tax_id, branch, address
+ITEM_KEYS = tuple(LineItem.model_fields)  # description, quantity, unit_price, amount
+# ฟิลด์ยอดเงินของ InvoiceData ตามลำดับที่พิมพ์ในเอกสาร (vat_rate เป็นอัตรา ไม่ใช่ยอดเงิน จึงไม่อยู่ใน MONEY_KEYS)
+CORE_AMOUNT_KEYS = ("subtotal", "discount", "amount_before_vat", "non_taxable_amount", "vat_rate", "vat_amount", "total_amount")
+MONEY_KEYS = tuple(k for k in CORE_AMOUNT_KEYS if k != "vat_rate")
+
+
 class ExtraField(BaseModel):
     """รายการหมายเหตุ (remark): ข้อมูลที่เอกสารพิมพ์ไว้แต่ไม่มีช่องใน schema ของชนิดเอกสารนั้น (เช่น เลขที่ใบสั่งซื้อ, เงื่อนไขชำระเงิน)."""
 
@@ -90,7 +98,7 @@ class InvoiceData(BaseModel):
         description="หมายเหตุ: ข้อมูลอื่นที่เอกสารพิมพ์ไว้แต่ไม่มีช่องข้างบนหรือใน document_fields (ป้าย + ค่า) ห้ามใส่ข้อมูลที่มีช่องอยู่แล้ว",
     )
 
-    @field_validator("subtotal", "discount", "amount_before_vat", "non_taxable_amount", "vat_amount", "total_amount")
+    @field_validator(*MONEY_KEYS)
     @classmethod
     def _money_cents(cls, v):
         return _to_cents(v)

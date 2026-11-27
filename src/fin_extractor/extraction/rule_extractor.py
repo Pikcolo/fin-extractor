@@ -14,7 +14,7 @@ from functools import lru_cache
 from ..config import load_config
 from ..doctypes import kind_of, load_kinds
 from ..readers.lines import normalize_thai
-from ..schema import InvoiceData, LineItem, Party
+from ..schema import PARTY_KEYS, InvoiceData, LineItem, Party
 from ..validation.tax_id import is_valid_thai_tax_id
 from .item_table import table_items
 from .patterns import AMOUNT_RE, PERCENT_RE, find_amounts, find_tax_ids, fix_ocr_numbers, parse_date
@@ -318,7 +318,7 @@ def unmix_parties(data: InvoiceData) -> None:
         return
     vk, bk = _squash(v.name).casefold(), _squash(b.name).casefold()
     if len(bk) >= 4 and (bk in vk or vk in bk):
-        for attr in ("tax_id", "branch", "address"):
+        for attr in (k for k in PARTY_KEYS if k != "name"):
             if not getattr(b, attr):
                 setattr(b, attr, getattr(v, attr))
         data.vendor = Party()

@@ -14,7 +14,7 @@ from decimal import Decimal
 from typing import Any
 
 from ..doctypes import FieldSpec, Profile, alias_regex, squash
-from ..schema import ExtraField, InvoiceData
+from ..schema import MONEY_KEYS, ExtraField, InvoiceData
 from ..validation.tax_id import is_valid_thai_tax_id
 from .patterns import AMOUNT_RE, PERCENT_RE, find_amounts, find_dates, find_tax_ids, normalize_tax_id, parse_amount, parse_date
 from .rule_extractor import AMOUNT_FIELDS, AMOUNT_ONLY_RE, BUYER_RE, COMPANY_RE, DATE_LABEL_RE, INVOICE_NO_RE
@@ -131,8 +131,7 @@ def _filled_values(data: InvoiceData) -> set[str]:
         if v not in (None, "", [], {}):
             vals.add(squash(v.isoformat() if hasattr(v, "isoformat") else f"{v:f}" if isinstance(v, Decimal) else str(v)))
 
-    for name in ("document_type", "book_no", "invoice_no", "date", "subtotal", "discount",
-                 "amount_before_vat", "non_taxable_amount", "vat_amount", "total_amount"):
+    for name in ("document_type", "book_no", "invoice_no", "date", *MONEY_KEYS):
         add(getattr(data, name))
     for party in (data.vendor, data.buyer):
         for sub in type(party).model_fields:

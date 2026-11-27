@@ -14,7 +14,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from ..doctypes import GENERIC_PROFILE, Profile
-from ..schema import InvoiceData
+from ..schema import CORE_AMOUNT_KEYS, InvoiceData
 from ..llm_client import ChatClient
 from .prompts import EXTRACTION_SYSTEM_PROMPT, extraction_user_prompt
 from .patterns import normalize_tax_id, parse_amount, parse_date
@@ -22,7 +22,7 @@ from .core_labels import split_branch
 from .profile_extractor import normalize_value
 from .rule_extractor import strip_contact
 
-_AMOUNT_KEYS = ("subtotal", "discount", "amount_before_vat", "non_taxable_amount", "vat_rate", "vat_amount", "total_amount")
+_AMOUNT_KEYS = CORE_AMOUNT_KEYS
 
 
 def _parse_json(text: str) -> dict[str, Any]:
