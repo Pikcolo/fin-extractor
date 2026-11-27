@@ -60,8 +60,8 @@ def _run_all_checks(
     if d.buyer.tax_id:
         add("buyer_tax_id_checksum", is_valid_thai_tax_id(d.buyer.tax_id), d.buyer.tax_id, ["buyer.tax_id"])
 
-    # 2) ผลรวมรายการ = ยอดใดยอดหนึ่ง: subtotal / ยอดก่อน VAT (ราคาไม่รวมภาษี) หรือยอดรวม (ร้านที่พิมพ์ราคารายการรวม VAT แล้ว เช่น 1308 1312)
-    #    ไม่มียอดก่อน VAT ที่อ่านได้: ยอดก่อน VAT = ยอดรวม − VAT (สูตรเดียวกับข้อ 4 · 1318: 8,025 − 525 = 7,500 = รายการ)
+    # 2) ผลรวมรายการ = ยอดใดยอดหนึ่ง: subtotal / ยอดก่อน VAT (ราคาไม่รวมภาษี) หรือยอดรวม (ร้านที่พิมพ์ราคารายการรวม VAT แล้ว)
+    #    ไม่มียอดก่อน VAT ที่อ่านได้: ยอดก่อน VAT = ยอดรวม − VAT (สูตรเดียวกับข้อ 4 · เช่น 1,070 − 70 = 1,000 = รายการ)
     item_fields = [f"items[{i}].amount" for i, it in enumerate(d.items) if it.amount is not None]
     item_amounts = [it.amount for it in d.items if it.amount is not None]
     targets = [([n], n, v) for n, v in (("subtotal", d.subtotal), ("amount_before_vat", d.amount_before_vat),
@@ -86,7 +86,7 @@ def _run_all_checks(
             f"{d.subtotal} - {d.discount} = {net} vs {[str(v) for _, v in candidates]}",
             ["subtotal", "discount", *(matched or [n for n, _ in candidates])] if candidates else [])
 
-    # 4) ยอดก่อน VAT + VAT = ยอดรวม · ไม่มียอดก่อน VAT ใช้ subtotal (− ส่วนลด) แทน (1308: รวมเงิน 23,140.19 + VAT 1,619.81 = 24,760.00)
+    # 4) ยอดก่อน VAT + VAT = ยอดรวม · ไม่มียอดก่อน VAT ใช้ subtotal (− ส่วนลด) แทน (เช่น รวมเงิน 1,000.00 + VAT 70.00 = 1,070.00)
     #    ยกเว้น subtotal (− ส่วนลด) = ยอดรวม: ราคารวม VAT แล้ว subtotal ไม่ใช่ฐานก่อน VAT ไม่ตรวจ (ไม่ให้ล้มผิด)
     base_name, base = ("amount_before_vat", d.amount_before_vat) if d.amount_before_vat is not None else (None, None)
     if base is None and d.subtotal is not None:
@@ -125,7 +125,7 @@ def _run_all_checks(
         add("date_range", None, "ไม่พบวันที่")
 
     # items_sum ไม่ผ่าน: ยอดที่ check อื่นยืนยันแล้วไม่ใช่ตัวผิด ชี้เฉพาะรายการ + ยอดที่ยังไม่มีอะไรยืนยัน
-    # (1309: รวมเงิน + VAT = ยอดรวม ผ่าน แต่รายการรวม 3,860 ไม่ตรง → รายการหายหรืออ่านผิด ไม่ใช่ยอดรวม)
+    # (เช่น รวมเงิน + VAT = ยอดรวม ผ่าน แต่รายการรวม 1,234.50 ไม่ตรง → รายการหายหรืออ่านผิด ไม่ใช่ยอดรวม)
     items_check = next(c for c in checks if c.name == "items_sum")
     if items_check.passed is False:
         confirmed = {f for c in checks if c.passed for f in c.fields}

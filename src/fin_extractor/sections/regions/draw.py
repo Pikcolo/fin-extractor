@@ -1,6 +1,6 @@
 """ภาพตรวจด้วยตา: overlay region/ตาราง และ contact sheet
 
-คัดลอกจาก learning/preprocess_finance (src/finance_ocr/debug/viz.py) ตรงตัว ค่าคงที่วัดบนสแกนชุดเดียวกัน 18 ใบที่ 200 dpi — ใช้กับภาพที่ย่อเป็น 200 dpi เท่านั้น (ดู run.py)
+คัดลอกจาก learning/preprocess_finance (src/finance_ocr/debug/viz.py) ตรงตัว ค่าคงที่วัดบนสแกนชุดเดียวกัน (ชุดสแกนทดสอบ) ที่ 200 dpi — ใช้กับภาพที่ย่อเป็น 200 dpi เท่านั้น (ดู run.py)
 
 Debug artefacts: per-stage snapshots, region overlays, contact sheets."""
 from __future__ import annotations

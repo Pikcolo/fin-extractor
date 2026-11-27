@@ -29,7 +29,7 @@ def default_kinds() -> list[tuple[str, re.Pattern]]:
 
 COMPANY_RE = re.compile(r"บริษัท|ห้างหุ้นส่วน|หจก\.?|co\.?,?\s*ltd|company|limited|corporation|จำกัด", re.I)
 BUYER_RE = re.compile(r"ลูกค้า|ผู้ซื้อ|customer|buyer|bill\s*to|sold\s*to", re.I)
-# ป้ายระบุสำเนา "สำหรับลูกค้า / For Customer" พิมพ์ต่อท้ายชื่อผู้ขายบรรทัดแรก (001308, 001309) ไม่ใช่การเริ่มส่วนผู้ซื้อ
+# ป้ายระบุสำเนา "สำหรับลูกค้า / For Customer" พิมพ์ต่อท้ายชื่อผู้ขายบรรทัดแรก ไม่ใช่การเริ่มส่วนผู้ซื้อ
 # ถ้านับเป็นส่วนผู้ซื้อ ชื่อและเลขภาษีของผู้ขายจะตกไปช่องผู้ซื้อ
 COPY_MARK_RE = re.compile(r"สำหรับ\s*(?:ลูกค้า|ผู้ซื้อ)(?:\s*/\s*for\s*customer)?", re.I)
 DATE_LABEL_RE = re.compile(r"วันที่|date", re.I)
@@ -39,15 +39,15 @@ INVOICE_NO_RE = re.compile(
     re.I,
 )
 ITEM_HEADER_RE = re.compile(r"รายการ|description|item|สินค้า", re.I)
-# ชื่อคอลัมน์ของหัวตารางรายการที่ OCR แยกเป็นหลายบรรทัด (บรรทัดละช่อง) คำมาจากหัวตารางบนสแกน: 1310 (Item ลำดับ · Article Number รหัสสินค้า ·
-# Qty จำนวน · Unit หน่วย · Price/Unit ราคา/หน่วย · Discount ส่วนลด · Vat ภาษี · Amount จำนวนเงิน), 1308/1309 (Product Code · Unit price), 1306 (No. เลขที่)
+# ชื่อคอลัมน์ของหัวตารางรายการที่ OCR แยกเป็นหลายบรรทัด (บรรทัดละช่อง) ตัวอย่างหัวตาราง: Item ลำดับ · Article Number รหัสสินค้า ·
+# Qty จำนวน · Unit หน่วย · Price/Unit ราคา/หน่วย · Discount ส่วนลด · Vat ภาษี · Amount จำนวนเงิน · Product Code · Unit price · No. เลขที่
 COLUMN_HEADER_RE = re.compile(r"รายการ|description|item|สินค้า|article|product|code|รหัส|ลำดับ|\bno\b|เลขที่|qty|quantity|จำนวน|unit|หน่วย|"
                               r"price|ราคา|discount|ส่วนลด|vat|ภาษี|amount|จำนวนเงิน", re.I)
 ITEM_END_RE = re.compile(r"หมายเหตุ|remark|note", re.I)
 
 # ลำดับสำคัญ: เช็คแบบเจาะจงก่อน ("Grand Total (VAT Excluded)" ต้องไม่ถูกจับเป็น total)
-# ป้ายที่เพิ่มมีตัวอย่างจริงจากสแกน 18 ใบ: มูลค่าสินค้าก่อนคิดภาษีมูลค่าเพิ่ม (1310) · รวมมูลค่าสินค้า = ยอดก่อน VAT (1312: 3,690.65 + 258.35 = 3,949.00)
-# รวมเงินทั้งสิ้น (1316) · ยอดเงินสุทธิ (1317–1319) · V.A.T. (1317–1319)
+# ป้ายที่เพิ่มมีตัวอย่างจริงจากชุดสแกนทดสอบ: มูลค่าสินค้าก่อนคิดภาษีมูลค่าเพิ่ม · รวมมูลค่าสินค้า = ยอดก่อน VAT
+# รวมเงินทั้งสิ้น · ยอดเงินสุทธิ · V.A.T.
 AMOUNT_FIELDS: list[tuple[str, re.Pattern]] = [
     ("amount_before_vat", re.compile(
         r"ก่อน(?:รวม|คิด)?ภาษี|ไม่รวมภาษี|มูลค่าสินค้า|before\s*vat|vat\s*excl|excl(?:uding|\.)?\s*vat|pre[-\s]?vat", re.I)),
@@ -117,9 +117,9 @@ MAX_SUBTOTAL_LABEL = 30  # "Total" เป็นคำทั่วไป เช�
 EXPLICIT_SUBTOTAL_RE = re.compile(r"รวมเงิน|sub\s*-?\s*total", re.I)
 
 
-# ยอดที่ไม่ใช่ฐานภาษี: "มูลค่าสินค้าที่ยกเว้นภาษีมูลค่าเพิ่ม" (1310) ไม่ใช่ VAT · "Non-Taxable Charges" (1313) — ไม่จัดเป็นช่องใด
+# ยอดที่ไม่ใช่ฐานภาษี: "มูลค่าสินค้าที่ยกเว้นภาษีมูลค่าเพิ่ม" ไม่ใช่ VAT · "Non-Taxable Charges" — ไม่จัดเป็นช่องใด
 EXEMPT_RE = re.compile(r"ยกเว้นภาษี|non[-\s]?taxable|tax\s*exempt|vat\s*exempt", re.I)
-SATANG_RE = re.compile(r"^\.?\d{2}$")  # ช่องสตางค์ของตารางบาท|สตางค์ ("103,062 | 50" 1320 · "3,187 | .50" 1321)
+SATANG_RE = re.compile(r"^\.?\d{2}$")  # ช่องสตางค์ของตารางบาท|สตางค์ ("1,234 | 50" · "1,234 | .50")
 
 
 def _cell_label(cell: str, seen_subtotal_or_vat: bool) -> str | None:
@@ -128,7 +128,7 @@ def _cell_label(cell: str, seen_subtotal_or_vat: bool) -> str | None:
     "Total" / "รวม" เปล่า ๆ ตีความตามตำแหน่ง: ถ้ามาก่อนยอดย่อยและ VAT คือยอดย่อย
     แต่ถ้ามาหลังจากนั้นคือยอดรวม — ใบแจ้งหนี้ทั่วไปเรียง Subtotal → VAT → TOTAL
     เดิมจัดเป็นยอดย่อยเสมอ บรรทัด TOTAL จึงถูกทิ้ง (ช่องยอดย่อยมีค่าแล้ว) และ
-    เอกสารได้ ``failed`` เพราะไม่มียอดรวม ทั้งที่ OCR อ่านได้ครบ (VATGB-001)
+    เอกสารได้ ``failed`` เพราะไม่มียอดรวม ทั้งที่ OCR อ่านได้ครบ
     ความยาวป้ายนับจากจุดที่เจอป้ายถึงท้ายช่อง (ข้อความหน้าป้ายในช่องเดียวกัน เช่นจำนวนเงินตัวอักษร ไม่นับ)
     """
     if EXEMPT_RE.search(cell):
@@ -151,7 +151,7 @@ def _cell_amounts(cell: str) -> list[Decimal]:
 def _line_amounts(lines: list[str], i: int, seen_subtotal_or_vat: bool) -> list[tuple[str, Decimal, str]]:
     """ยอดเงินในบรรทัดสรุป แยกตามช่อง (`` | `` จากตาราง) → [(ช่อง, ยอด, ข้อความป้ายถึงค่า)]
     ช่องที่มีป้าย: ค่าในช่องเดียวกัน (ตัวท้าย) หรือค่าเดียวในช่องถัดไปก่อนถึงช่องป้ายถัดไป หรือบรรทัดถัดไปที่มีแต่ตัวเลข (ช่องป้ายสุดท้ายเท่านั้น)
-    ช่องเดียวมีหลายป้ายเรียงกัน + ช่องถัดไปช่องเดียวมีตัวเลขเท่าจำนวนป้าย (1312) → จับคู่ตามลำดับ."""
+    ช่องเดียวมีหลายป้ายเรียงกัน + ช่องถัดไปช่องเดียวมีตัวเลขเท่าจำนวนป้าย → จับคู่ตามลำดับ."""
     cells = [c.strip() for c in lines[i].split(" | ")]
     out: list[tuple[str, Decimal, str]] = []
     labels = [_cell_label(c, seen_subtotal_or_vat) for c in cells]
@@ -162,7 +162,7 @@ def _line_amounts(lines: list[str], i: int, seen_subtotal_or_vat: bool) -> list[
         own = _cell_amounts(cell)
         nxt = [(k, a) for k in range(j + 1, stop) for a in _cell_amounts(cells[k])]
         if not own and not nxt and stop == len(cells) and i + 1 < len(lines) and AMOUNTS_ONLY_RE.match(lines[i + 1]):
-            nxt = [(len(cells), a) for a in find_amounts(lines[i + 1])]  # ค่าอยู่บรรทัดถัดไป (OCR แยกช่องเป็นคนละบรรทัด 1312)
+            nxt = [(len(cells), a) for a in find_amounts(lines[i + 1])]  # ค่าอยู่บรรทัดถัดไป (OCR แยกช่องเป็นคนละบรรทัด)
         words = [w for w in (_cell_label(w, False) for w in cell.split()) if w]
         if not own and len(nxt) > 1 and len({k for k, _a in nxt}) == 1 and len(words) == len(nxt) == len(set(words)):
             out += [(w, a, cell) for w, (_k, a) in zip(words, nxt)]
@@ -180,16 +180,16 @@ def _line_amounts(lines: list[str], i: int, seen_subtotal_or_vat: bool) -> list[
 
 
 # ป้ายเลขที่เอกสาร ลำดับความเจาะจง (0 ชนะ): ป้ายของใบกำกับ > ใบเสร็จ/เอกสาร > "เลขที่" / "No." เปล่า ๆ
-# "No." เปล่า ๆ นับเฉพาะต้นช่อง: "Account No." (1313), "Hawb No." (1316) ไม่ใช่เลขที่เอกสาร
+# "No." เปล่า ๆ นับเฉพาะต้นช่อง: "Account No.", "Hawb No." ไม่ใช่เลขที่เอกสาร
 DOC_NO_LABELS: list[tuple[int, re.Pattern]] = [
     (0, re.compile(r"เลขที่ใบกำกับ(?:ภาษี)?|tax\s*invoice\s*no\.?|invoice\s*(?:no|number)\.?", re.I)),
     (1, re.compile(r"เลขที่(?:ใบเสร็จ(?:รับเงิน)?|เอกสาร)|receipt\s*no\.?|doc(?:ument)?\s*no\.?", re.I)),
     (2, re.compile(r"เลขที่|^\s*no\.", re.I)),
 ]
 DOC_NO_VALUE_RE = re.compile(r"^[\s:/#.]*(?:no\.?)?[\s:#]*([A-Za-z0-9][A-Za-z0-9\-/]{2,})", re.I)
-# ค่าหลัง "เลขที่" ที่เป็นที่อยู่ ("เลขที่ 49/12 ซอย 6 ถนน ..." 1308/1309, "เลขที่ 6 ซอย รามอินทรา" 1317)
+# ค่าหลัง "เลขที่" ที่เป็นที่อยู่ ("เลขที่ 49/12 ซอย 6 ถนน ...", "เลขที่ 6 ซอย ตัวอย่าง")
 ADDRESS_RE = re.compile(r"ซอย|ถนน|ถ\.|หมู่|ตำบล|แขวง|อำเภอ|เขต|จังหวัด|\b(?:road|soi|moo)\b", re.I)
-DATE_LIKE_RE = re.compile(r"^\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}$")  # 1322: OCR ใส่วันที่ไว้ในบรรทัดเลขที่
+DATE_LIKE_RE = re.compile(r"^\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}$")  # OCR ใส่วันที่ไว้ในบรรทัดเลขที่
 
 
 def _doc_no_value(val: str | None) -> str | None:
@@ -198,10 +198,10 @@ def _doc_no_value(val: str | None) -> str | None:
     return val
 
 
-# ที่อยู่: ป้าย "ที่อยู่" ต้นช่อง (OCR สะกด "ที่อยุ่" ได้ 1317-1319 · "ที่อยู่ตามบัตรประชาชน" ใบสำคัญรับเงิน 1320 1322) ตามด้วย "Address" ได้
+# ที่อยู่: ป้าย "ที่อยู่" ต้นช่อง (OCR สะกด "ที่อยุ่" ได้ · "ที่อยู่ตามบัตรประชาชน" ในใบสำคัญรับเงิน) ตามด้วย "Address" ได้
 # ค่า = ข้อความหลังป้ายในช่องเดียวกัน หรือช่องถัดไป · บรรทัดถัดไปที่ช่องแรกเป็นป้าย "Address" อย่างเดียว = ที่อยู่บรรทัดที่สอง
-# (ฟอร์มสองภาษาพิมพ์ ที่อยู่ / Address สองบรรทัด 1308 1317 1318 1319) · ต้องมีตัวเลข (เลขที่บ้าน/รหัสไปรษณีย์) และไม่ขึ้นต้นด้วย "("
-# (คำแนะนำของฟอร์ม 50 ทวิ "ที่อยู่:... (ให้ระบุ ...)" 1323) · ตัดที่ Tel./โทร (1310)
+# (ฟอร์มสองภาษาพิมพ์ ที่อยู่ / Address สองบรรทัด) · ต้องมีตัวเลข (เลขที่บ้าน/รหัสไปรษณีย์) และไม่ขึ้นต้นด้วย "("
+# (คำแนะนำของฟอร์ม 50 ทวิ "ที่อยู่:... (ให้ระบุ ...)") · ตัดที่ Tel./โทร
 ADDRESS_LABEL_RE = re.compile(r"^\s*ที่อย[ูุ]่(?:ตามบัตรประชาชน)?\s*[:：]?\s*(?:address\b)?\s*[:：]?", re.I)
 ADDRESS_CONT_RE = re.compile(r"^\s*address\s*[:：]?\s*$", re.I)
 ADDRESS_STOP_RE = re.compile(r"\s*(?:tel\b|โทร)", re.I)
@@ -233,7 +233,7 @@ def _squash(s: str) -> str:
 def assign_addresses(lines: list[str], data: InvoiceData) -> None:
     """เติมที่อยู่ผู้ขาย/ผู้ซื้อ (ต้องรู้ชื่อทั้งสองฝ่ายก่อน: เรียกหลังอ่านชื่อจากป้ายของโปรไฟล์)
     ที่อยู่เป็นของฝ่ายที่ชื่อ (ที่สกัดได้) อยู่ในบรรทัดชื่อที่ใกล้ที่สุดเหนือมัน (บรรทัดที่มีป้ายชื่อหรือชื่อบริษัท)
-    บรรทัดชื่อนั้นไม่ตรงกับชื่อฝ่ายไหน = ไม่เติม (ไม่เดาฝ่าย: 1310 บล็อกผู้ซื้อไม่มีป้าย "ลูกค้า" · บรรทัดที่ขึ้นต้นด้วย "(" เป็นคำแนะนำของฟอร์ม ข้ามไป 1321)."""
+    บรรทัดชื่อนั้นไม่ตรงกับชื่อฝ่ายไหน = ไม่เติม (ไม่เดาฝ่าย: บล็อกผู้ซื้อไม่มีป้าย "ลูกค้า" · บรรทัดที่ขึ้นต้นด้วย "(" เป็นคำแนะนำของฟอร์ม ข้ามไป)."""
     for i in range(len(lines)):
         addr = _find_address(lines, i)
         if not addr:
@@ -251,9 +251,9 @@ def assign_addresses(lines: list[str], data: InvoiceData) -> None:
 
 def _find_invoice_no(lines: list[str]) -> str | None:
     """เลขที่เอกสารจากป้าย เลือกป้ายที่เจาะจงที่สุด (ที่เจอก่อนชนะเมื่อเจาะจงเท่ากัน) อ่านค่าได้สี่แบบ:
-    ค่าหลังป้าย (``เลขที่ : AABZ...``) · ค่าก่อนป้ายอังกฤษในช่องเดียวกัน (``ใบวางบิล : IN-691005003 Invoice No`` 1306 — ป้ายไทย ค่า ป้ายอังกฤษ)
-    · ช่องถัดไปในแถวเดียวกัน (``เลขที่ใบกำกับภาษี : Invoice No. | BAUNS...`` 1308 เมื่อ OCR อ่านกล่องเป็นตาราง)
-    · ป้ายเป็นหัวตาราง ค่าอยู่ช่องเดียวกันของแถวถัดไป (``เลขที่ | ออกเมื่อ`` → ``BI8461-101069 | ...`` 1312)
+    ค่าหลังป้าย (``เลขที่ : AB-0001``) · ค่าก่อนป้ายอังกฤษในช่องเดียวกัน (``ใบวางบิล : AB-0001 Invoice No`` — ป้ายไทย ค่า ป้ายอังกฤษ)
+    · ช่องถัดไปในแถวเดียวกัน (``เลขที่ใบกำกับภาษี : Invoice No. | AB-0001`` เมื่อ OCR อ่านกล่องเป็นตาราง)
+    · ป้ายเป็นหัวตาราง ค่าอยู่ช่องเดียวกันของแถวถัดไป (``เลขที่ | ออกเมื่อ`` → ``AB-0001 | ...``)
     สามแบบหลังใช้เมื่อหลังป้ายในช่องนั้นไม่มีตัวเลข (มีแค่ป้ายอังกฤษกำกับ เช่น ``Invoice No.``, ``Order No.``)."""
     best: tuple[int, str] | None = None
     for i, line in enumerate(lines):

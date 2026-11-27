@@ -1,6 +1,6 @@
 """เส้นตารางแนวนอน/แนวตั้ง + หาแนวตัดที่ไม่ผ่าข้อความ
 
-คัดลอกจาก learning/preprocess_finance (src/finance_ocr/layout/lines.py) ตรงตัว ค่าคงที่วัดบนสแกนชุดเดียวกัน 18 ใบที่ 200 dpi — ใช้กับภาพที่ย่อเป็น 200 dpi เท่านั้น (ดู run.py)
+คัดลอกจาก learning/preprocess_finance (src/finance_ocr/layout/lines.py) ตรงตัว ค่าคงที่วัดบนสแกนชุดเดียวกัน (ชุดสแกนทดสอบ) ที่ 200 dpi — ใช้กับภาพที่ย่อเป็น 200 dpi เท่านั้น (ดู run.py)
 
 Horizontal ruling lines: the most reliable structure on table-style finance documents.
 
@@ -88,7 +88,7 @@ MIN_COLUMN_RULES = 3  # ตารางที่มีอย่างน้อ�
 def crosses_column_rule(y: int, vlines: list[dict], x0: int, x1: int, tol_px: int) -> bool:
     """แนวตัด y อยู่กลางตารางที่มีคอลัมน์ไหม: เส้นตั้งในช่วง x0–x1 ที่พาดผ่าน y (ห่างจากปลายเส้นเกิน ``tol_px``) มีอย่างน้อย ``MIN_COLUMN_RULES`` เส้น
     ตัดตรงนั้นแถวจะแยกจากหัวคอลัมน์ ปลายเส้นตรงขอบบน/ล่างของตารางไม่นับ และขอบกรอบเอกสาร (ซ้าย/ขวา 2 เส้น) อย่างเดียวไม่นับ
-    (1308: ขอบกรอบพาดตั้งแต่กล่องลูกค้าถึงยอดรวม ถ้านับ ทั้งหน้าจะกลายเป็นภาพเดียว)."""
+    (เช่น ขอบกรอบพาดตั้งแต่กล่องลูกค้าถึงยอดรวม ถ้านับ ทั้งหน้าจะกลายเป็นภาพเดียว)."""
     return sum(x0 <= v["x"] <= x1 and v["y0"] + tol_px < y < v["y1"] - tol_px for v in vlines) >= MIN_COLUMN_RULES
 
 

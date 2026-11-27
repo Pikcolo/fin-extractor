@@ -1,6 +1,6 @@
 """แบ่ง region: แถบตามเส้นนอน / แถบตามช่องว่าง (ไม่มี template รายชนิด: ทุกเอกสารแบ่งแบบเดียวกัน วัด 50 ทวิ 4 ใบแล้วดีกว่า template 3 ใบ ดู docs/03-regions.md)
 
-คัดลอกจาก learning/preprocess_finance (src/finance_ocr/layout/regions.py) ตรงตัว ค่าคงที่วัดบนสแกนชุดเดียวกัน 18 ใบที่ 200 dpi — ใช้กับภาพที่ย่อเป็น 200 dpi เท่านั้น (ดู run.py)
+คัดลอกจาก learning/preprocess_finance (src/finance_ocr/layout/regions.py) ตรงตัว ค่าคงที่วัดบนสแกนชุดเดียวกัน (ชุดสแกนทดสอบ) ที่ 200 dpi — ใช้กับภาพที่ย่อเป็น 200 dpi เท่านั้น (ดู run.py)
 
 Split a normalized page into OCR-sized regions.
 

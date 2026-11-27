@@ -1,6 +1,6 @@
 """ตาราง: แถบ → แถว × คอลัมน์ (เส้นตั้ง) → ช่อง + คู่ key/value ตามตำแหน่ง
 
-คัดลอกจาก learning/preprocess_finance (src/finance_ocr/layout/tables.py) ตรงตัว ค่าคงที่วัดบนสแกนชุดเดียวกัน 18 ใบที่ 200 dpi — ใช้กับภาพที่ย่อเป็น 200 dpi เท่านั้น (ดู run.py)
+คัดลอกจาก learning/preprocess_finance (src/finance_ocr/layout/tables.py) ตรงตัว ค่าคงที่วัดบนสแกนชุดเดียวกัน (ชุดสแกนทดสอบ) ที่ 200 dpi — ใช้กับภาพที่ย่อเป็น 200 dpi เท่านั้น (ดู run.py)
 
 Tables from ruling lines: rows (horizontal rules / whitespace) x columns (vertical rules).
 

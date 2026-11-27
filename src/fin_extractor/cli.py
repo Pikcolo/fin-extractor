@@ -100,7 +100,7 @@ def cmd_extract(args, cfg) -> None:
 
 
 def cmd_sections(args, cfg) -> None:
-    """flow หลักห้าขั้นของสแกนจริง: preprocess → layout → images → ocr → extract (ขั้นที่ผลยังใช้ได้ถูกข้าม ดู sections/flow.py)."""
+    """flow หลักห้าขั้น: preprocess → layout → images → ocr → extract (ขั้นที่ผลยังใช้ได้ถูกข้าม ดู sections/flow.py)."""
     from .sections.build import build_images, build_layouts
     from .sections.flow import STAGES, images_are_current, layout_is_current, orientation_flags, stems_needing
     from .sections.layout import MAX_PIECE_FRAC

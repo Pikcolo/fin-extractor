@@ -6,8 +6,8 @@
 คอลัมน์ "อ้างอิง" มาจาก data/etc/compare/<ไฟล์>/reference.json ถ้ามี (ไม่บังคับ) ไฟล์นั้นเป็นค่าที่คนอ่านจากภาพ ไม่ใช่เฉลยทางการ
 ช่องที่มีอ้างอิงจะมีเครื่องหมาย ✓ (ตรง) / ✗ (ไม่ตรง) เทียบแบบตัดช่องว่าง ตัวเลขเทียบเป็นค่า
 
-    .venv/Scripts/python scripts/eval/compare_file.py 001312
-    .venv/Scripts/python scripts/eval/compare_file.py 001312 --runs "Paddle=paddle/rules" "Typhoon LLM=typhoon/llm"   # ชื่อคอลัมน์=engine/extractor
+    .venv/Scripts/python scripts/eval/compare_file.py <รหัสไฟล์>
+    .venv/Scripts/python scripts/eval/compare_file.py <รหัสไฟล์> --runs "Paddle=paddle/rules" "Typhoon LLM=typhoon/llm"   # ชื่อคอลัมน์=engine/extractor
 """
 
 from __future__ import annotations

@@ -1,8 +1,8 @@
 """ให้คะแนนผลสกัดเทียบ ground truth ที่คนกรอก (scripts/eval/groundtruth_app.py) — วัดว่า "ถูก" ไม่ใช่แค่ "ครบ"
 
-    .venv/Scripts/python scripts/eval/score_groundtruth.py data/01_input/finance_doc_scan
-    .venv/Scripts/python scripts/eval/score_groundtruth.py data/01_input/finance_doc_scan --runs openthai/luma/rules openthai/regions-luma/rules
-    .venv/Scripts/python scripts/eval/score_groundtruth.py data/01_input/finance_doc_scan --by-field     # แยกตามช่อง (นับอย่างเดียว ไม่พิมพ์ค่า)
+    .venv/Scripts/python scripts/eval/score_groundtruth.py <โฟลเดอร์อินพุต>
+    .venv/Scripts/python scripts/eval/score_groundtruth.py <โฟลเดอร์อินพุต> --runs openthai/luma/rules openthai/regions-luma/rules
+    .venv/Scripts/python scripts/eval/score_groundtruth.py <โฟลเดอร์อินพุต> --by-field     # แยกตามช่อง (นับอย่างเดียว ไม่พิมพ์ค่า)
 
 ไม่ใส่ --runs = ทุกผลที่มีใต้ 05_extract/<dataset>/ นับเฉพาะไฟล์ที่สถานะ done (--include-drafts เพื่อรวมร่าง)
 พิมพ์แค่จำนวนนับ ไม่พิมพ์ค่าของเอกสาร ผลเขียนที่ data/etc/groundtruth/<dataset>/score.md ด้วย

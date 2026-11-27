@@ -152,6 +152,6 @@ def test_llm_party_value_equal_to_the_other_party_is_rejected():
     from fin_extractor.extraction.hybrid import _other_party_has
 
     rules = {"vendor.tax_id": "1909802996432"}
-    assert _other_party_has("buyer.tax_id", "1909802996432", rules, {})       # 1323: เลขผู้ขายถูกใส่ให้ผู้ซื้อ
+    assert _other_party_has("buyer.tax_id", "1909802996432", rules, {})       # เลขผู้ขายถูกใส่ให้ผู้ซื้อ
     assert not _other_party_has("buyer.tax_id", "0905564002794", rules, {})
     assert not _other_party_has("buyer.address", "49/12", {}, {})

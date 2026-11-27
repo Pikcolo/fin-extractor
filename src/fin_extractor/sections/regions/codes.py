@@ -1,6 +1,6 @@
 """หา QR/บาร์โค้ด ถอดรหัสเก็บใน manifest แล้วระบายขาวก่อนแบ่ง region
 
-คัดลอกจาก learning/preprocess_finance (src/finance_ocr/preprocess/mask.py) ตรงตัว ค่าคงที่วัดบนสแกนชุดเดียวกัน 18 ใบที่ 200 dpi — ใช้กับภาพที่ย่อเป็น 200 dpi เท่านั้น (ดู run.py)
+คัดลอกจาก learning/preprocess_finance (src/finance_ocr/preprocess/mask.py) ตรงตัว ค่าคงที่วัดบนสแกนชุดเดียวกัน (ชุดสแกนทดสอบ) ที่ 200 dpi — ใช้กับภาพที่ย่อเป็น 200 dpi เท่านั้น (ดู run.py)
 
 Find non-text graphics (QR codes, barcodes) and blank them out before OCR.
 

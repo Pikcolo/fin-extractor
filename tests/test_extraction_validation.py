@@ -1,4 +1,4 @@
-"""ทดสอบ rules + validation ด้วยข้อความที่ถอดจาก data/raw/BITKUB-001.jpg."""
+"""ทดสอบ rules + validation ด้วยข้อความตัวอย่างเลียนแบบรูปแบบที่ OCR ให้จริง."""
 
 from datetime import date
 from decimal import Decimal
@@ -74,7 +74,7 @@ def test_fill_missing_keeps_primary_values():
     assert merged.vendor.name == "A" and merged.vendor.tax_id == "0105559117128"
 
 
-# ใบแจ้งหนี้อังกฤษที่เรียง Subtotal → VAT → TOTAL (ข้อความจาก VATGB-001.pdf)
+# ใบแจ้งหนี้อังกฤษที่เรียง Subtotal → VAT → TOTAL 
 VATGB_LINES = """Severn Industrial Supply Ltd TAX INVOICE
 VAT Reg No: GB 933 6364 83
 Invoice Number: F-26-6724
@@ -99,7 +99,7 @@ def test_bare_total_after_vat_is_the_grand_total():
 
 
 def test_bare_total_before_vat_is_still_the_subtotal():
-    """"รวม / Total" ที่มาก่อนส่วนลดและ VAT ยังเป็นยอดย่อยเหมือนเดิม (ผังของ BITKUB)"""
+    """"รวม / Total" ที่มาก่อนส่วนลดและ VAT ยังเป็นยอดย่อยเหมือนเดิม (ผังแบบเดียวกับตัวอย่าง)"""
     d = extract_fields(BITKUB_LINES)
     assert d.subtotal == Decimal("47.98")
     assert d.total_amount == Decimal("47.56")
@@ -168,7 +168,7 @@ def test_address_is_left_empty_when_the_name_line_above_matches_no_party():
     from fin_extractor.extraction.rule_extractor import assign_addresses
     from fin_extractor.schema import InvoiceData
 
-    # 1310: บล็อกผู้ซื้อไม่มีป้าย "ลูกค้า" และ rules ไม่ได้ชื่อผู้ซื้อ → ไม่เดาฝ่าย
+    # บล็อกผู้ซื้อไม่มีป้าย "ลูกค้า" และ rules ไม่ได้ชื่อผู้ซื้อ → ไม่เดาฝ่าย
     lines = ["บริษัท ทีเอ็นแอส หาดใหญ่ จำกัด", "ชื่อ : บริษัท อิมพอร์ต สตาร์ จำกัด",
              "ที่อยู่ : 49/12 ซอย 6 ต.หาดใหญ่ จ.สงขลา 90110 Tel.0808317128 | รหัสพนักงานขาย : HY01"]
     d = InvoiceData(vendor={"name": "บริษัท ทีเอ็นแอส หาดใหญ่ จำกัด"})

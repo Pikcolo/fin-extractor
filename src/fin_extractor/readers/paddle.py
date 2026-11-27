@@ -39,7 +39,7 @@ def without_modelscope():
 
     paddlex import ``modelscope`` (ใช้แค่ดาวน์โหลดโมเดล ซึ่งเราเก็บไว้ในโปรเจกต์แล้ว) และ modelscope import torch ถ้าติดตั้งอยู่
     torch (cu128) มากับ cuDNN 9.19 ส่วน paddlepaddle-gpu ล็อก cuDNN 9.15 ชื่อ DLL เดียวกัน อยู่ใน process เดียวกันไม่ได้
-    (ตัวไหนโหลดก่อน อีกตัวล้มด้วย WinError 127 ตัวตรวจทิศเคยล้มทั้ง 18 ใบ) process ที่ใช้ Paddle จึงโหลด torch ไม่ได้อีก
+    (ตัวไหนโหลดก่อน อีกตัวล้มด้วย WinError 127 ตัวตรวจทิศเคยล้มทุกใบ) process ที่ใช้ Paddle จึงโหลด torch ไม่ได้อีก
     (คำสั่ง sections รัน preprocess แยก process และไม่ import torch เมื่ออ่านด้วย paddle/typhoon)
     """
     stub = None

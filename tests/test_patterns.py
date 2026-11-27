@@ -11,7 +11,7 @@ TODAY = date(2026, 1, 1)
 
 
 @pytest.mark.parametrize("tax_id,ok", [
-    ("0105559117128", True),   # Bitkub
+    ("0105559117128", True),
     ("0105559117123", False),  # หลักสุดท้ายผิด
     ("010555911712", False),   # 12 หลัก
 ])

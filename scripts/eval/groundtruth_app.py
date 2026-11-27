@@ -1,7 +1,7 @@
 """เครื่องมือกรอก ground truth ในเครื่อง: เปิดภาพเอกสารคู่กับฟอร์มฟิลด์ เติมค่าจากผลสกัดไว้ก่อน คนยืนยันหรือแก้ แล้วบันทึก
 
-    .venv/Scripts/python scripts/eval/groundtruth_app.py data/01_input/finance_doc_scan
-    .venv/Scripts/python scripts/eval/groundtruth_app.py data/01_input/finance_doc_scan --prefill typhoon/luma/rules --port 8765
+    .venv/Scripts/python scripts/eval/groundtruth_app.py <โฟลเดอร์อินพุต>
+    .venv/Scripts/python scripts/eval/groundtruth_app.py <โฟลเดอร์อินพุต> --prefill typhoon/luma/rules --port 8765
 
 เปิด http://127.0.0.1:8765 ในเบราว์เซอร์ (ผูกกับ 127.0.0.1 เท่านั้น เครื่องอื่นในเครือข่ายเข้าไม่ได้ ไม่มีอะไรส่งออกนอกเครื่อง)
 - ภาพ = ภาพ final ของขั้น 2 (``02_preprocess/<dataset>/<profile>/final/``) ฟอร์ม = ผลสกัดของ ``--prefill`` (ค่าตั้งต้น openthai/regions-luma/rules = flow หลัก)

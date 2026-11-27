@@ -95,7 +95,7 @@ def merge_llm(
         elif k.endswith("tax_id") and not is_valid_thai_tax_id(v):
             rejected.append((k, "เลขภาษีไม่ผ่าน checksum"))
         elif k.split(".")[-1] in ("name", "tax_id", "address") and k.startswith(("vendor.", "buyer.")) and _other_party_has(k, v, rules_flat, cand):
-            rejected.append((k, "ซ้ำกับค่าของอีกฝ่าย"))  # ชื่อ/เลขภาษี/ที่อยู่เดียวกันทั้งสองฝ่าย = ใส่ผิดฝ่าย (สาขาไม่นับ: ทั้งสองฝ่ายเป็นสำนักงานใหญ่ได้) (1323: LLM ใส่เลขภาษีผู้ขายให้ผู้ซื้อ)
+            rejected.append((k, "ซ้ำกับค่าของอีกฝ่าย"))  # ชื่อ/เลขภาษี/ที่อยู่เดียวกันทั้งสองฝ่าย = ใส่ผิดฝ่าย (สาขาไม่นับ: ทั้งสองฝ่ายเป็นสำนักงานใหญ่ได้) (เช่น LLM ใส่เลขภาษีผู้ขายให้ผู้ซื้อ)
         else:
             scalar[k] = v
 

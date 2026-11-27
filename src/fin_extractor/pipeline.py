@@ -270,7 +270,7 @@ class FinanceOCRPipeline:
         checks, _missing, status, evidence = self.assess(data, lines, sources, agree, extra)
         if status == "ready" and any(src not in ("rules", "llm", "human") and key in evidence and evidence[key].level != "verified"
                                              for key, src in sources.items()):
-            # ค่าจากตัวอ่านเสริมที่ไม่มี check ยืนยัน ต้องให้คนดู: ตัวอ่านเสริมอ่านวันที่/เลขที่เพี้ยนได้ (1318: 16/10 แทน 15/10, ST69100-0036)
+            # ค่าจากตัวอ่านเสริมที่ไม่มี check ยืนยัน ต้องให้คนดู: ตัวอ่านเสริมอ่านวันที่/เลขที่เพี้ยนได้ (เช่น 16/10 แทน 15/10, AB-0001)
             status = "check"
         review = review_from_evidence(evidence, checks, self.profile_for(data).primary_amount)
         return ExtractionResult(

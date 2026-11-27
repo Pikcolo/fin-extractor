@@ -224,7 +224,7 @@ def test_extract_traced_treats_remark_like_items():
 
 
 def test_vat_inclusive_items_match_the_total_and_subtotal_stands_in_for_before_vat():
-    """1308: รายการพิมพ์ราคารวม VAT (ผลรวม = ยอดรวม ไม่ใช่ subtotal) และไม่มียอดก่อน VAT แยก: subtotal + VAT = ยอดรวม."""
+    """รายการพิมพ์ราคารวม VAT (ผลรวม = ยอดรวม ไม่ใช่ subtotal) และไม่มียอดก่อน VAT แยก: subtotal + VAT = ยอดรวม."""
     d = InvoiceData(items=[LineItem(description="a", amount=Decimal("24760.00"))], subtotal=Decimal("23140.19"),
                     vat_amount=Decimal("1619.81"), total_amount=Decimal("24760.00"))
     by = {c.name: c for c in run_checks(d)}
@@ -247,7 +247,7 @@ def test_items_matching_no_total_fail_and_name_every_total():
 
 
 def test_failed_items_sum_blames_only_the_items_when_other_checks_confirm_the_totals():
-    """1309: รวมเงิน + VAT = ยอดรวม (ยืนยันกันเอง) แต่รายการรวมไม่ตรง → รายการผิด ยอดยัง verified."""
+    """รวมเงิน + VAT = ยอดรวม (ยืนยันกันเอง) แต่รายการรวมไม่ตรง → รายการผิด ยอดยัง verified."""
     d = InvoiceData(items=[LineItem(description="a", amount=Decimal("3860.00"))], subtotal=Decimal("3714.95"),
                     vat_amount=Decimal("260.05"), total_amount=Decimal("3975.00"))
     check = next(c for c in run_checks(d) if c.name == "items_sum")
@@ -258,7 +258,7 @@ def test_failed_items_sum_blames_only_the_items_when_other_checks_confirm_the_to
 
 
 def test_items_match_the_total_less_vat_when_no_amount_before_vat_was_read():
-    """1318: ไม่ได้ยอดก่อน VAT แต่ยอดรวม − VAT = ผลรวมรายการ."""
+    """ไม่ได้ยอดก่อน VAT แต่ยอดรวม − VAT = ผลรวมรายการ."""
     d = InvoiceData(items=[LineItem(description="a", amount=Decimal("7500.00"))], vat_amount=Decimal("525.00"),
                     total_amount=Decimal("8025.00"))
     check = next(c for c in run_checks(d) if c.name == "items_sum")

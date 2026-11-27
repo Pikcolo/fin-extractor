@@ -165,7 +165,7 @@ def run_page(full: np.ndarray, stem: str, src_dpi: float, rc: RegionConfig, page
 
     max_h = ex.get("max_piece_frac") or 0
     # หมึกที่ใช้หาบรรทัดตอนหด/ตัดท่อน: Otsu ∪ ระยะสีจากพื้น (sections.images.binarize_inverted) ลบเส้นตารางแล้ว
-    # Otsu อย่างเดียวมองไม่เห็นตัวพิมพ์สีอ่อน (1317–1319: รายการสินค้าทั้งแถวถูกหดทิ้ง) หดขอบด้วยหมึกที่มองไม่เห็นข้อความ = ข้อมูลหาย
+    # Otsu อย่างเดียวมองไม่เห็นตัวพิมพ์สีอ่อน (เช่น รายการสินค้าทั้งแถวถูกหดทิ้ง) หดขอบด้วยหมึกที่มองไม่เห็นข้อความ = ข้อมูลหาย
     colour = I.binarize_inverted(img)
     cut_ink = cv2.bitwise_or(text, cv2.subtract(colour, cv2.bitwise_or(*line_masks(colour, min_frac=0.1))))
     ocr_regs = regs
@@ -186,7 +186,7 @@ def run_page(full: np.ndarray, stem: str, src_dpi: float, rc: RegionConfig, page
         def has_text(a: int, b: int) -> bool:
             """นับชิ้นข้อความบนภาพท่อนความละเอียดเต็ม (ภาพเดียวกับที่ส่ง OCR) เส้นตารางหาเทียบกับท่อนเอง: เส้นขอบช่องสั้น ๆ จึงถูกลบด้วย
             (บนหน้ากากระดับหน้า เส้นขอบช่องยาวไม่ถึงเกณฑ์เส้นของหน้า จะถูกนับเป็นข้อความ) ชิ้นข้อความ = พื้นที่ ≥ 8 px และหนากว่า 2 px
-            (เศษเส้นที่ลบไม่หมดหนา 1 px ยาว 9–14 px บน 1313/1314) เกณฑ์เดียวกับที่วัดใน configs/regions/pipeline.yaml ``min_text_components``."""
+            (เศษเส้นที่ลบไม่หมดหนา 1 px ยาว 9–14 px) เกณฑ์เดียวกับที่วัดใน configs/regions/pipeline.yaml ``min_text_components``."""
             pb = to_page((x0, a, x1, b))
             sub = page[pb[1]:pb[3], pb[0]:pb[2]]
             if sub.size == 0:

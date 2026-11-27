@@ -55,7 +55,7 @@ def test_drop_frames_removes_form_frame_but_keeps_plain_tables():
     assert layout.drop_frames([a, b]) == [a, b]  # ตารางที่ไม่มีอะไรข้างใน
     twin = (12, 12, 496, 696)
     assert layout.drop_frames([frame, twin]) == [twin]
-    assert layout.drop_frames([frame, a]) == [a]  # ตารางที่มีตารางอื่นข้างในคือกรอบ (ข้อมูล 18 ใบ: ซ้อนกันทุกคู่เป็นกรอบฟอร์ม)
+    assert layout.drop_frames([frame, a]) == [a]  # ตารางที่มีตารางอื่นข้างในคือกรอบ (ซ้อนกันทุกคู่เป็นกรอบฟอร์ม)
     assert layout.drop_frames([a, (30, 400, 400, 100)]) == [a, (30, 400, 400, 100)]  # ตารางแยกกันไม่ถูกแตะ
 
 
@@ -75,7 +75,7 @@ def test_form_frame_around_two_tables_does_not_swallow_the_page():
 
 
 def test_text_beside_a_table_is_its_own_section_not_lost():
-    """ป้ายยอดรวมอยู่ซ้ายของกล่องตัวเลข (เจอจริงกับ 1306): ต้องมี section ข้อความของมัน ไม่ใช่ตกหล่น."""
+    """ป้ายยอดรวมอยู่ซ้ายของกล่องตัวเลข (เจอจริงในสแกน): ต้องมี section ข้อความของมัน ไม่ใช่ตกหล่น."""
     img = np.full((800, 700), 255, np.uint8)
     x0, y0, w, h = 400, 100, 250, 150  # ตารางชิดขวา
     cv2.rectangle(img, (x0, y0), (x0 + w, y0 + h), 0, 2)
@@ -165,7 +165,7 @@ def test_default_splits_a_table_taller_than_the_default_fraction():
 
 
 def _totals_box_page() -> np.ndarray:
-    """หน้าแบบ 1306: ป้ายยอดรวมอยู่ซ้าย ตัวเลขอยู่ในตารางชิดขวา แถวละ 3 บรรทัด (ป้ายกับเส้นแนวนอนของตารางอยู่แถวเดียวกัน)."""
+    """หน้าแบบหนึ่ง: ป้ายยอดรวมอยู่ซ้าย ตัวเลขอยู่ในตารางชิดขวา แถวละ 3 บรรทัด (ป้ายกับเส้นแนวนอนของตารางอยู่แถวเดียวกัน)."""
     img = np.full((600, 700), 255, np.uint8)
     cv2.putText(img, "HEADER", (40, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.0, 0, 2)
     x0, y0, w, h = 450, 150, 220, 240

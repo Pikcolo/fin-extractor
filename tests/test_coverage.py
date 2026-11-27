@@ -24,7 +24,7 @@ def test_dates_and_amounts_only_the_supplement_reader_saw_flag_the_section():
 
 
 def test_long_codes_compare_lookalike_letters_and_skip_plain_words():
-    """1308 s01: เลขที่ใบกำกับที่ตัวอ่านหลักทำหาย · รหัสเดียวกันที่อ่าน O/0 ต่างกันไม่นับ · คำยาวที่ไม่มีตัวเลข (COLLECTOR) ไม่ใช่รหัส."""
+    """เลขที่ใบกำกับที่ตัวอ่านหลักทำหาย · รหัสเดียวกันที่อ่าน O/0 ต่างกันไม่นับ · คำยาวที่ไม่มีตัวเลข (COLLECTOR) ไม่ใช่รหัส."""
     m = missing_values("Order No. SO26040857", "Invoice No. BAUNS00054022610000155 Order No. S026040857 COLLECTOR")
     assert m["codes"] == ["BAUNS00054022610000155"]
 

@@ -13,10 +13,10 @@ PROFILES = {p.name: p for p in load_profiles(CFG["document_types"])}
 WH = PROFILES["withholding_certificate"]
 BLOCKS = WH.party_blocks
 
-TAX_PAYER = "0 9 0 5 5 6 4 0 0 2 7 9 4"  # 0905564002794 ผ่าน checksum
-TAX_12 = "3 9 0 0 3 0 2 4 7 0 9 1"        # OCR ทำเลขหลุดเป็น 12 หลัก (001307)
+TAX_PAYER = "0 9 0 5 5 6 4 0 0 2 7 9 4"  # ผ่าน checksum
+TAX_12 = "3 9 0 0 3 0 2 4 7 0 9 1"        # OCR ทำเลขหลุดเป็น 12 หลัก
 
-# รูปแบบเดียวกับ 001307: ป้ายบล็อกพร้อมเลขภาษี แล้วบรรทัดชื่อติดป้าย "ชื่อ" ตามด้วยจุดไข่ปลาและป้ายถัดไป
+# รูปแบบที่ OCR ให้จริง: ป้ายบล็อกพร้อมเลขภาษี แล้วบรรทัดชื่อติดป้าย "ชื่อ" ตามด้วยจุดไข่ปลาและป้ายถัดไป
 SAMPLE = [
     "ฉบับที่ 1 (สำหรับผู้ถูกหักภาษี ณ ที่จ่าย ใช้แนบพร้อมกับแบบแสดงรายการภาษี)",
     "หนังสือรับรองการหักภาษี ณ ที่จ่าย",
@@ -56,7 +56,7 @@ def test_name_on_the_label_line_and_on_the_line_below_the_label():
     d = filled(same)
     assert (d.vendor.name, d.vendor.branch) == ("บริษัท ตัวอย่าง จำกัด", "สำนักงานใหญ่")
     below = ["ผู้มีหน้าที่หักภาษี ณ ที่จ่าย :-", "ชื่อ", "บริษัท โกลเรียซ ทดสอบ จำกัด", "เลขประจำตัวผู้เสียภาษีอากร", "0-90-5-560-00217-0",
-             "(ให้ระบุว่าเป็น บุคคล นิติบุคคล บริษัท)", "ประเภทเงินได้พึงประเมินที่จ่าย"]  # 001311: ป้ายอยู่ลำพัง ค่าอยู่บรรทัดถัดไป
+             "(ให้ระบุว่าเป็น บุคคล นิติบุคคล บริษัท)", "ประเภทเงินได้พึงประเมินที่จ่าย"]  # ป้ายอยู่ลำพัง ค่าอยู่บรรทัดถัดไป
     d = filled(below)
     assert (d.buyer.name, d.buyer.tax_id) == ("บริษัท โกลเรียซ ทดสอบ จำกัด", "0905560002170")
 
@@ -73,7 +73,7 @@ def test_copy_notice_lines_do_not_start_a_block():
 
 
 def test_values_the_positional_rules_put_on_the_wrong_side_are_reset_not_kept():
-    # 001323: เลขภาษีของผู้ถูกหักไปอยู่ในช่องผู้หักเพราะ rules ตามตำแหน่ง ต้องถูกล้างแล้วอ่านใหม่จากบล็อก
+    # เลขภาษีของผู้ถูกหักไปอยู่ในช่องผู้หักเพราะ rules ตามตำแหน่ง ต้องถูกล้างแล้วอ่านใหม่จากบล็อก
     d = filled(SAMPLE, vendor={"name": "ชื่อผิดฝั่ง", "tax_id": "0105559117128", "address": "ที่อยู่ผิดฝั่ง"},
                buyer={"name": "ชื่อผิดฝั่ง 2"})
     assert d.vendor.tax_id is None and d.vendor.address is None and d.buyer.name == "บริษัท ตัวอย่าง จำกัด"
@@ -103,3 +103,4 @@ def test_required_party_is_the_withholder_as_before_the_swap():
 def test_blocks_reject_unknown_party_or_empty_aliases(bad):
     with pytest.raises(ValueError):
         PartyBlocks(parties=bad)
+
