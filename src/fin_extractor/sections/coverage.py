@@ -21,6 +21,7 @@ import gc
 import json
 import re
 import time
+from decimal import Decimal
 from pathlib import Path
 
 import numpy as np
@@ -48,6 +49,7 @@ _CODE_RE = re.compile(r"(?<![A-Za-z0-9])[A-Za-z0-9][A-Za-z0-9\-/]*[A-Za-z0-9]")
 # รหัสยาวอย่างน้อยเท่าเลขที่เอกสารที่สั้นที่สุดในชุดสแกนทดสอบ (10 ตัวเมื่อตัดขีด) ต้องมีตัวเลขในรูปเดิม (ไม่ใช่คำอย่าง COLLECTOR)
 MIN_CODE_LEN = 10
 _LOOKALIKE = str.maketrans("OIL", "011")  # ตัวที่ OCR สับสนกับตัวเลข เทียบรหัสสองตัวอ่านในรูปเดียวกัน
+_CENT = Decimal("0.01")
 
 
 def normalize_digits(text: str) -> str:
@@ -66,7 +68,8 @@ def _codes(text: str) -> set[str]:
 def missing_values(primary: str, check: str) -> dict[str, list[str]]:
     """ยอดเงิน/วันที่/รหัสยาวที่อยู่ใน ``check`` (ตัวอ่านเสริม) แต่ไม่อยู่ใน ``primary`` (ตัวอ่านหลัก)."""
     a, b = normalize_digits(check), normalize_digits(primary)
-    money = sorted({str(x) for x in find_amounts(a)} - {str(x) for x in find_amounts(b)})
+    # เทียบเป็นตัวเลข ไม่ใช่สตริง: "106,250" กับ "106,250.00" คือค่าเดียวกัน (ตัวอ่านเสริมตัดทศนิยมได้) ไม่ใช่ค่าที่ตัวอ่านหลักขาด
+    money = sorted(str(x) for x in {m.quantize(_CENT) for m in find_amounts(a)} - {m.quantize(_CENT) for m in find_amounts(b)})
     dates = sorted({d.isoformat() for d in find_dates(a)} - {d.isoformat() for d in find_dates(b)})
     return {"money": money, "dates": dates, "codes": sorted(_codes(check) - _codes(primary))}
 
@@ -136,10 +139,13 @@ def _blank_runs(ink: np.ndarray) -> list[tuple[int, int]]:
     return runs
 
 
-def _load(path: Path, layout: list[dict], redo: bool) -> dict | None:
+def _load(path: Path, layout: list[dict], redo: bool, reader: str | None = None) -> dict | None:
+    """ผลเดิมที่ใช้ซ้ำได้: ผังเดิม และ (ถ้าระบุ) ค่าตั้งของตัวอ่านเสริมเดิม เปลี่ยนค่าตั้งของตัวอ่านแล้วต้องอ่านใหม่."""
     if redo or not path.exists():
         return None
     prev = json.loads(path.read_text(encoding="utf-8"))
+    if reader is not None and prev.get("reader") != reader:
+        return None
     return prev if prev.get("layout") == fingerprint(layout) else None
 
 
@@ -150,6 +156,7 @@ def check_dataset(paths: DataPaths, cfg: dict, dataset: str, stems: list[str], e
     ข้ามเมื่อ ``engine`` คือตัวอ่านเสริมเอง หรือภาพย่อยเป็น variant=color (ไม่มีไฟล์ภาพ)."""
     cc = cfg.get("coverage_check") or {}
     check_engine = cc.get("engine", "openthai-text")
+    reader_sig = json.dumps(cfg.get(check_engine) or {}, sort_keys=True, ensure_ascii=False)  # ค่าตั้งของตัวอ่านเสริม: เปลี่ยนแล้วผลเดิมใช้ไม่ได้
     if not cc.get("enabled", True) or engine == check_engine or variant == "color":
         return []
     from .regions.run import RegionConfig
@@ -169,7 +176,7 @@ def check_dataset(paths: DataPaths, cfg: dict, dataset: str, stems: list[str], e
             entries = clean_index(clean_dir, layout, stem)
             image = lambda sid: read_image(clean_dir / entries[sid]["file"])  # noqa: E731
 
-            prev = _load(coverage_file(src), layout, redo)
+            prev = _load(coverage_file(src), layout, redo, reader_sig)
             if prev:
                 texts = {s["id"]: s["text"] for s in prev["sections"]}
             else:
@@ -220,7 +227,7 @@ def check_dataset(paths: DataPaths, cfg: dict, dataset: str, stems: list[str], e
             rows = [{"id": sid, "text": t, **missing_values(effective[sid], t)} for sid, t in texts.items()]
             flagged = [r["id"] for r in rows if r["money"] or r["dates"]]
             coverage_file(src).write_text(json.dumps({"source": stem, "engine": check_engine, "against": engine,
-                                                      "layout": fingerprint(layout), "flagged": flagged,
+                                                      "layout": fingerprint(layout), "reader": reader_sig, "flagged": flagged,
                                                       "split": [sid for sid, r in splits.items() if r.get("accepted")], "sections": rows},
                                                      ensure_ascii=False, indent=1), encoding="utf-8")
             write_markdown(src, image_locator(paths, dataset, stem, variant), layout)

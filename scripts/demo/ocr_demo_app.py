@@ -288,7 +288,7 @@ def check_coverage(job: dict, d: Path, cfg: dict, doc: dict) -> dict:
         if not s.get("text") or s["id"] not in files:
             continue
         images[s["id"]] = cv2.imdecode(np.fromfile(str(d / "sections" / files[s["id"]]), np.uint8), cv2.IMREAD_COLOR)
-        r = _check_reader._load().read(images[s["id"]])  # ผลเต็มของ LineOCR: ข้อความ + กรอบรายบรรทัด/รายคำ (ไว้วาดว่าตัวอ่านหลักอ่านส่วนไหน)
+        r = _check_reader.read(images[s["id"]])  # ผลเต็มของ LineOCR: ข้อความ + กรอบรายบรรทัด/รายคำ (ไว้วาดว่าตัวอ่านหลักอ่านส่วนไหน)
         checks[s["id"]], lines[s["id"]] = r.get("text", ""), r.get("lines", [])
     seconds = round(time.perf_counter() - t0, 1)
     first = {sid: by_id[sid]["text"] for sid in checks}

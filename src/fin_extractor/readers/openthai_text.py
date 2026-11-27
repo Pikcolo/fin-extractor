@@ -39,8 +39,23 @@ class OpenThaiTextOCR:
         self._ocr = LineOCR(str(self.model_dir), threads=int(self.cfg.get("threads", 1)))
         return self._ocr
 
+    def read(self, img: np.ndarray) -> dict:
+        """ผลเต็มของ ``LineOCR.read`` (ข้อความ + กรอบ/ความมั่นใจรายบรรทัด) ตัวตรวจจับไม่เจอบรรทัดเลย = อ่านซ้ำที่ขนาดการตรวจจับใหญ่ขึ้นหนึ่งครั้ง
+        (``retry_empty_det_limit``) ภาพที่มีข้อความแต่ตัวตรวจจับคืนศูนย์บรรทัดที่ขนาดปกติ ตรวจเจอเมื่อขยายตัวตรวจจับ."""
+        ocr = self._load()
+        r = ocr.read(img)
+        limit = self.cfg.get("retry_empty_det_limit")
+        if limit and not r.get("lines"):
+            old = ocr.cfg["det"]["limit"]
+            ocr.cfg["det"]["limit"] = limit
+            try:
+                r = ocr.read(img)
+            finally:
+                ocr.cfg["det"]["limit"] = old
+        return r
+
     def recognize(self, img: np.ndarray) -> ReadResult:
         """ภาพ BGR → บรรทัดข้อความ (คั่นด้วยขึ้นบรรทัดใหม่) + ค่าเฉลี่ยความมั่นใจของบรรทัด (None ถ้าไม่เจอบรรทัด)."""
-        r = self._load().read(img)
+        r = self.read(img)
         confs = [float(ln["confidence"]) for ln in r.get("lines", []) if ln.get("confidence") is not None]
         return ReadResult(self.name, r.get("text", ""), None, sum(confs) / len(confs) if confs else None)
