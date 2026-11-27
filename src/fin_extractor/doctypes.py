@@ -60,6 +60,20 @@ class FieldSpec:
 
 
 @dataclass(frozen=True)
+class PartyBlocks:
+    """แบบฟอร์มที่แต่ละฝ่ายมีบล็อกป้ายของตัวเอง (50 ทวิ): ``parties`` = {vendor|buyer: ป้ายต้นบล็อก}, ``end`` = คำที่บอกว่าบล็อกสุดท้ายจบแล้ว
+    ``roles`` = ความหมายของแต่ละฝ่ายในชนิดนี้ (ส่งให้ LLM ใน schema แทนความหมายทั่วไป "ผู้ขาย/ผู้ซื้อ")."""
+    parties: dict[str, tuple[str, ...]]
+    end: tuple[str, ...] = ()
+    roles: dict[str, str] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        for p, aliases in self.parties.items():
+            if p not in ("vendor", "buyer") or not aliases:
+                raise ValueError(f"party_blocks: '{p}' ต้องเป็น vendor/buyer และมี aliases อย่างน้อยหนึ่งคำ")
+
+
+@dataclass(frozen=True)
 class Profile:
     name: str
     title: str = ""
@@ -70,6 +84,7 @@ class Profile:
     fields: tuple[FieldSpec, ...] = ()
     checks: tuple[str, ...] | None = None  # check ที่ใช้กับชนิดนี้ (None = ทุกข้อ) ข้อที่ไม่ได้ระบุรายงานเป็น passed=null "ไม่ใช้กับเอกสารชนิดนี้"
     core_labels: tuple[FieldSpec, ...] = ()  # ป้ายของฟิลด์แกนกลางที่ชนิดนี้ใช้แทนค่าตั้งต้น (key เดียวกัน = ทับ)
+    party_blocks: PartyBlocks | None = None  # ฟอร์มที่บอกฝ่ายด้วยป้ายบล็อก ไม่ใช่ตำแหน่ง (None = ใช้กฎตามตำแหน่งของ rules)
     _squashed: tuple[str, ...] = field(default=(), repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -129,6 +144,14 @@ def core_labels_for(profile: Profile, defaults: tuple[FieldSpec, ...]) -> tuple[
     return (*profile.core_labels, *(f for f in defaults if f.key not in own))
 
 
+def _party_blocks(spec: dict[str, Any] | None) -> PartyBlocks | None:
+    if not spec:
+        return None
+    parties = {p: tuple(spec[p]["aliases"]) for p in ("vendor", "buyer") if p in spec}
+    return PartyBlocks(parties=parties, end=tuple(spec.get("end", ())),
+                       roles={p: spec[p]["role"] for p in parties if spec[p].get("role")})
+
+
 def _profile(name: str, spec: dict[str, Any] | None) -> Profile:
     spec = spec or {}
     fields = _specs(spec.get("fields"))
@@ -142,6 +165,7 @@ def _profile(name: str, spec: dict[str, Any] | None) -> Profile:
         fields=fields,
         checks=tuple(spec["checks"]) if "checks" in spec else None,
         core_labels=_specs(spec.get("core_labels"), core=True),
+        party_blocks=_party_blocks(spec.get("party_blocks")),
     )
 
 

@@ -149,15 +149,20 @@ document_types:
   withholding_certificate:
     title: หนังสือรับรองการหักภาษี ณ ที่จ่าย (50 ทวิ)
     aliases: ["หนังสือรับรองการหักภาษี", "50 ทวิ"]
-    # ผู้ถูกหักภาษี = ผู้ที่ถูกหักเงิน (ใช้เป็น buyer) ส่วนผู้หักภาษีเป็น vendor — ร่าง รอฝ่ายบัญชียืนยัน ชื่ออยู่บรรทัดใต้ป้ายได้ (next_line)
-    core_labels:
-      - {key: buyer.name, aliases: ["ผู้ถูกหักภาษี ณ ที่จ่าย :"], next_line: true, source: "001307, 001311, 001321, 001323"}
+    # ผู้มีหน้าที่หักภาษี = ผู้จ่ายเงิน = buyer · ผู้ถูกหักภาษี = ผู้รับเงิน = vendor (ผู้ขาย) ตามที่ฝ่ายบัญชียืนยัน 2026-11-27 ใช้เฉพาะชนิดนี้
+    # ฟอร์มบอกฝ่ายด้วยป้ายของบล็อก (ไม่ใช่ตำแหน่ง: 001311 บริษัทเดียวกันเป็นผู้ถูกหัก ส่วน 001307/001321/001323 เป็นผู้หัก) จึงอ่านเลขภาษี/ชื่อจากในบล็อก
+    # ป้ายต้องอยู่ต้นบรรทัด (บรรทัดสำเนา "ฉบับที่ 1 (สำหรับผู้ถูกหักภาษี ...)" ไม่นับ) end = หัวตารางเงินได้ที่ปิดบล็อกสุดท้าย (OCR ทำ "ลำดับที่" เหลือ "ลำดับที" ได้ 001311)
+    party_blocks:
+      end: ["ลำดับที", "ประเภทเงินได้"]
+      vendor: {aliases: ["ผู้ถูกหักภาษี ณ ที่จ่าย"], role: "ผู้ถูกหักภาษี ณ ที่จ่าย (ผู้รับเงิน = ผู้ขาย)"}
+      buyer: {aliases: ["ผู้มีหน้าที่หักภาษี ณ ที่จ่าย"], role: "ผู้มีหน้าที่หักภาษี ณ ที่จ่าย (ผู้จ่ายเงิน = ผู้ซื้อ)"}
     # check ที่ใช้ได้: เลขภาษี + ช่วงวันที่ (ไม่มีผลรวมรายการ/VAT/ส่วนลดแบบใบกำกับ) ข้อที่ไม่ระบุรายงานเป็น passed=null (ร่าง รอฝ่ายบัญชียืนยัน)
     checks: [vendor_tax_id_checksum, buyer_tax_id_checksum, date_range, amount_in_words, income_rows_sum]
     # ช่องแกนกลางที่ชนิดนี้ไม่มี (ตัดออกจาก schema ที่ส่งให้ LLM กันยัดยอดจ่าย+ภาษีลง total_amount: 001323)
     not_applicable: [invoice_no, items, subtotal, discount, amount_before_vat, vat_rate, vat_amount, total_amount]
     primary_amount: document_fields.total_paid
-    required: [vendor.name, vendor.tax_id, document_fields.total_paid, document_fields.total_tax_withheld]
+    # ผู้หักภาษี (ตอนนี้คือ buyer) ต้องระบุตัวตนได้ เหมือนก่อนสลับฝั่ง (เดิมคือ vendor.*) ผู้ถูกหักไม่บังคับ: ฝ่ายบัญชียังไม่ได้ระบุว่าต้องการด้วยไหม
+    required: [buyer.name, buyer.tax_id, document_fields.total_paid, document_fields.total_tax_withheld]
     fields:
       - {key: certificate_no, label: เลขที่หนังสือรับรอง, type: code, aliases: ["เลขที่"], source: "001321 (เลขที่ WT...), 001311 (เลขที่ 005)"}
       # เอกสารพิมพ์ยอดจ่ายและยอดภาษีที่หักไว้บรรทัดเดียวกัน (ซ้าย=ยอดจ่าย ขวา=ภาษี) ป้ายใช้แค่ส่วนต้น เพราะ OCR สะกดส่วนท้ายเพี้ยนบ่อย (หักน้ำส่ง/หักน่ำส่ง)

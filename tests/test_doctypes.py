@@ -162,7 +162,7 @@ def _status(profile: Profile, data: InvoiceData):
 
 def test_withholding_without_total_amount_is_not_failed_when_its_own_total_exists():
     prof = BY_NAME["withholding_certificate"]
-    d = InvoiceData(vendor={"name": "บริษัท ก จำกัด", "tax_id": "0105559117128"}, document_profile=prof.name,
+    d = InvoiceData(buyer={"name": "บริษัท ก จำกัด", "tax_id": "0105559117128"}, document_profile=prof.name,  # ผู้หัก = buyer
                     document_fields={"total_paid": "2000.00"})
     missing, status = _status(prof, d)
     assert missing == ["document_fields.total_tax_withheld"] and status == "check"

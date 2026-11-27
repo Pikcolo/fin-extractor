@@ -45,6 +45,9 @@ def profile_schema(profile: Profile, only: Collection[str] | None = None) -> dic
     props.pop("document_profile", None)
     for name in profile.not_applicable:  # ช่องที่ชนิดนี้ไม่มี (เช่น 50 ทวิไม่มีรายการสินค้า/ยอดรวมแบบใบกำกับ) ไม่ให้ LLM เห็น
         props.pop(name, None)
+    if profile.party_blocks:  # ชนิดที่ vendor/buyer ไม่ใช่ผู้ขาย/ผู้ซื้อตามปกติ (50 ทวิ: ผู้ถูกหัก = ผู้ขาย) บอกความหมายใน schema ของช่องนั้น
+        for party, role in profile.party_blocks.roles.items():
+            props[party] = {**props[party], "description": role}
     if profile.fields:
         props["document_fields"] = {
             "type": "object",

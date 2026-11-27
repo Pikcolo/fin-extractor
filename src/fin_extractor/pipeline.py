@@ -22,6 +22,7 @@ from .doctypes import (
 from .extraction import extract_fields, lines_with_chunks, markdown_to_lines
 from .extraction.rule_extractor import SUPPLEMENT, chunk_lines
 from .extraction.core_labels import extract_party_name
+from .extraction.party_blocks import fill_party_blocks
 from .extraction.rule_extractor import assign_addresses
 from .extraction.hybrid import known_context, merge_llm, top_level, unresolved_keys
 from .extraction.llm_extractor import profile_schema
@@ -165,6 +166,8 @@ class FinanceOCRPipeline:
         profile = classify(self.profiles, "\n".join(lines), rules.document_type)
         rules.document_profile = profile.name
         rules.document_fields = extract_document_fields(lines, profile)
+        if profile.party_blocks:  # ฟอร์มที่บอกฝ่ายด้วยป้ายบล็อก: ตั้งผู้ขาย/ผู้ซื้อใหม่ก่อนเติมชื่อ/ที่อยู่/หมายเหตุ (ที่ต้องเทียบกับค่าที่ตั้งแล้ว)
+            fill_party_blocks(lines, rules, profile.party_blocks)
         labels = core_labels_for(profile, self.core_labels)
         for party, key in ((rules.buyer, "buyer.name"), (rules.vendor, "vendor.name")):
             name, branch = extract_party_name(lines, labels, key)

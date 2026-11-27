@@ -77,23 +77,6 @@ def test_trailing_period_of_an_abbreviation_is_kept():
 
 # ---------- ต่อชนิดเอกสาร ----------
 
-def test_withholding_payee_is_buyer_on_the_same_line_or_the_next():
-    wh = PROFILES["withholding_certificate"]
-    same = ["ผู้ถูกหักภาษี ณ ที่จ่าย :-ชือซี บริษัท ตัวอย่าง จำกัด (สำนักงานใหญ่)(ให้ระบุว่าเป็น บุคคล นิติบุคคล บริษัท)"]  # 001311
-    assert buyer(same, wh) == ("บริษัท ตัวอย่าง จำกัด", "สำนักงานใหญ่")
-    nxt = ["ผู้ถูกหักภาษี ณ ที่จ่าย : - เลขประจำตัวผู้เสียภาษีอากร (13หลัก)* 1 2 3",
-           "ซื่อ.เพอร์เฟคทดสอบ (สมหญิง ทดลอง)(ให้ระบุว่าเป็น บุคคล นิติบุคคล บริษัท สมาคม)"]  # 001307: ชื่ออยู่บรรทัดถัดไป
-    assert buyer(nxt, wh) == ("เพอร์เฟคทดสอบ (สมหญิง ทดลอง)", None)
-    stop = ["ผู้ถูกหักภาษี ณ ที่จ่าย : - เลขประจำตัวผู้เสียภาษีอากร (13หลัก)*", "ซื่อ.สมศักดิ์ ทดสอบ เลขประจำตัวผู้เสียภาษีอากร T="]  # 001323
-    assert buyer(stop, wh)[0] == "สมศักดิ์ ทดสอบ"
-
-
-def test_withholding_ignores_the_copy_notice_lines_without_a_colon():
-    wh = PROFILES["withholding_certificate"]
-    notice = ["ฉบับที่ 1 (สำหรับผู้ถูกหักภาษี ณ ที่จ่าย ใช้แนบพร้อมกับแบบแสดงรายการภาษี)", "ซื่อ.ไม่ใช่ชื่อ"]
-    assert buyer(notice, wh) == (None, None)
-
-
 def test_next_line_is_not_used_unless_the_label_asks_for_it():
     assert buyer(["ชื่อลูกค้า", "บริษัท ตัวอย่าง จำกัด"]) == (None, None)
 
