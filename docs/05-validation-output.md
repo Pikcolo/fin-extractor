@@ -170,7 +170,7 @@ ExtractionResult                     ผลของ 1 หน้า
 | `document_fields{}` | object | ฟิลด์เฉพาะชนิดเอกสารตามโปรไฟล์ เช่น 50 ทวิ: `total_paid`, `total_tax_withheld` ค่าเป็นสตริง money=ทศนิยม, date=ISO ค.ศ. คีย์ที่หาไม่เจอไม่มีในผล |
 | `vendor`, `buyer` | object | `name`, `tax_id` (13 หลัก), `branch`, `address` |
 | `remark[]` | array | `label`, `value`, `kind` (`pair` หรือ `unmapped`), `source_chunk` หมายเหตุ: ข้อมูลที่เอกสารพิมพ์ไว้แต่ไม่มีช่องข้างบนหรือใน `document_fields` ดู [05-extraction](05-extraction.md) หัวข้อ remark ชื่อเดิม `extra_fields` ของ schema 2.x |
-| `book_no` | string | เล่มที่ (ยังไม่มี regex ใน rules มาจาก LLM เท่านั้น) |
+| `book_no` | string | เล่มที่ (rules จับจากป้าย `เล่มที่` / `Book No.` ได้แล้ว) |
 | `invoice_no` | string | |
 | `date` | date | ISO-8601 ปี ค.ศ. |
 | `currency` | string | ค่าตั้งต้น `THB` |

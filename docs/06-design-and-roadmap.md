@@ -92,7 +92,7 @@ schemas/invoice.schema.json  (JSON Schema)
 | ช่องว่าง | ผลกระทบ | ข้อเสนอ |
 |---|---|---|
 | ยอดเงินเป็น `float` | ปัดเศษเพี้ยน ไม่ตรงทุกสตางค์ | **ทำแล้ว** `Decimal` (JSON เป็นสตริง) ยอดเงิน 5 ช่องและ `items[].amount` ปัดเป็น 2 ตำแหน่ง (สตางค์ของบาท) ส่วน `vat_rate`, `quantity`, `unit_price` เป็น Decimal ที่ไม่ปัด |
-| ไม่มี "เล่มที่" | บิลเล่มที่กรอกมือมีทั้งเล่มที่และเลขที่ ใช้กันเอกสารซ้ำ | **ทำแล้วเฉพาะ schema** เพิ่ม `book_no` แล้ว แต่ rules ยังไม่มี regex จับค่านี้ (ค่าจะมาจาก LLM เท่านั้น) |
+| ไม่มี "เล่มที่" | บิลเล่มที่กรอกมือมีทั้งเล่มที่และเลขที่ ใช้กันเอกสารซ้ำ | **ทำแล้ว** เพิ่ม `book_no` ใน schema และ rules จับจากป้าย `เล่มที่` / `Book No.` (`_find_book_no`) ยังไม่ได้วัดกับสแกนจริง |
 | ไม่มีหลักฐานรายฟิลด์ | UI ไฮไลต์รายช่องไม่ได้ | **ทำแล้ว** `review` (หัวข้อ 4.3) |
 | ไม่มีเวอร์ชันของ schema | ระบบปลายทางไม่รู้ว่าโครงเปลี่ยน | **ทำแล้ว** `schema_version` (ตอนนี้ `"4.0"`) |
 | ไม่มีบันทึกการตรวจทาน | ไม่มี audit trail ว่าใครแก้อะไร | **ยังไม่ทำ** แยกเป็นโครง `ReviewRecord` (หัวข้อ 4.5) ไม่ใส่ใน `ExtractionResult` |
@@ -431,7 +431,7 @@ flowchart LR
 ### U3: Schema (ทำแล้ว)
 
 `schema_version` 3.0: `FieldEvidence`/`field_evidence` (4.0 เขียนเป็น `review` แทน), `Decimal` สำหรับยอดเงิน, `book_no`, `not_applicable`, ฟิลด์ประจำชนิดเอกสาร (`document_profile`, `document_fields`),
-`remark` (เดิม `extra_fields`) และ `schemas/invoice.schema.json` generate ใหม่ ยังไม่ทำ: regex `book_no` ใน rules (ค่ามาจาก LLM เท่านั้น)
+`remark` (เดิม `extra_fields`) และ `schemas/invoice.schema.json` generate ใหม่ regex `book_no` ใน rules เพิ่มทีหลัง (ยังไม่ได้วัดกับสแกนจริง)
 
 ### U4: Escalation ไป VLM
 

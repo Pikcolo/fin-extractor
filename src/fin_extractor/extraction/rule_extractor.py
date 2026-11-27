@@ -279,6 +279,36 @@ def _find_invoice_no(lines: list[str]) -> str | None:
     return best[1] if best else None
 
 
+# เล่มที่ (บิลเล่ม) ค่าสั้นได้ ("เล่มที่ 5") จึงไม่บังคับความยาวขั้นต่ำเหมือนเลขที่เอกสาร แต่ต้องมีตัวเลข
+BOOK_NO_LABEL_RE = re.compile(r"เล่มที่|book\s*no\.?", re.I)
+BOOK_NO_VALUE_RE = re.compile(r"^[\s:/#.]*(?:no\.?)?[\s:#]*([A-Za-z0-9][A-Za-z0-9\-/]*)", re.I)
+
+
+def _find_book_no(lines: list[str]) -> str | None:
+    """เล่มที่จากป้าย ``เล่มที่`` / ``Book No.`` ค่าที่เจอก่อนชนะ อ่านได้สามแบบเหมือนเลขที่เอกสาร:
+    ค่าหลังป้ายในช่องเดียวกัน (``เล่มที่ 12 เลขที่ 0345``) · ช่องถัดไปในแถวเดียวกัน · ป้ายเป็นหัวตาราง ค่าอยู่ช่องเดียวกันของแถวถัดไป
+    สองแบบหลังใช้เมื่อหลังป้ายในช่องนั้นไม่มีตัวเลข (``เล่มที่ เลขที่ 345`` ไม่หยิบ 345 เป็นเล่มที่)."""
+    for i, line in enumerate(lines):
+        cells = line.split(" | ")
+        nxt = lines[i + 1].split(" | ") if i + 1 < len(lines) else []
+        for j, cell in enumerate(cells):
+            m = BOOK_NO_LABEL_RE.search(cell)
+            if not m:
+                continue
+            after = cell[m.end():]
+            val = _doc_no_value((BOOK_NO_VALUE_RE.match(after) or [None, None])[1])
+            bare = not re.search(r"\d", after)
+            if val is None and bare and j + 1 < len(cells) and not BOOK_NO_LABEL_RE.search(cells[j + 1]):
+                beside = BOOK_NO_VALUE_RE.match(cells[j + 1])
+                val = _doc_no_value(beside and beside.group(1))
+            if val is None and bare and len(nxt) == len(cells) > 1:
+                head = BOOK_NO_VALUE_RE.match(nxt[j])
+                val = _doc_no_value(head and head.group(1))
+            if val is not None:
+                return val
+    return None
+
+
 def _clean_company_name(line: str) -> str:
     return re.sub(r"^(?:ผู้ขาย|vendor|seller|from)\s*[:/]?\s*", "", line, flags=re.I).strip()
 
@@ -349,6 +379,7 @@ def extract_fields(lines: list[str], raw: str | None = None) -> InvoiceData:
                     data.vat_rate = Decimal(p.group(1)) / 100
 
     data.invoice_no = _find_invoice_no(lines)
+    data.book_no = _find_book_no(lines)
     data.date = data.date or parse_date(full_text)
     if data.total_amount is None and data.vat_amount is None and data.discount is None:
         data.total_amount = data.subtotal  # เอกสารที่มีแค่ "รวม/Total" บรรทัดเดียว

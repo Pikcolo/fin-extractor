@@ -179,3 +179,19 @@ def test_address_is_left_empty_when_the_name_line_above_matches_no_party():
     assign_addresses(["ชื่อ บริษัท อิมพอร์ต สตาร์ จำกัด", "ที่อยู่:... (ให้ระบุ ชื่ออาคาร/หมู่บ้าน ห้องเลขที่ 1)"], d2)
     assert d2.vendor.address is None
 
+
+
+def test_book_no_from_label():
+    assert extract_fields(["ใบกำกับภาษี", "เล่มที่ 12 เลขที่ 0345"]).book_no == "12"
+    assert extract_fields(["Book No. : 7 | Invoice No. : INV-0345"]).book_no == "7"
+    assert extract_fields(["เล่มที่ | 5 | เลขที่ | 0345"]).book_no == "5"  # ค่าอยู่ช่องถัดไป
+    assert extract_fields(["เล่มที่ | เลขที่", "5 | 0345"]).book_no == "5"  # ป้ายเป็นหัวตาราง
+    d = extract_fields(["เล่มที่ 12 เลขที่ 0345"])
+    assert d.invoice_no == "0345"  # เล่มที่ไม่ทำให้เลขที่เอกสารเพี้ยน
+
+
+def test_book_no_not_guessed():
+    assert extract_fields(["เล่มที่ เลขที่ 0345"]).book_no is None  # ช่องเล่มที่ว่าง ไม่หยิบเลขที่มาแทน
+    assert extract_fields(["เล่มที่ 01/02/2566"]).book_no is None  # วันที่ ไม่ใช่เล่มที่
+    assert extract_fields(BITKUB_LINES).book_no is None
+
